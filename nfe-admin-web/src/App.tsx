@@ -2,12 +2,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 
 import Dashboard from './pages/Dashboard/Dashboard';
-
-// Placeholder Pages
-const Students = () => <div style={{ padding: 20 }}>学生管理页面（开发中...）</div>;
-const Housing = () => <div style={{ padding: 20 }}>住宿管理页面（开发中...）</div>;
-const Transport = () => <div style={{ padding: 20 }}>接送管理页面（开发中...）</div>;
-const Academic = () => <div style={{ padding: 20 }}>学业跟进页面（开发中...）</div>;
+import StudentList from './pages/Students/StudentList';
+import HousingManagement from './pages/Housing/HousingManagement';
+import TransportManagement from './pages/Transport/TransportManagement';
+import AcademicTrack from './pages/Academic/AcademicTrack';
 
 export default function App() {
   return (
@@ -17,10 +15,10 @@ export default function App() {
         <Route index element={<Dashboard />} />
         
         {/* 其他核心页面 */}
-        <Route path="students" element={<Students />} />
-        <Route path="housing" element={<Housing />} />
-        <Route path="transport" element={<Transport />} />
-        <Route path="academic" element={<Academic />} />
+        <Route path="students" element={<StudentList />} />
+        <Route path="housing" element={<HousingManagement />} />
+        <Route path="transport" element={<TransportManagement />} />
+        <Route path="academic" element={<AcademicTrack />} />
 
         {/* 404 跳转兜底 */}
         <Route path="*" element={<Navigate to="/" replace />} />
