@@ -77,7 +77,9 @@ export default function MainLayout() {
           <div className="nav-item"><IconSchool stroke={1.5} />升学规划</div>
           <div className="nav-item"><IconCertificate stroke={1.5} />签证/保险/文件</div>
           <div className="nav-item"><IconMessage2 stroke={1.5} />家校沟通</div>
-          <div className="nav-item"><IconAlertTriangle stroke={1.5} />风险预警</div>
+          <NavLink to="/risk" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconAlertTriangle stroke={1.5} />风险预警
+          </NavLink>
           <div className="nav-item"><IconCurrencyDollar stroke={1.5} />财务/付款</div>
           <div className="nav-item"><IconReport stroke={1.5} />报告生成</div>
           <div className="nav-item"><IconSpeakerphone stroke={1.5} />通知管理</div>

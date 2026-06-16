@@ -7,6 +7,7 @@ import StudentDetail from './pages/Students/StudentDetail';
 import HousingManagement from './pages/Housing/HousingManagement';
 import TransportManagement from './pages/Transport/TransportManagement';
 import AcademicTrack from './pages/Academic/AcademicTrack';
+import RiskAlerts from './pages/Risk/RiskAlerts';
 import Login from './pages/Auth/Login';
 import RequireAuth from './components/RequireAuth';
 import { useAuthStore } from './store/useAuthStore';
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="housing" element={<HousingManagement />} />
         <Route path="transport" element={<TransportManagement />} />
         <Route path="academic" element={<AcademicTrack />} />
+        <Route path="risk" element={<RiskAlerts />} />
 
         {/* 404 跳转兜底 */}
         <Route path="*" element={<Navigate to="/" replace />} />
