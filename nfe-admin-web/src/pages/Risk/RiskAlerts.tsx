@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
   IconAlertCircle, IconAlertTriangle, IconChartLine,
-  IconLoader2, IconShieldX, IconUser
+  IconLoader2, IconShieldX, IconUser, IconCheck, IconX
 } from '@tabler/icons-react';
 import type { StudentInfo } from '../../types/database';
+import { useRiskStore } from '../../store/useRiskStore';
+import WarningLetterModal from './WarningLetterModal';
 
 type RiskStudent = StudentInfo & {
   profiles?: { full_name: string; phone: string | null } | Array<{ full_name: string; phone: string | null }>;
@@ -25,49 +27,56 @@ interface RiskChangeLog {
 
 export default function RiskAlerts() {
   const navigate = useNavigate();
+  
+  // Local state for dashboard
   const [redStudents, setRedStudents] = useState<RiskStudent[]>([]);
   const [yellowStudents, setYellowStudents] = useState<RiskStudent[]>([]);
   const [greenCount, setGreenCount] = useState(0);
   const [changeLogs, setChangeLogs] = useState<RiskChangeLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
+  // Store state for warning letters
+  const { pendingWarnings, fetchPendingWarnings, issueWarning, approveWarning, isLoading: isStoreLoading } = useRiskStore();
 
-      // Fetch red students
-      const { data: red } = await supabase
-        .from('students_info')
-        .select('*, profiles(*), student_enrollments(status, programs(name))')
-        .eq('risk_level', 'red');
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<{ id: string; name: string; score: number } | null>(null);
 
-      // Fetch yellow students
-      const { data: yellow } = await supabase
-        .from('students_info')
-        .select('*, profiles(*), student_enrollments(status, programs(name))')
-        .eq('risk_level', 'yellow');
+  const fetchDashboardData = useCallback(async () => {
+    setIsLoading(true);
 
-      // Fetch green count
-      const { count: greenCnt } = await supabase
-        .from('students_info')
-        .select('*', { count: 'exact', head: true })
-        .eq('risk_level', 'green');
+    const { data: red } = await supabase
+      .from('students_info')
+      .select('*, profiles(*), student_enrollments(status, programs(name))')
+      .eq('risk_level', 'red');
 
-      // Fetch risk change logs
-      const { data: logs } = await supabase
-        .from('log_risk_changes')
-        .select('*, profiles!log_risk_changes_changed_by_fkey(full_name)')
-        .order('created_at', { ascending: false })
-        .limit(10);
+    const { data: yellow } = await supabase
+      .from('students_info')
+      .select('*, profiles(*), student_enrollments(status, programs(name))')
+      .eq('risk_level', 'yellow');
 
-      setRedStudents((red as RiskStudent[]) || []);
-      setYellowStudents((yellow as RiskStudent[]) || []);
-      setGreenCount(greenCnt || 0);
-      setChangeLogs((logs as RiskChangeLog[]) || []);
-      setIsLoading(false);
-    }
-    fetchData();
+    const { count: greenCnt } = await supabase
+      .from('students_info')
+      .select('*', { count: 'exact', head: true })
+      .eq('risk_level', 'green');
+
+    const { data: logs } = await supabase
+      .from('log_risk_changes')
+      .select('*, profiles!log_risk_changes_changed_by_fkey(full_name)')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    setRedStudents((red as RiskStudent[]) || []);
+    setYellowStudents((yellow as RiskStudent[]) || []);
+    setGreenCount(greenCnt || 0);
+    setChangeLogs((logs as RiskChangeLog[]) || []);
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+    fetchPendingWarnings();
+  }, [fetchDashboardData, fetchPendingWarnings]);
 
   const getRiskPill = (from: string, to: string) => {
     const arrow = `${from === 'green' ? '🟢' : from === 'yellow' ? '🟡' : '🔴'} → ${to === 'green' ? '🟢' : to === 'yellow' ? '🟡' : '🔴'}`;
@@ -84,7 +93,37 @@ export default function RiskAlerts() {
     return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
   };
 
-  if (isLoading) {
+  const handleOpenWarningModal = (student: RiskStudent) => {
+    const profile = Array.isArray(student.profiles) ? student.profiles[0] : student.profiles;
+    setSelectedStudent({
+      id: student.student_id,
+      name: profile?.full_name || '未知',
+      score: student.total_risk_score
+    });
+    setModalOpen(true);
+  };
+
+  const handleApprove = async (warning: any) => {
+    if (window.confirm(`确定批准发给 ${warning.students_info?.profiles?.full_name} 的 ${warning.warning_level} 级警告信吗？`)) {
+      // Logic for new level and score deduction based on warning level
+      let newLevel = 'yellow';
+      let deduction = 10;
+      if (warning.warning_level >= 2) {
+        newLevel = 'red';
+        deduction = 20;
+      }
+      
+      const success = await approveWarning(warning.id, warning.student_id, newLevel, deduction);
+      if (success) {
+        alert('审批成功！已下发警告并更新风险分。');
+        fetchDashboardData(); // Refresh dashboard data to show new score/level
+      } else {
+        alert('审批失败，请重试。');
+      }
+    }
+  };
+
+  if (isLoading && !redStudents.length) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
         <IconLoader2 className="spinner" size={32} style={{ color: 'var(--color-primary)' }} />
@@ -96,6 +135,39 @@ export default function RiskAlerts() {
 
   return (
     <>
+      {/* 待审批警告信区域 */}
+      {pendingWarnings.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, border: '1px solid #EF9F27' }}>
+          <div className="card-title" style={{ color: '#854F0B' }}>
+            <IconAlertTriangle size={18} /> 待审批警告信 ({pendingWarnings.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {pendingWarnings.map((w: any) => (
+              <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: 'var(--color-bg-secondary)', borderRadius: 6 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600 }}>{w.students_info?.profiles?.full_name || '未知学生'}</span>
+                    <span className="pill p-red">{w.warning_level} 级警告</span>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>发起人: {w.profiles?.full_name || '未知'}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                    佐证内容: {w.evidence_content}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-primary" onClick={() => handleApprove(w)} disabled={isStoreLoading}>
+                    <IconCheck size={16} style={{ marginRight: 4 }} /> 批准下发
+                  </button>
+                  <button className="btn" disabled={isStoreLoading}>
+                    <IconX size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 统计卡片 */}
       <div className="g4" style={{ marginBottom: 14 }}>
         <div className="stat-card">
@@ -154,7 +226,7 @@ export default function RiskAlerts() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                     <span className="link" onClick={() => navigate(`/students/${s.student_id}`)}>查看档案</span>
-                    <button className="btn" style={{ padding: '3px 10px', fontSize: 11, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+                    <button className="btn" onClick={() => handleOpenWarningModal(s)} style={{ padding: '3px 10px', fontSize: 11, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
                       触发三步走警告
                     </button>
                   </div>
@@ -193,7 +265,7 @@ export default function RiskAlerts() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                     <span className="link" onClick={() => navigate(`/students/${s.student_id}`)}>查看档案</span>
-                    <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }}>覆盖等级</button>
+                    <button className="btn" onClick={() => handleOpenWarningModal(s)} style={{ padding: '3px 10px', fontSize: 11 }}>触发警告</button>
                   </div>
                 </div>
               );
@@ -242,6 +314,25 @@ export default function RiskAlerts() {
           })}
         </div>
       </div>
+
+      {/* 模态框 */}
+      {selectedStudent && (
+        <WarningLetterModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          studentId={selectedStudent.id}
+          studentName={selectedStudent.name}
+          currentScore={selectedStudent.score}
+          onSubmit={async (level, evidence) => {
+            const success = await issueWarning(selectedStudent.id, level, evidence);
+            if (success) {
+              alert('警告审批请求已提交');
+            } else {
+              throw new Error('提交失败');
+            }
+          }}
+        />
+      )}
     </>
   );
 }
