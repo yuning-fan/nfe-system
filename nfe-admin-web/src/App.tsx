@@ -3,6 +3,7 @@ import MainLayout from './layouts/MainLayout';
 
 import Dashboard from './pages/Dashboard/Dashboard';
 import StudentList from './pages/Students/StudentList';
+import StudentDetail from './pages/Students/StudentDetail';
 import HousingManagement from './pages/Housing/HousingManagement';
 import TransportManagement from './pages/Transport/TransportManagement';
 import AcademicTrack from './pages/Academic/AcademicTrack';
@@ -16,6 +17,7 @@ export default function App() {
         
         {/* 其他核心页面 */}
         <Route path="students" element={<StudentList />} />
+        <Route path="students/:id" element={<StudentDetail />} />
         <Route path="housing" element={<HousingManagement />} />
         <Route path="transport" element={<TransportManagement />} />
         <Route path="academic" element={<AcademicTrack />} />
