@@ -1,12 +1,46 @@
-import { useState } from 'react';
-import { IconCalendarEvent, IconClock, IconTarget, IconClipboardCheck, IconWallet, IconList, IconReport } from '@tabler/icons-react';
+import { useState, useEffect } from 'react';
+import { 
+  IconBook, IconPlus, IconX, IconLoader2 
+} from '@tabler/icons-react';
+import { useAcademicStore } from '../../store/useAcademicStore';
+import EnrollmentModal from './EnrollmentModal';
 
 export default function AcademicTrack() {
-  const [activeTab, setActiveTab] = useState('schedule');
+  const [activeTab, setActiveTab] = useState('enrollment');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState('');
+
+  const { 
+    enrollments, selections, timetable, programSubjects, isLoading,
+    fetchProgramsAndSubjects, fetchEnrollments, fetchTimetable,
+    addElective, removeElective, generateTimetable
+  } = useAcademicStore();
+
+  useEffect(() => {
+    fetchProgramsAndSubjects();
+    fetchEnrollments();
+    fetchTimetable();
+  }, [fetchProgramsAndSubjects, fetchEnrollments, fetchTimetable]);
+
+  const handleAddElective = async (enrollmentId: number) => {
+    if (!selectedSubject) return;
+    const success = await addElective(enrollmentId, parseInt(selectedSubject));
+    if (success) {
+      setSelectedSubject('');
+    }
+  };
+
+  const handleGenerateTimetable = async (enrollmentId: number) => {
+    if (window.confirm('重新生成课表将覆盖已有课表，确认生成吗？')) {
+      const success = await generateTimetable(enrollmentId);
+      if (success) alert('课表生成成功！');
+    }
+  };
 
   return (
     <>
       <div className="tab-bar">
+        <div className={`tab ${activeTab === 'enrollment' ? 'active' : ''}`} onClick={() => setActiveTab('enrollment')}>选课与排表</div>
         <div className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>辅导课表排期</div>
         <div className={`tab ${activeTab === 'approval' ? 'active' : ''}`} onClick={() => setActiveTab('approval')}>排课审批 (3)</div>
         <div className={`tab ${activeTab === 'hours' ? 'active' : ''}`} onClick={() => setActiveTab('hours')}>课时管理</div>
@@ -14,193 +48,145 @@ export default function AcademicTrack() {
         <div className={`tab ${activeTab === 'milestones' ? 'active' : ''}`} onClick={() => setActiveTab('milestones')}>学业里程碑</div>
       </div>
 
+      {activeTab === 'enrollment' && (
+        <div className="tabpage active">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div>
+              <h2 style={{ fontSize: 18, marginBottom: 4 }}><IconBook size={20} style={{ verticalAlign: 'middle', marginRight: 8 }} /> 教务选课与建档</h2>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>为新生建立项目档案，配置必修与选修科目，并一键生成基础课表</p>
+            </div>
+            <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+              <IconPlus size={16} style={{ marginRight: 4 }} /> 新建学生报名档案
+            </button>
+          </div>
+
+          {isLoading && enrollments.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center' }}><IconLoader2 className="spinner" size={24} /></div>
+          ) : (
+            <div className="g1">
+              {enrollments.map(enrollment => {
+                const enrollmentSelections = selections.filter(s => s.enrollment_id === enrollment.id);
+                const coreSubjects = enrollmentSelections.filter(s => s.selection_type === 'core');
+                const electiveSubjects = enrollmentSelections.filter(s => s.selection_type === 'elective');
+                const availableElectives = programSubjects.filter(
+                  ps => ps.subject_category === 'elective' && !enrollmentSelections.find(s => s.program_subject_id === ps.id)
+                );
+
+                const hasTimetable = timetable.some(t => t.enrollment_id === enrollment.id);
+
+                return (
+                  <div key={enrollment.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border-tertiary)', paddingBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div className="avatar-xs av-blue">{enrollment.profiles?.full_name?.charAt(0) || '?'}</div>
+                        <span style={{ fontSize: 16, fontWeight: 600 }}>{enrollment.profiles?.full_name}</span>
+                        <span className="pill p-gray">{enrollment.programs?.name}</span>
+                        <span className="pill p-green">状态: {enrollment.status}</span>
+                      </div>
+                      <button className="btn btn-primary" onClick={() => handleGenerateTimetable(enrollment.id)}>
+                        {hasTimetable ? '重新生成奥大课表' : '一键生成奥大课表'}
+                      </button>
+                    </div>
+
+                    <div className="g2">
+                      <div style={{ background: 'var(--color-bg-secondary)', padding: 12, borderRadius: 8 }}>
+                        <div style={{ fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>必修课 (系统自动分配)</div>
+                        {coreSubjects.map(s => (
+                          <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                            <span>{s.program_subjects?.subject_name}</span>
+                            <span style={{ color: 'var(--color-text-tertiary)' }}>{s.program_subjects?.hours_per_week} 课时/周</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ background: 'var(--color-bg-secondary)', padding: 12, borderRadius: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontWeight: 500, color: 'var(--color-text-secondary)' }}>选修课 ({electiveSubjects.length}/4)</span>
+                        </div>
+                        {electiveSubjects.map(s => (
+                          <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontSize: 13 }}>
+                            <span>{s.program_subjects?.subject_name}</span>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <span style={{ color: 'var(--color-text-tertiary)' }}>{s.program_subjects?.hours_per_week} 课时/周</span>
+                              <IconX size={14} style={{ cursor: 'pointer', color: 'var(--color-danger)' }} onClick={() => removeElective(s.id)} />
+                            </div>
+                          </div>
+                        ))}
+                        {electiveSubjects.length < 4 && availableElectives.length > 0 && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                            <select 
+                              className="btn" 
+                              style={{ flex: 1, textAlign: 'left', padding: '4px 8px', fontSize: 12 }}
+                              value={selectedSubject}
+                              onChange={e => setSelectedSubject(e.target.value)}
+                            >
+                              <option value="">-- 选择选修课 --</option>
+                              {availableElectives.map(subj => (
+                                <option key={subj.id} value={subj.id}>{subj.subject_name}</option>
+                              ))}
+                            </select>
+                            <button className="btn btn-primary" style={{ padding: '4px 8px', minHeight: 0 }} onClick={() => handleAddElective(enrollment.id)}>
+                              添加
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Timetable visualizer */}
+                    {hasTimetable && (
+                      <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border-tertiary)', paddingTop: 16 }}>
+                        <div style={{ fontWeight: 500, marginBottom: 12 }}>生成的奥大周课表</div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {[1,2,3,4,5].map(day => {
+                            const dayName = ['周一', '周二', '周三', '周四', '周五'][day - 1];
+                            const dayClasses = timetable.filter(t => t.enrollment_id === enrollment.id && t.day_of_week === day).sort((a,b) => a.start_time.localeCompare(b.start_time));
+                            return (
+                              <div key={day} style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 6, padding: 8, background: 'var(--color-bg-secondary)' }}>
+                                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{dayName}</div>
+                                {dayClasses.length === 0 ? (
+                                  <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-tertiary)' }}>无排课</div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {dayClasses.map(c => (
+                                      <div key={c.id} style={{ background: 'var(--color-bg)', borderLeft: '3px solid var(--color-primary)', padding: '6px 8px', borderRadius: 4, fontSize: 11 }}>
+                                        <div style={{ fontWeight: 500, marginBottom: 2 }}>{c.program_subjects?.subject_name}</div>
+                                        <div style={{ color: 'var(--color-text-secondary)' }}>{c.start_time.slice(0,5)} - {c.end_time.slice(0,5)}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {enrollments.length === 0 && (
+                <div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-tertiary)' }}>
+                  <IconBook size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
+                  <div>还没有任何学生报名档案</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Other tabs placeholder */}
       {activeTab === 'schedule' && (
         <div className="tabpage active">
-          <div className="g2" style={{ alignItems: 'start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div className="card">
-                <div className="card-title"><IconCalendarEvent stroke={1.5} />今日辅导课程 (2026-06-05)</div>
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th>时间</th>
-                      <th>学生</th>
-                      <th>科目</th>
-                      <th>老师</th>
-                      <th>状态</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>16:00-18:00</td>
-                      <td>林思远</td>
-                      <td>NCEA 数学</td>
-                      <td>方老师</td>
-                      <td><span className="pill p-green">进行中</span></td>
-                    </tr>
-                    <tr>
-                      <td>17:30-19:00</td>
-                      <td>李雨晴</td>
-                      <td>IELTS 写作</td>
-                      <td>何老师</td>
-                      <td><span className="pill p-blue">未开始</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="card">
-                <div className="card-title">
-                  <IconClock stroke={1.5} />待确认上课记录
-                  <span className="pill p-amber" style={{ marginLeft: 'auto' }}>3条待处理</span>
-                </div>
-                <div className="risk-row">
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, marginBottom: 2 }}>林思远 · 数学 · 周三</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>方老师已填写反馈，待确认扣减2课时</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>确认</button>
-                    <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }}>查看</button>
-                  </div>
-                </div>
-                <div className="risk-row" style={{ borderBottom: 'none' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, marginBottom: 2 }}>李雨晴 · 英语写作 · 周三</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>何老师已填写反馈，待确认扣减1.5课时</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>确认</button>
-                    <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }}>查看</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-title"><IconTarget stroke={1.5} />成绩对比视图 — 林思远（距目标差距）</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span>数学（目标 85）</span><span style={{ color: '#A32D2D' }}>当前 58 · 差27分</span>
-                  </div>
-                  <div className="prog-bar"><div className="prog-fill" style={{ width: '68%', background: '#E24B4A' }}></div></div>
-                </div>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span>英语（目标 80）</span><span style={{ color: '#3B6D11' }}>当前 76 · 差4分</span>
-                  </div>
-                  <div className="prog-bar"><div className="prog-fill" style={{ width: '95%', background: '#639922' }}></div></div>
-                </div>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span>物理（目标 80）</span><span style={{ color: '#854F0B' }}>当前 68 · 差12分</span>
-                  </div>
-                  <div className="prog-bar"><div className="prog-fill" style={{ width: '85%', background: '#EF9F27' }}></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'approval' && (
-        <div className="tabpage active">
           <div className="card">
-            <div className="card-title"><IconClipboardCheck stroke={1.5} />待审批排课请求</div>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>提交时间</th>
-                  <th>学生</th>
-                  <th>科目</th>
-                  <th>辅导老师</th>
-                  <th>建议上课时间</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>06-05 09:30</td>
-                  <td>林思远</td>
-                  <td>物理（加课）</td>
-                  <td>方老师</td>
-                  <td>周四 18:00 - 20:00</td>
-                  <td><span className="pill p-amber">待教务审批</span></td>
-                  <td><span className="link">通过</span> | <span className="link" style={{ color: 'var(--color-danger)' }}>驳回</span></td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="card-title">辅导排期 (原型占位)</div>
+            <div style={{ color: 'var(--color-text-secondary)' }}>请切换到【选课与排表】标签页查看 P3 进度功能。</div>
           </div>
         </div>
       )}
 
-      {activeTab === 'hours' && (
-        <div className="tabpage active">
-          <div className="g2" style={{ alignItems: 'start' }}>
-            <div className="card">
-              <div className="card-title"><IconWallet stroke={1.5} />课时余额预警（不足10小时）</div>
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>学生</th>
-                    <th>课程/套餐</th>
-                    <th>剩余课时</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>张晓明</td>
-                    <td>NCEA 物理冲刺</td>
-                    <td><span style={{ color: 'var(--color-danger)', fontWeight: 600 }}>2.0</span></td>
-                    <td><span className="link">充值</span></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="card">
-              <div className="card-title"><IconList stroke={1.5} />近期课时扣减明细</div>
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>日期</th>
-                    <th>学生</th>
-                    <th>扣减</th>
-                    <th>余额</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>06-05</td>
-                    <td>林思远</td>
-                    <td><span style={{ color: 'var(--color-danger)' }}>-2.0</span></td>
-                    <td>28.0</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'grades' && (
-        <div className="tabpage active">
-          <div className="card">
-            <div className="card-title"><IconReport stroke={1.5} />成绩管理</div>
-            <div style={{ padding: 20 }}>成绩系统开发中...</div>
-          </div>
-        </div>
-      )}
-      
-      {activeTab === 'milestones' && (
-        <div className="tabpage active">
-          <div className="card">
-            <div className="card-title"><IconReport stroke={1.5} />学业里程碑</div>
-            <div style={{ padding: 20 }}>里程碑系统开发中...</div>
-          </div>
-        </div>
-      )}
+      <EnrollmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </>
   );
 }
