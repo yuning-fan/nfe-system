@@ -55,7 +55,10 @@ export interface StudentInfo {
   
   // Relations mapped by Supabase query
   profiles?: Profile;
-  student_enrollments?: StudentEnrollment;
+  student_enrollments?: StudentEnrollment | StudentEnrollment[];
+  dorm_assignments?: any[];
+  warning_letters?: any[];
+  school_timetable?: any[];
 }
 
 // Database schema definition for Supabase client

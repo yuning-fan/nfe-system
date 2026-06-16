@@ -208,13 +208,96 @@ export default function StudentDetail() {
         )}
 
         {/* Placeholders for other tabs */}
-        {['academic', 'life', 'comms'].includes(activeTab) && (
+        {/* Tab Content: Academic */}
+        {activeTab === 'academic' && (
+          <div className="tabpage active">
+            <div className="g1">
+              <div className="card">
+                <div className="card-title">奥大选修课与课表</div>
+                {student.school_timetable && student.school_timetable.length > 0 ? (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    {[1, 2, 3, 4, 5].map(day => {
+                      const dayName = ['周一', '周二', '周三', '周四', '周五'][day - 1];
+                      const dayClasses = student.school_timetable.filter((t: any) => t.day_of_week === day).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
+                      return (
+                        <div key={day} style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 6, padding: 8, background: 'var(--color-bg-secondary)' }}>
+                          <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{dayName}</div>
+                          {dayClasses.length === 0 ? (
+                            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-tertiary)' }}>无排课</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {dayClasses.map((c: any) => (
+                                <div key={c.id} style={{ background: 'var(--color-bg)', borderLeft: '3px solid var(--color-primary)', padding: '6px 8px', borderRadius: 4, fontSize: 11 }}>
+                                  <div style={{ fontWeight: 500, marginBottom: 2 }}>{c.program_subjects?.subject_name}</div>
+                                  <div style={{ color: 'var(--color-text-secondary)' }}>{c.start_time.slice(0, 5)} - {c.end_time.slice(0, 5)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', padding: '20px 0', textAlign: 'center' }}>暂无排课记录</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Content: Life */}
+        {activeTab === 'life' && (
+          <div className="tabpage active">
+            <div className="g2" style={{ alignItems: 'start' }}>
+              <div className="card">
+                <div className="card-title">住宿安排</div>
+                {student.dorm_assignments && student.dorm_assignments.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {student.dorm_assignments.map((da: any) => (
+                      <div key={da.id} style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                        <div style={{ fontWeight: 500, marginBottom: 4 }}>{da.dorms?.building_name}</div>
+                        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>房间号: {da.dorms?.room_number}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 8 }}>入离时间: {da.start_date} 至 {da.end_date || '至今'}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>暂无住宿记录</div>
+                )}
+              </div>
+              
+              <div className="card">
+                <div className="card-title">风险警告信记录</div>
+                {student.warning_letters && student.warning_letters.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {student.warning_letters.map((wl: any) => (
+                      <div key={wl.id} style={{ padding: 12, border: '1px solid var(--color-border)', borderLeft: '4px solid var(--color-danger)', borderRadius: 8, background: 'var(--color-bg-secondary)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontWeight: 500 }}>级别 {wl.warning_level} 警告信</span>
+                          <span className="pill p-amber">{wl.status}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{wl.evidence_content}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>下发日期: {new Date(wl.created_at).toLocaleDateString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>该生表现良好，无警告记录</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Placeholders for other tabs */}
+        {['comms'].includes(activeTab) && (
           <div className="tabpage active">
             <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
               <IconFileText size={48} style={{ color: 'var(--color-border-hover)', marginBottom: 16 }} />
               <h3 style={{ color: 'var(--color-text-secondary)' }}>模块开发中</h3>
               <p style={{ color: 'var(--color-text-tertiary)', fontSize: 13, marginTop: 8 }}>
-                此模块将在 MVP 后续阶段 (Phase 3) 接入真实业务流数据。
+                沟通记录等周边模块将在后续接入。
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDailyCheckStore } from '../../store/useDailyCheckStore';
 import { IconBuilding, IconCheck, IconX, IconMoonStars } from '@tabler/icons-react';
+import { message } from 'antd';
 
 export default function DormCheck() {
   const { dormStudents, loadDormStudents, submitDormChecks, isLoading } = useDailyCheckStore();
@@ -44,9 +45,9 @@ export default function DormCheck() {
     
     const success = await submitDormChecks(records);
     if (success) {
-      alert('查寝打卡成功提交！');
+      message.success('查寝打卡成功提交！');
     } else {
-      alert('提交失败，请重试');
+      message.error('提交失败，请重试');
     }
   };
 

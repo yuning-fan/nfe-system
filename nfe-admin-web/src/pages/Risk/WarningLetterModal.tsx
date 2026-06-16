@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { IconX, IconAlertTriangle, IconLoader2 } from '@tabler/icons-react';
+import { message } from 'antd';
 
 interface WarningLetterModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export default function WarningLetterModal({
 
   const handleSubmit = async () => {
     if (!evidence.trim()) {
-      alert('请填写违规事项及佐证');
+      message.warning('请填写违规事项及佐证');
       return;
     }
     
@@ -36,9 +37,9 @@ export default function WarningLetterModal({
       onClose();
       setEvidence('');
       setLevel(1);
-    } catch (err) {
-      console.error(err);
-      alert('提交失败');
+    } catch (error: any) {
+      console.error(error);
+      message.error(error.message || '提交失败');
     } finally {
       setIsSubmitting(false);
     }

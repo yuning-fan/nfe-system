@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { IconPlus, IconHistory, IconLoader2, IconHome, IconUser } from '@tabler/icons-react';
+import { IconPlus, IconHistory, IconLoader2, IconHome, IconUser, IconLogout } from '@tabler/icons-react';
+import { message, Modal } from 'antd';
+import HousingAssignmentModal from './HousingAssignmentModal';
 
 interface DormRoom {
   id: number;
@@ -53,26 +55,28 @@ export default function HousingManagement() {
   const [assignments, setAssignments] = useState<DormAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBuilding, setSelectedBuilding] = useState('');
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+
+    const { data: dormData } = await supabase
+      .from('dorms')
+      .select('*')
+      .order('building_name')
+      .order('room_number');
+
+    const { data: assignData } = await supabase
+      .from('dorm_assignments')
+      .select('*, profiles(full_name)')
+      .eq('is_active', true);
+
+    setRooms((dormData as DormRoom[]) || []);
+    setAssignments((assignData as DormAssignment[]) || []);
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-
-      const { data: dormData } = await supabase
-        .from('dorms')
-        .select('*')
-        .order('building_name')
-        .order('room_number');
-
-      const { data: assignData } = await supabase
-        .from('dorm_assignments')
-        .select('*, profiles(full_name)')
-        .eq('is_active', true);
-
-      setRooms((dormData as DormRoom[]) || []);
-      setAssignments((assignData as DormAssignment[]) || []);
-      setIsLoading(false);
-    }
     fetchData();
   }, []);
 
@@ -97,6 +101,33 @@ export default function HousingManagement() {
   const occupiedRooms = rooms.filter((r) => r.room_status === 'occupied').length;
   const vacantRooms = rooms.filter((r) => r.room_status === 'vacant').length;
   const totalResidents = assignments.length;
+
+  const handleCheckout = (assignment: DormAssignment) => {
+    Modal.confirm({
+      title: '办理退房',
+      content: `确认将 ${assignment.profiles?.full_name || '该生'} 从当前房间办理退房并结束住宿吗？`,
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        const { error } = await (supabase.from('dorm_assignments') as any)
+          .update({ is_active: false, end_date: new Date().toISOString().split('T')[0] })
+          .eq('id', assignment.id);
+          
+        if (error) {
+          message.error('退房办理失败');
+          return;
+        }
+        
+        // Also update room status to vacant if no other occupants
+        const roomOccupants = assignments.filter(a => a.dorm_id === assignment.dorm_id && a.id !== assignment.id);
+        if (roomOccupants.length === 0) {
+          await (supabase.from('dorms') as any).update({ room_status: 'vacant' }).eq('id', assignment.dorm_id);
+        }
+        
+        message.success('已成功办理退房');
+        fetchData();
+      }
+    });
+  };
 
   return (
     <>
@@ -145,7 +176,7 @@ export default function HousingManagement() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn"><IconHistory size={14} style={{ marginRight: 4 }} />历史记录</button>
-          <button className="btn btn-primary"><IconPlus size={14} style={{ marginRight: 4 }} />分配房间</button>
+          <button className="btn btn-primary" onClick={() => setIsAssignModalOpen(true)}><IconPlus size={14} style={{ marginRight: 4 }} />分配房间</button>
         </div>
       </div>
 
@@ -190,11 +221,21 @@ export default function HousingManagement() {
                     {occupants.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {occupants.map((a) => (
-                          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <IconUser size={11} style={{ color: cfg.textColor, flexShrink: 0 }} />
-                            <span className="room-name" style={{ color: cfg.textColor, fontWeight: 500, fontSize: 12 }}>
-                              {a.profiles?.full_name || '—'}
-                            </span>
+                          <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <IconUser size={11} style={{ color: cfg.textColor, flexShrink: 0 }} />
+                              <span className="room-name" style={{ color: cfg.textColor, fontWeight: 500, fontSize: 12 }}>
+                                {a.profiles?.full_name || '—'}
+                              </span>
+                            </div>
+                            <button 
+                              className="btn" 
+                              style={{ padding: '2px 4px', minHeight: 0, height: 20, fontSize: 10, background: 'transparent', border: 'none' }}
+                              onClick={() => handleCheckout(a)}
+                              title="办理退房"
+                            >
+                              <IconLogout size={12} color="var(--color-danger)" />
+                            </button>
                           </div>
                         ))}
                         <div className="room-date" style={{ marginTop: 2 }}>
@@ -233,6 +274,13 @@ export default function HousingManagement() {
           </div>
         );
       })}
+      {/* Assignment Modal */}
+      <HousingAssignmentModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        onSuccess={fetchData}
+        availableRooms={rooms.filter(r => r.room_status === 'vacant' || (r.room_status === 'occupied' && getAssignments(r.id).length < r.capacity))}
+      />
     </>
   );
 }

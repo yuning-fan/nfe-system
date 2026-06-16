@@ -58,8 +58,10 @@ export default function StudentList() {
       (student.student_id ?? '').toLowerCase().includes(lower) ||
       (student.school_name ?? '').toLowerCase().includes(lower);
 
+    const enrollmentArray = Array.isArray(student.student_enrollments) ? student.student_enrollments : (student.student_enrollments ? [student.student_enrollments] : []);
+    const enrollmentObj = enrollmentArray[0];
     const statusMatch = statusFilter
-      ? (student.student_enrollments?.status ?? '') === statusFilter
+      ? (enrollmentObj?.status ?? '') === statusFilter
       : true;
     const riskMatch = riskFilter
       ? student.risk_level === riskFilter
@@ -142,10 +144,12 @@ export default function StudentList() {
                 </tr>
               ) : (
                 filteredStudents.map((student, index) => {
-                  const profile = student.profiles;
-                  const enrollment = student.student_enrollments;
-                  const program = enrollment?.programs;
-                  
+                  const profileArray = Array.isArray(student.profiles) ? student.profiles : (student.profiles ? [student.profiles] : []);
+                  const profile = profileArray[0];
+                  const enrollmentArray = Array.isArray(student.student_enrollments) ? student.student_enrollments : (student.student_enrollments ? [student.student_enrollments] : []);
+                  const enrollment = enrollmentArray[0];
+                  const programArray = Array.isArray(enrollment?.programs) ? enrollment.programs : (enrollment?.programs ? [enrollment.programs] : []);
+                  const program = programArray[0];
                   // Formulate display ID like NFE-001 based on index for demo, or slice UUID
                   const displayId = `NFE-${String(index + 1).padStart(3, '0')}`;
                   

@@ -5,6 +5,7 @@ import {
   IconAlertCircle, IconAlertTriangle, IconChartLine,
   IconLoader2, IconShieldX, IconUser, IconCheck, IconX
 } from '@tabler/icons-react';
+import { message, Modal } from 'antd';
 import type { StudentInfo } from '../../types/database';
 import { useRiskStore } from '../../store/useRiskStore';
 import WarningLetterModal from './WarningLetterModal';
@@ -104,23 +105,20 @@ export default function RiskAlerts() {
   };
 
   const handleApprove = async (warning: any) => {
-    if (window.confirm(`确定批准发给 ${warning.students_info?.profiles?.full_name} 的 ${warning.warning_level} 级警告信吗？`)) {
-      // Logic for new level and score deduction based on warning level
-      let newLevel = 'yellow';
-      let deduction = 10;
-      if (warning.warning_level >= 2) {
-        newLevel = 'red';
-        deduction = 20;
+    Modal.confirm({
+      title: '确认下发警告',
+      content: `确定批准发给 ${warning.students_info?.profiles?.full_name} 的 ${warning.warning_level} 级警告信吗？`,
+      onOk: async () => {
+        const success = await approveWarning(warning.id, warning.student_id, warning.warning_level >= 2 ? 'red' : 'yellow', warning.warning_level >= 2 ? 20 : 10);
+        if (success) {
+          message.success('审批成功！已下发警告并更新风险分。');
+          fetchDashboardData();
+          fetchPendingWarnings();
+        } else {
+          message.error('审批失败，请重试。');
+        }
       }
-      
-      const success = await approveWarning(warning.id, warning.student_id, newLevel, deduction);
-      if (success) {
-        alert('审批成功！已下发警告并更新风险分。');
-        fetchDashboardData(); // Refresh dashboard data to show new score/level
-      } else {
-        alert('审批失败，请重试。');
-      }
-    }
+    });
   };
 
   if (isLoading && !redStudents.length) {
@@ -326,7 +324,9 @@ export default function RiskAlerts() {
           onSubmit={async (level, evidence) => {
             const success = await issueWarning(selectedStudent.id, level, evidence);
             if (success) {
-              alert('警告审批请求已提交');
+              message.success('警告审批请求已提交');
+              setModalOpen(false);
+              fetchPendingWarnings();
             } else {
               throw new Error('提交失败');
             }

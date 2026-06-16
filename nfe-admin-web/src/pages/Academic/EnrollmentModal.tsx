@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { IconX, IconLoader2, IconBook } from '@tabler/icons-react';
+import { message } from 'antd';
 import { supabase } from '../../lib/supabase';
 import { useAcademicStore } from '../../store/useAcademicStore';
 
@@ -43,10 +44,10 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
     if (!selectedStudent || !selectedProgram) return;
     const success = await createEnrollment(selectedStudent, parseInt(selectedProgram));
     if (success) {
-      alert('新生入学档案建档成功，已自动分配必修课程！');
+      message.success('新生入学档案建档成功，已自动分配必修课程！');
       onClose();
     } else {
-      alert('建档失败，请重试');
+      message.error('建档失败，请重试');
     }
   };
 

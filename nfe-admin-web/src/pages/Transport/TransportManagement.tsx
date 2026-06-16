@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { IconRoute, IconPlus, IconCar, IconCheck, IconX, IconLoader2 } from '@tabler/icons-react';
 import { useDailyCheckStore } from '../../store/useDailyCheckStore';
+import { message, Modal } from 'antd';
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   delivered:  { label: '已送达', cls: 'p-green' },
@@ -26,12 +27,17 @@ export default function TransportManagement() {
   };
 
   const handleMarkAllPickedUp = async () => {
-    if (window.confirm('确定将所有待确认的学生标记为"已接到"吗？')) {
-      const pending = todayPassengers.filter(p => p.status === 'pending');
-      for (const p of pending) {
-        await updatePassengerStatus(p.id, 'picked_up');
+    Modal.confirm({
+      title: '一键标记已接到',
+      content: '确定将所有待确认的学生标记为"已接到"吗？',
+      onOk: async () => {
+        const pendingIds = todayPassengers.filter(p => p.status === 'pending').map(p => p.id);
+        for (const id of pendingIds) {
+          await updatePassengerStatus(id, 'picked_up');
+        }
+        message.success('已全部标记为已接到');
       }
-    }
+    });
   };
 
   return (

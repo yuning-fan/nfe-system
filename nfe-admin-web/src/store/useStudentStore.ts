@@ -66,8 +66,20 @@ export const useStudentStore = create<StudentStore>((set) => ({
       if (error) {
         throw error;
       }
+
+      // Fetch extra aggregates for the student detail view
+      const [dormRes, warningRes, timetableRes] = await Promise.all([
+        supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
+        supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('created_at', { ascending: false }),
+        supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time')
+      ]);
+
+      const studentData = data as any;
+      studentData.dorm_assignments = dormRes.data || [];
+      studentData.warning_letters = warningRes.data || [];
+      studentData.school_timetable = timetableRes.data || [];
       
-      set({ currentStudent: (data as any) || null, isLoading: false });
+      set({ currentStudent: studentData, isLoading: false });
     } catch (error: any) {
       console.error('Error fetching student by ID:', error);
       set({ error: error.message, isLoading: false });

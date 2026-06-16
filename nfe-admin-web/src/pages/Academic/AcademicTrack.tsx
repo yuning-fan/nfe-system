@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   IconBook, IconPlus, IconX, IconLoader2 
 } from '@tabler/icons-react';
+import { message, Modal } from 'antd';
 import { useAcademicStore } from '../../store/useAcademicStore';
 import EnrollmentModal from './EnrollmentModal';
 
@@ -30,11 +31,15 @@ export default function AcademicTrack() {
     }
   };
 
-  const handleGenerateTimetable = async (enrollmentId: number) => {
-    if (window.confirm('重新生成课表将覆盖已有课表，确认生成吗？')) {
-      const success = await generateTimetable(enrollmentId);
-      if (success) alert('课表生成成功！');
-    }
+  const handleGenerateTimetable = (enrollmentId: number) => {
+    Modal.confirm({
+      title: '重新生成课表',
+      content: '重新生成课表将覆盖已有课表，确认生成吗？',
+      onOk: async () => {
+        const success = await generateTimetable(enrollmentId);
+        if (success) message.success('课表生成成功！');
+      }
+    });
   };
 
   return (
