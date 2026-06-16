@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { IconRoute, IconPlus, IconCar, IconCheck, IconX, IconLoader2 } from '@tabler/icons-react';
 import { useDailyCheckStore } from '../../store/useDailyCheckStore';
 import { message, Modal } from 'antd';
+import TransportAssignmentModal from './TransportAssignmentModal';
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   delivered:  { label: '已送达', cls: 'p-green' },
@@ -14,6 +15,7 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 
 export default function TransportManagement() {
   const { todayPassengers, loadTodayPassengers, updatePassengerStatus, isLoading } = useDailyCheckStore();
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   
   useEffect(() => {
     loadTodayPassengers();
@@ -58,7 +60,7 @@ export default function TransportManagement() {
           <button className="btn btn-primary" onClick={handleMarkAllPickedUp} disabled={isLoading}>
             <IconCheck size={14} style={{ marginRight: 4 }} />一键全部已接
           </button>
-          <button className="btn"><IconPlus size={14} style={{ marginRight: 4 }} />新建路线</button>
+          <button className="btn" onClick={() => setIsAssignModalOpen(true)}><IconPlus size={14} style={{ marginRight: 4 }} />新建接送任务</button>
         </div>
       </div>
 
@@ -135,6 +137,12 @@ export default function TransportManagement() {
           )}
         </div>
       </div>
+
+      <TransportAssignmentModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        onSuccess={() => loadTodayPassengers()}
+      />
     </>
   );
 }

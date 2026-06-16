@@ -21,6 +21,7 @@ interface RiskStore {
   fetchPendingWarnings: () => Promise<void>;
   issueWarning: (studentId: string, level: number, evidence: string) => Promise<boolean>;
   approveWarning: (warningId: number, studentId: string, newLevel: string, scoreDeduction: number) => Promise<boolean>;
+  markWarningSigned: (warningId: number) => Promise<boolean>;
 }
 
 export const useRiskStore = create<RiskStore>((set, get) => ({
@@ -131,6 +132,21 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       if (lError) throw lError;
 
       await get().fetchPendingWarnings();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  markWarningSigned: async (warningId: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase
+        .from('warning_letters')
+        .update({ signed_at: new Date().toISOString() })
+        .eq('id', warningId);
+      if (error) throw error;
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });

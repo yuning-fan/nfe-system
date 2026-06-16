@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudentStore } from '../../store/useStudentStore';
-import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft } from '@tabler/icons-react';
+import { useRiskStore } from '../../store/useRiskStore';
+import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil } from '@tabler/icons-react';
+import { message, Modal } from 'antd';
 
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent } = useStudentStore();
+  const { markWarningSigned } = useRiskStore();
   
   // Tab state
   const [activeTab, setActiveTab] = useState<'basic' | 'guardian' | 'academic' | 'life' | 'comms'>('basic');
@@ -19,6 +22,23 @@ export default function StudentDetail() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Handle signing warning
+  const handleSignWarning = (warning: any) => {
+    Modal.confirm({
+      title: '标记警告信已签字',
+      content: '确认学生/家长已线下签署该警告信吗？',
+      onOk: async () => {
+        const success = await markWarningSigned(warning.id);
+        if (success) {
+          message.success('已标记为已签字');
+          fetchStudentById(id!);
+        } else {
+          message.error('操作失败');
+        }
+      }
+    });
+  };
 
   // Show full-screen loader while fetching
   if (isLoading) {
@@ -275,7 +295,23 @@ export default function StudentDetail() {
                       <div key={wl.id} style={{ padding: 12, border: '1px solid var(--color-border)', borderLeft: '4px solid var(--color-danger)', borderRadius: 8, background: 'var(--color-bg-secondary)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                           <span style={{ fontWeight: 500 }}>级别 {wl.warning_level} 警告信</span>
-                          <span className="pill p-amber">{wl.status}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {wl.status === 'issued' && !wl.signed_at && (
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ padding: '2px 8px', fontSize: 11, minHeight: 24 }}
+                                onClick={() => handleSignWarning(wl)}
+                              >
+                                <IconPencil size={12} style={{ marginRight: 4 }} /> 补录签字
+                              </button>
+                            )}
+                            {wl.signed_at && (
+                              <span style={{ fontSize: 11, color: 'var(--color-success)', display: 'flex', alignItems: 'center' }}>
+                                <IconCheck size={12} style={{ marginRight: 2 }} /> 已签字
+                              </span>
+                            )}
+                            <span className="pill p-amber">{wl.status}</span>
+                          </div>
                         </div>
                         <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{wl.evidence_content}</div>
                         <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>下发日期: {new Date(wl.created_at).toLocaleDateString()}</div>
