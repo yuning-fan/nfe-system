@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import StudentList from './pages/Students/StudentList';
 import { StudentDetail } from './pages/Students';
 import HousingManagement from './pages/Housing/HousingManagement';
+import DormCheck from './pages/DormCheck/DormCheck';
 import TransportManagement from './pages/Transport/TransportManagement';
 import AcademicTrack from './pages/Academic/AcademicTrack';
 import RiskAlerts from './pages/Risk/RiskAlerts';
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="students" element={<StudentList />} />
         <Route path="students/:id" element={<StudentDetail />} />
         <Route path="housing" element={<HousingManagement />} />
+        <Route path="dorm-check" element={<DormCheck />} />
         <Route path="transport" element={<TransportManagement />} />
         <Route path="academic" element={<AcademicTrack />} />
         <Route path="risk" element={<RiskAlerts />} />

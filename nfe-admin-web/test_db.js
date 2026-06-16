@@ -1,10 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
-const supabaseUrl = 'http://127.0.0.1:54321'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
-async function test() {
-  const { data, error } = await supabase.from('students_info').select('*').limit(1)
-  console.log(JSON.stringify(data, null, 2))
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
+
+async function check() {
+  const { data, error } = await supabase.from('students_info').select('risk_level');
+  if (error) console.error(error);
+  
+  const counts = { green: 0, yellow: 0, red: 0 };
+  (data || []).forEach(d => counts[d.risk_level]++);
+  console.log(counts);
 }
-test()
+check();
