@@ -9,6 +9,7 @@ interface StudentStore {
   error: string | null;
   fetchStudents: () => Promise<void>;
   fetchStudentById: (id: string) => Promise<void>;
+  clearCurrentStudent: () => void;
 }
 
 export const useStudentStore = create<StudentStore>((set) => ({
@@ -40,6 +41,10 @@ export const useStudentStore = create<StudentStore>((set) => ({
       console.error('Error fetching students:', error);
       set({ error: error.message, isLoading: false });
     }
+  },
+
+  clearCurrentStudent: () => {
+    set({ currentStudent: null, error: null });
   },
 
   fetchStudentById: async (id: string) => {

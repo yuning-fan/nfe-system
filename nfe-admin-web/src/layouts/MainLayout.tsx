@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   IconLayoutDashboard, 
   IconUsers, 
@@ -18,8 +18,10 @@ import {
   IconListDetails, 
   IconSettings,
   IconBell,
-  IconSearch
+  IconSearch,
+  IconLogout
 } from '@tabler/icons-react';
+import { useAuthStore } from '../store/useAuthStore';
 
 // 页面标题映射，根据当前路由动态显示标题
 const pageTitles: Record<string, { title: string; sub: string }> = {
@@ -32,7 +34,20 @@ const pageTitles: Record<string, { title: string; sub: string }> = {
 
 export default function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { profile, signOut } = useAuthStore();
+  
+  // 对于动态路由如 /students/:id，退回使用默认标题或根据 ID 判断
   const currentTitle = pageTitles[location.pathname] || { title: 'NFE 管理系统', sub: '当前视图' };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  const userRoleStr = profile?.role === 'admin' ? '系统管理员' : profile?.role || '教职工';
+  const userNameStr = profile?.full_name || '未命名用户';
+  const avatarChar = userNameStr.charAt(0).toUpperCase();
 
   return (
     <div className="app">
@@ -40,7 +55,7 @@ export default function MainLayout() {
       <div className="sidebar">
         <div className="logo">
           <div className="logo-name">NFE 管理系统</div>
-          <div className="logo-role">管理员 · 全局视图</div>
+          <div className="logo-role">{userRoleStr} · 全局视图</div>
         </div>
         <div className="nav-scroll">
           <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -69,10 +84,14 @@ export default function MainLayout() {
           <div className="nav-item"><IconConfetti stroke={1.5} />NFE活动管理</div>
           <div className="nav-item"><IconDatabase stroke={1.5} />资料库</div>
           
-          <div className="nav-section">系统管理</div>
-          <div className="nav-item"><IconUserCog stroke={1.5} />员工账号管理</div>
-          <div className="nav-item"><IconListDetails stroke={1.5} />系统操作日志</div>
-          <div className="nav-item"><IconSettings stroke={1.5} />系统配置</div>
+          {profile?.role === 'admin' && (
+            <>
+              <div className="nav-section">系统管理</div>
+              <div className="nav-item"><IconUserCog stroke={1.5} />员工账号管理</div>
+              <div className="nav-item"><IconListDetails stroke={1.5} />系统操作日志</div>
+              <div className="nav-item"><IconSettings stroke={1.5} />系统配置</div>
+            </>
+          )}
         </div>
       </div>
 
@@ -92,7 +111,18 @@ export default function MainLayout() {
             <div className="icon-btn">
               <IconSearch stroke={1.5} />
             </div>
-            <div className="avatar-sm">管</div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px', paddingLeft: '16px', borderLeft: '1px solid var(--color-border-tertiary)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span style={{ fontSize: '14px', fontWeight: 500 }}>{userNameStr}</span>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>{userRoleStr}</span>
+              </div>
+              <div className="avatar-sm">{avatarChar}</div>
+              
+              <div className="icon-btn" onClick={handleSignOut} title="退出登录" style={{ marginLeft: 4, color: 'var(--color-danger)' }}>
+                <IconLogout stroke={1.5} />
+              </div>
+            </div>
           </div>
         </div>
 

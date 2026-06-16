@@ -53,7 +53,7 @@ export default function StudentList() {
     // 搜索文本匹配姓名、英文名、学号或学校
     const lower = searchText.toLowerCase();
     const matchesSearch =
-      (student.profile?.full_name ?? '').toLowerCase().includes(lower) ||
+      (student.profiles?.full_name ?? '').toLowerCase().includes(lower) ||
       (student.english_name ?? '').toLowerCase().includes(lower) ||
       (student.student_id ?? '').toLowerCase().includes(lower) ||
       (student.school_name ?? '').toLowerCase().includes(lower);
