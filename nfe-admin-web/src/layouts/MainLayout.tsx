@@ -74,24 +74,46 @@ export default function MainLayout() {
             <IconBook stroke={1.5} />学业跟进
           </NavLink>
           
-          <div className="nav-item"><IconSchool stroke={1.5} />升学规划</div>
-          <div className="nav-item"><IconCertificate stroke={1.5} />签证/保险/文件</div>
-          <div className="nav-item"><IconMessage2 stroke={1.5} />家校沟通</div>
+          <NavLink to="/uni-app" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconSchool stroke={1.5} />升学规划
+          </NavLink>
+          <NavLink to="/docs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconCertificate stroke={1.5} />签证/保险/文件
+          </NavLink>
+          <NavLink to="/comms" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconMessage2 stroke={1.5} />家校沟通
+          </NavLink>
           <NavLink to="/risk" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <IconAlertTriangle stroke={1.5} />风险预警
           </NavLink>
-          <div className="nav-item"><IconCurrencyDollar stroke={1.5} />财务/付款</div>
-          <div className="nav-item"><IconReport stroke={1.5} />报告生成</div>
-          <div className="nav-item"><IconSpeakerphone stroke={1.5} />通知管理</div>
-          <div className="nav-item"><IconConfetti stroke={1.5} />NFE活动管理</div>
-          <div className="nav-item"><IconDatabase stroke={1.5} />资料库</div>
+          <NavLink to="/finance" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconCurrencyDollar stroke={1.5} />财务/付款
+          </NavLink>
+          <NavLink to="/reports" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconReport stroke={1.5} />报告生成
+          </NavLink>
+          <NavLink to="/notices" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconSpeakerphone stroke={1.5} />通知管理
+          </NavLink>
+          <NavLink to="/activities" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconConfetti stroke={1.5} />NFE活动管理
+          </NavLink>
+          <NavLink to="/library" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconDatabase stroke={1.5} />资料库
+          </NavLink>
           
           {profile?.role === 'admin' && (
             <>
               <div className="nav-section">系统管理</div>
-              <div className="nav-item"><IconUserCog stroke={1.5} />员工账号管理</div>
-              <div className="nav-item"><IconListDetails stroke={1.5} />系统操作日志</div>
-              <div className="nav-item"><IconSettings stroke={1.5} />系统配置</div>
+              <NavLink to="/accounts" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <IconUserCog stroke={1.5} />员工账号管理
+              </NavLink>
+              <NavLink to="/logs" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <IconListDetails stroke={1.5} />系统操作日志
+              </NavLink>
+              <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <IconSettings stroke={1.5} />系统配置
+              </NavLink>
             </>
           )}
         </div>
