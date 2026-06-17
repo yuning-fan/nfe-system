@@ -9,6 +9,7 @@ import SubjectManagement from './SubjectManagement';
 import MilestoneManagement from './MilestoneManagement';
 import CourseHoursManagement from './CourseHoursManagement';
 import GradeRecordsManagement from './GradeRecordsManagement';
+import TutorScheduleManagement from './TutorScheduleManagement';
 
 export default function AcademicTrack() {
   const [activeTab, setActiveTab] = useState('enrollment');
@@ -190,25 +191,7 @@ export default function AcademicTrack() {
       {activeTab === 'milestones' && <MilestoneManagement />}
       {activeTab === 'hours' && <CourseHoursManagement />}
       {activeTab === 'grades' && <GradeRecordsManagement />}
-
-      {/* Other tabs placeholder */}
-      {activeTab === 'schedule' && (
-        <div className="tabpage active">
-          <div className="card">
-            <div className="card-title">辅导排期 (原型占位)</div>
-            <div style={{ color: 'var(--color-text-secondary)' }}>请稍候，我们正在开发排课功能。</div>
-          </div>
-        </div>
-      )}
-      
-      {activeTab === 'approval' && (
-        <div className="tabpage active">
-          <div className="card">
-            <div className="card-title">排课审批 (原型占位)</div>
-            <div style={{ color: 'var(--color-text-secondary)' }}>请稍候，我们正在开发排课审批功能。</div>
-          </div>
-        </div>
-      )}
+      {(activeTab === 'schedule' || activeTab === 'approval') && <TutorScheduleManagement />}
 
       <EnrollmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </>
