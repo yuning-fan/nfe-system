@@ -43,6 +43,7 @@ export interface StudentInfo {
   gender: 'male' | 'female' | null;
   date_of_birth: string | null;
   passport_number: string | null;
+  arrival_date: string | null;
   school_name: string | null;
   source_school: string | null;
   english_level: string | null;

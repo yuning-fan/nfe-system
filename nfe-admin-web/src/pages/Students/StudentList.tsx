@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconPlus, IconLoader2 } from '@tabler/icons-react';
+import { IconPlus, IconLoader2, IconAlertTriangle } from '@tabler/icons-react';
 import { useStudentStore } from '../../store/useStudentStore';
 
 export default function StudentList() {
@@ -175,6 +175,17 @@ export default function StudentList() {
 
                   const genderLabel = student.gender === 'male' ? '男' : student.gender === 'female' ? '女' : '—';
 
+                  // Onboarding checklist — count missing items
+                  const docs = (student as any).student_documents || [];
+                  const onboardingMissingCount = [
+                    !docs.find((d: any) => d.doc_type === 'offer_letter'),
+                    !docs.find((d: any) => d.doc_type === 'visa' && d.status !== 'expired'),
+                    !docs.find((d: any) => d.doc_type === 'insurance' && d.status !== 'expired'),
+                    !docs.find((d: any) => d.doc_type === 'guardianship'),
+                    !(student as any).arrival_date,
+                    !(student as any).dorm_assignments?.length,
+                  ].filter(Boolean).length;
+
                   return (
                     <tr key={student.student_id}>
                       <td style={{ color: 'var(--color-text-tertiary)' }}>{displayId}</td>
@@ -182,7 +193,18 @@ export default function StudentList() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className={`avatar-xs ${avatarColor}`}>{avatarChar}</div>
                           <div>
-                            <div style={{ fontWeight: 500 }}>{profile?.full_name || '未知姓名'}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontWeight: 500 }}>{profile?.full_name || '未知姓名'}</span>
+                              {onboardingMissingCount > 0 && (
+                                <span title={`入学清单还有 ${onboardingMissingCount} 项未完成`} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 2,
+                                  fontSize: 10, color: '#A05000', background: '#FFF5E6',
+                                  border: '1px solid #F5C97F', borderRadius: 4, padding: '1px 5px',
+                                }}>
+                                  <IconAlertTriangle size={10} />{onboardingMissingCount}项待补
+                                </span>
+                              )}
+                            </div>
                             <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>
                               {student.english_name || 'No English Name'}
                             </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudentStore } from '../../store/useStudentStore';
 import { useRiskStore } from '../../store/useRiskStore';
-import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed } from '@tabler/icons-react';
+import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
 
 export default function StudentDetail() {
@@ -42,6 +42,7 @@ export default function StudentDetail() {
       emergency_contact_name: student?.emergency_contact_name || '',
       emergency_contact_phone: student?.emergency_contact_phone || '',
       health_notes: student?.health_notes || '',
+      arrival_date: student?.arrival_date || '',
     });
     setIsEditOpen(true);
   };
@@ -134,6 +135,8 @@ export default function StudentDetail() {
   const docs = student.student_documents || [];
   const visaDoc = docs.find((d: any) => d.doc_type === 'visa');
   const insuranceDoc = docs.find((d: any) => d.doc_type === 'insurance');
+  const offerDoc = docs.find((d: any) => d.doc_type === 'offer_letter');
+  const guardianshipDoc = docs.find((d: any) => d.doc_type === 'guardianship');
 
   // Course assets helpers
   const courseAssets = student.course_assets || [];
@@ -147,6 +150,60 @@ export default function StudentDetail() {
 
   // Subjects from school_timetable
   const timetableSubjects = [...new Set((student.school_timetable || []).map((t: any) => t.program_subjects?.subject_name).filter(Boolean))];
+
+  // Onboarding checklist — detect missing/incomplete items pre-enrollment
+  const onboardingChecklist = [
+    {
+      key: 'offer',
+      label: 'Offer Letter',
+      desc: '录取通知书已上传',
+      ok: !!offerDoc,
+      missing: '未上传录取通知书',
+    },
+    {
+      key: 'visa',
+      label: '签证',
+      desc: visaDoc ? `有效至 ${visaDoc.expiry_date || '未知'}` : '',
+      ok: !!visaDoc && visaDoc.status !== 'expired',
+      missing: !visaDoc ? '未上传签证文件' : '签证已过期',
+    },
+    {
+      key: 'insurance',
+      label: '健康保险',
+      desc: insuranceDoc ? `有效至 ${insuranceDoc.expiry_date || '未知'}` : '',
+      ok: !!insuranceDoc && insuranceDoc.status !== 'expired',
+      missing: !insuranceDoc ? '未上传保险文件' : '保险已过期',
+    },
+    {
+      key: 'guardianship',
+      label: '监护协议',
+      desc: '监护协议已上传',
+      ok: !!guardianshipDoc,
+      missing: '未上传监护协议',
+    },
+    {
+      key: 'arrival',
+      label: '抵达日期',
+      desc: (student as any).arrival_date ? `预计 ${(student as any).arrival_date} 到达` : '',
+      ok: !!(student as any).arrival_date,
+      missing: '未填写抵达日期（无法安排接机）',
+    },
+    {
+      key: 'dorm',
+      label: '宿舍分配',
+      desc: activeDorm ? `${activeDorm.dorms?.building_name} Room ${activeDorm.dorms?.room_number}` : '',
+      ok: !!activeDorm,
+      missing: '未分配宿舍',
+    },
+    {
+      key: 'subjects',
+      label: '选课',
+      desc: timetableSubjects.length > 0 ? `已选 ${timetableSubjects.length} 门课` : '',
+      ok: timetableSubjects.length > 0,
+      missing: '尚未完成选课',
+    },
+  ];
+  const missingCount = onboardingChecklist.filter(c => !c.ok).length;
 
   // Helper mappings
   const getRiskLabel = (risk: string) => {
@@ -290,6 +347,10 @@ export default function StudentDetail() {
             <label className="form-label">健康 / 禁忌备注</label>
             <textarea className="input" rows={2} value={editForm.health_notes} onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })} />
           </div>
+          <div className="form-group">
+            <label className="form-label">✈️ 预计抵达日期</label>
+            <input className="input" type="date" value={editForm.arrival_date} onChange={e => setEditForm({ ...editForm, arrival_date: e.target.value })} />
+          </div>
         </div>
       </Modal>
 
@@ -307,6 +368,41 @@ export default function StudentDetail() {
         {/* Tab Content: Basic Info */}
         {activeTab === 'basic' && (
           <div className="tabpage active">
+
+            {/* 入学清单检测 */}
+            <div className="card" style={{ marginBottom: 20, border: missingCount > 0 ? '1px solid #EF9F27' : '1px solid var(--color-border)' }}>
+              <div className="card-title" style={{ color: missingCount > 0 ? '#854F0B' : 'var(--color-text-primary)', marginBottom: 12 }}>
+                {missingCount > 0
+                  ? <><IconAlertTriangle size={16} style={{ color: '#EF9F27', marginRight: 6 }} />入学清单 · <span style={{ color: '#A32D2D' }}>{missingCount} 项待完成</span></>
+                  : <><IconCircleCheck size={16} style={{ color: 'var(--color-success)', marginRight: 6 }} />入学清单 · 全部完成</>
+                }
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                {onboardingChecklist.map(item => (
+                  <div key={item.key} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '10px 12px', borderRadius: 8,
+                    background: item.ok ? 'var(--color-bg-secondary)' : '#FFF5E6',
+                    border: `1px solid ${item.ok ? 'var(--color-border)' : '#F5C97F'}`,
+                  }}>
+                    {item.ok
+                      ? <IconCircleCheck size={18} style={{ color: 'var(--color-success)', flexShrink: 0, marginTop: 1 }} />
+                      : <IconCircleX size={18} style={{ color: '#E07B00', flexShrink: 0, marginTop: 1 }} />
+                    }
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: item.ok ? 'var(--color-text-primary)' : '#7A3E00' }}>
+                        {item.key === 'arrival' && <IconPlane size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />}
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: item.ok ? 'var(--color-text-secondary)' : '#A05000', marginTop: 2 }}>
+                        {item.ok ? item.desc : item.missing}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="g3" style={{ alignItems: 'start' }}>
               {/* 身份识别 */}
               <div className="card">
