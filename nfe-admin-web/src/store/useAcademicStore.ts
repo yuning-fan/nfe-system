@@ -13,6 +13,7 @@ interface ProgramSubject {
   subject_category: string;
   hours_per_week: number;
   sessions_per_week: number;
+  default_schedule?: { day_of_week: number; start_time: string; end_time: string; room: string }[];
 }
 
 interface Enrollment {
@@ -42,6 +43,50 @@ interface TimetableEntry {
   program_subjects?: { subject_name: string };
 }
 
+export interface AcademicMilestone {
+  id: number;
+  course_id?: number | null;
+  program_subject_id?: number | null;
+  student_id?: string | null;
+  milestone_type: 'exam' | 'assignment' | 'report_due';
+  title: string;
+  due_date: string;
+  is_grade_recorded: boolean;
+  program_subjects?: { subject_name: string };
+}
+
+export interface CourseAsset {
+  id: number;
+  student_id: string;
+  course_id: number;
+  total_hours: number;
+  used_hours: number;
+  valid_until?: string;
+  courses?: { name: string; type: string };
+  profiles?: { full_name: string };
+}
+
+export interface Course {
+  id: number;
+  name: string;
+  type: string;
+}
+
+export interface GradeRecord {
+  id: number;
+  student_id: string;
+  course_id?: number | null;
+  program_subject_id?: number | null;
+  milestone_id?: number | null;
+  score: number;
+  score_type: string;
+  recorded_at: string;
+  profiles?: { full_name: string };
+  courses?: { name: string };
+  program_subjects?: { subject_name: string };
+  academic_milestones?: { title: string };
+}
+
 interface AcademicStore {
   programs: Program[];
   programSubjects: ProgramSubject[];
@@ -57,6 +102,29 @@ interface AcademicStore {
   removeElective: (selectionId: number) => Promise<boolean>;
   generateTimetable: (enrollmentId: number) => Promise<boolean>;
   fetchTimetable: (studentId?: string) => Promise<void>;
+  
+  // Milestones
+  milestones: AcademicMilestone[];
+  fetchMilestones: () => Promise<void>;
+  createMilestone: (payload: Partial<AcademicMilestone>) => Promise<boolean>;
+  deleteMilestone: (id: number) => Promise<boolean>;
+  
+  // Program Subjects Management
+  createProgramSubject: (payload: Partial<ProgramSubject>) => Promise<boolean>;
+  updateProgramSubject: (id: number, payload: Partial<ProgramSubject>) => Promise<boolean>;
+  deleteProgramSubject: (id: number) => Promise<boolean>;
+
+  // Course Assets Management
+  courses: Course[];
+  fetchCourses: () => Promise<void>;
+  courseAssets: CourseAsset[];
+  fetchCourseAssets: () => Promise<void>;
+  topUpHours: (studentId: string, courseId: number, hours: number) => Promise<boolean>;
+
+  // Grade Records Management
+  gradeRecords: GradeRecord[];
+  fetchGradeRecords: () => Promise<void>;
+  addGradeRecord: (payload: Partial<GradeRecord>) => Promise<boolean>;
 }
 
 export const useAcademicStore = create<AcademicStore>((set, get) => ({
@@ -65,6 +133,10 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   enrollments: [],
   selections: [],
   timetable: [],
+  milestones: [],
+  courses: [],
+  courseAssets: [],
+  gradeRecords: [],
   isLoading: false,
   error: null,
 
@@ -100,7 +172,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
         .from('student_subject_selections')
         .select(`
           *,
-          program_subjects!inner(subject_name, subject_category, hours_per_week, sessions_per_week)
+          program_subjects!inner(subject_name, subject_category, hours_per_week, sessions_per_week, default_schedule)
         `);
 
       const formattedEnrollments = (enrollments || []).map((e: any) => ({
@@ -214,27 +286,49 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       let currentHour = 9;
 
       for (const sel of confirmedSelections) {
-        const sessions = sel.program_subjects?.sessions_per_week || 2;
-        const duration = (sel.program_subjects?.hours_per_week || 4) / sessions;
+        const defaultSchedule = sel.program_subjects?.default_schedule;
 
-        for (let i = 0; i < sessions; i++) {
-          inserts.push({
-            student_id: enrollment.student_id,
-            enrollment_id: enrollment.id,
-            program_subject_id: sel.program_subject_id,
-            day_of_week: currentDay,
-            start_time: `${currentHour.toString().padStart(2, '0')}:00`,
-            end_time: `${(currentHour + duration).toString().padStart(2, '0')}:00`,
-            effective_from: new Date().toISOString().split('T')[0],
-            effective_until: new Date(Date.now() + 8 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            generated_by: user?.id,
-            is_confirmed: true
-          });
-          
-          currentDay++;
-          if (currentDay > 5) {
-            currentDay = 1;
-            currentHour += 2;
+        if (defaultSchedule && defaultSchedule.length > 0) {
+          // Use real schedule defined by the academic department
+          for (const session of defaultSchedule) {
+            inserts.push({
+              student_id: enrollment.student_id,
+              enrollment_id: enrollment.id,
+              program_subject_id: sel.program_subject_id,
+              day_of_week: session.day_of_week,
+              start_time: session.start_time,
+              end_time: session.end_time,
+              room: session.room || null,
+              effective_from: new Date().toISOString().split('T')[0],
+              effective_until: new Date(Date.now() + 8 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              generated_by: user?.id,
+              is_confirmed: true
+            });
+          }
+        } else {
+          // Fallback to fake generation if no default schedule exists
+          const sessions = sel.program_subjects?.sessions_per_week || 2;
+          const duration = (sel.program_subjects?.hours_per_week || 4) / sessions;
+
+          for (let i = 0; i < sessions; i++) {
+            inserts.push({
+              student_id: enrollment.student_id,
+              enrollment_id: enrollment.id,
+              program_subject_id: sel.program_subject_id,
+              day_of_week: currentDay,
+              start_time: `${currentHour.toString().padStart(2, '0')}:00`,
+              end_time: `${(currentHour + Math.floor(duration)).toString().padStart(2, '0')}:00`,
+              effective_from: new Date().toISOString().split('T')[0],
+              effective_until: new Date(Date.now() + 8 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              generated_by: user?.id,
+              is_confirmed: true
+            });
+            
+            currentDay++;
+            if (currentDay > 5) {
+              currentDay = 1;
+              currentHour += 2;
+            }
           }
         }
       }
@@ -246,6 +340,194 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       await (supabase as any).from('school_timetable').insert(inserts);
 
       await get().fetchTimetable();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  fetchMilestones: async () => {
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('academic_milestones')
+        .select(`*, program_subjects(subject_name)`)
+        .order('due_date', { ascending: true });
+      if (error) throw error;
+      
+      const formatted = (data || []).map((m: any) => ({
+        ...m,
+        program_subjects: Array.isArray(m.program_subjects) ? m.program_subjects[0] : m.program_subjects
+      }));
+      set({ milestones: formatted as any, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
+  },
+
+  createMilestone: async (payload) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await (supabase as any).from('academic_milestones').insert(payload);
+      if (error) throw error;
+      await get().fetchMilestones();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  deleteMilestone: async (id) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await supabase.from('academic_milestones').delete().eq('id', id);
+      if (error) throw error;
+      await get().fetchMilestones();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  createProgramSubject: async (payload) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await (supabase as any).from('program_subjects').insert(payload);
+      if (error) throw error;
+      await get().fetchProgramsAndSubjects();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  updateProgramSubject: async (id, payload) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await (supabase as any).from('program_subjects').update(payload).eq('id', id);
+      if (error) throw error;
+      await get().fetchProgramsAndSubjects();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  deleteProgramSubject: async (id) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await supabase.from('program_subjects').delete().eq('id', id);
+      if (error) throw error;
+      await get().fetchProgramsAndSubjects();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  fetchCourses: async () => {
+    try {
+      const { data } = await supabase.from('courses').select('*');
+      set({ courses: data as any || [] });
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
+  fetchCourseAssets: async () => {
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('course_assets')
+        .select(`*, courses(name, type), profiles(full_name)`);
+      if (error) throw error;
+      
+      const formatted = (data || []).map((a: any) => ({
+        ...a,
+        courses: Array.isArray(a.courses) ? a.courses[0] : a.courses,
+        profiles: Array.isArray(a.profiles) ? a.profiles[0] : a.profiles
+      }));
+      set({ courseAssets: formatted as any, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
+  },
+
+  topUpHours: async (studentId, courseId, hours) => {
+    set({ isLoading: true });
+    try {
+      // check if asset exists
+      const { data: existing } = await (supabase as any)
+        .from('course_assets')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('course_id', courseId)
+        .single() as { data: any };
+
+      if (existing) {
+        // update
+        const { error } = await (supabase as any)
+          .from('course_assets')
+          .update({ total_hours: Number(existing.total_hours) + Number(hours) })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        // insert
+        const { error } = await (supabase as any).from('course_assets').insert({
+          student_id: studentId,
+          course_id: courseId,
+          total_hours: Number(hours),
+          used_hours: 0
+        });
+        if (error) throw error;
+      }
+      
+      await get().fetchCourseAssets();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  fetchGradeRecords: async () => {
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('grade_records')
+        .select(`*, profiles(full_name), courses(name), program_subjects(subject_name), academic_milestones(title)`)
+        .order('recorded_at', { ascending: false });
+      if (error) throw error;
+      
+      const formatted = (data || []).map((r: any) => ({
+        ...r,
+        profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+        courses: Array.isArray(r.courses) ? r.courses[0] : r.courses,
+        program_subjects: Array.isArray(r.program_subjects) ? r.program_subjects[0] : r.program_subjects,
+        academic_milestones: Array.isArray(r.academic_milestones) ? r.academic_milestones[0] : r.academic_milestones
+      }));
+      set({ gradeRecords: formatted as any, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+    }
+  },
+
+  addGradeRecord: async (payload) => {
+    set({ isLoading: true });
+    try {
+      const user = useAuthStore.getState().user;
+      const { error } = await (supabase as any).from('grade_records').insert({
+        ...payload,
+        recorded_by: user?.id
+      });
+      if (error) throw error;
+      await get().fetchGradeRecords();
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });

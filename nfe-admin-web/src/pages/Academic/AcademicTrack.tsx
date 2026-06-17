@@ -5,6 +5,10 @@ import {
 import { message, Modal } from 'antd';
 import { useAcademicStore } from '../../store/useAcademicStore';
 import EnrollmentModal from './EnrollmentModal';
+import SubjectManagement from './SubjectManagement';
+import MilestoneManagement from './MilestoneManagement';
+import CourseHoursManagement from './CourseHoursManagement';
+import GradeRecordsManagement from './GradeRecordsManagement';
 
 export default function AcademicTrack() {
   const [activeTab, setActiveTab] = useState('enrollment');
@@ -45,7 +49,8 @@ export default function AcademicTrack() {
   return (
     <>
       <div className="tab-bar">
-        <div className={`tab ${activeTab === 'enrollment' ? 'active' : ''}`} onClick={() => setActiveTab('enrollment')}>选课与排表</div>
+        <div className={`tab ${activeTab === 'enrollment' ? 'active' : ''}`} onClick={() => setActiveTab('enrollment')}>选课与建档</div>
+        <div className={`tab ${activeTab === 'subjects' ? 'active' : ''}`} onClick={() => setActiveTab('subjects')}>科目底表管理</div>
         <div className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>辅导课表排期</div>
         <div className={`tab ${activeTab === 'approval' ? 'active' : ''}`} onClick={() => setActiveTab('approval')}>排课审批 (3)</div>
         <div className={`tab ${activeTab === 'hours' ? 'active' : ''}`} onClick={() => setActiveTab('hours')}>课时管理</div>
@@ -181,12 +186,26 @@ export default function AcademicTrack() {
         </div>
       )}
 
+      {activeTab === 'subjects' && <SubjectManagement />}
+      {activeTab === 'milestones' && <MilestoneManagement />}
+      {activeTab === 'hours' && <CourseHoursManagement />}
+      {activeTab === 'grades' && <GradeRecordsManagement />}
+
       {/* Other tabs placeholder */}
       {activeTab === 'schedule' && (
         <div className="tabpage active">
           <div className="card">
             <div className="card-title">辅导排期 (原型占位)</div>
-            <div style={{ color: 'var(--color-text-secondary)' }}>请切换到【选课与排表】标签页查看 P3 进度功能。</div>
+            <div style={{ color: 'var(--color-text-secondary)' }}>请稍候，我们正在开发排课功能。</div>
+          </div>
+        </div>
+      )}
+      
+      {activeTab === 'approval' && (
+        <div className="tabpage active">
+          <div className="card">
+            <div className="card-title">排课审批 (原型占位)</div>
+            <div style={{ color: 'var(--color-text-secondary)' }}>请稍候，我们正在开发排课审批功能。</div>
           </div>
         </div>
       )}
