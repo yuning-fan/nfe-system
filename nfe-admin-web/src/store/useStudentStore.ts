@@ -85,8 +85,13 @@ export const useStudentStore = create<StudentStore>((set) => ({
         .select(`
           *,
           student_enrollments(
-            *,
-            programs(*)
+            id,
+            source,
+            program_id,
+            start_date,
+            end_date,
+            status,
+            programs(id, name, track)
           )
         `)
         .eq('student_id', id)

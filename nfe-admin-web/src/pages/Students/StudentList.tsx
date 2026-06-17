@@ -175,8 +175,12 @@ export default function StudentList() {
                       </td>
                       <td>{student.school_name || '—'}</td>
                       <td>
-                        {program ? (
-                          <span className="pill p-purple">{program.name}</span>
+                        {program || enrollment?.source ? (
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            {enrollment?.source === 'green_channel' && <span className="pill p-green">绿通</span>}
+                            {enrollment?.source === 'agent' && <span className="pill p-blue">散客</span>}
+                            {program && <span className="pill p-purple">{program.name}</span>}
+                          </div>
                         ) : (
                           <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>
                         )}

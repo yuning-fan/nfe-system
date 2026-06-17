@@ -26,6 +26,7 @@ export interface Program {
 export interface StudentEnrollment {
   id: number;
   student_id: string;
+  source: 'green_channel' | 'agent' | null;
   program_id: number;
   cohort_name: string | null;
   start_date: string;
