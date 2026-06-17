@@ -8,11 +8,14 @@ import { message, Modal } from 'antd';
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent } = useStudentStore();
+  const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent, updateStudent } = useStudentStore();
   const { markWarningSigned } = useRiskStore();
   
   // Tab state
   const [activeTab, setActiveTab] = useState<'basic' | 'guardian' | 'academic' | 'life' | 'comms'>('basic');
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     // Clear stale student data immediately when the ID changes
@@ -22,6 +25,36 @@ export default function StudentDetail() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Open edit modal pre-filled with current student data
+  const handleOpenEdit = () => {
+    setEditForm({
+      english_name: student?.english_name || '',
+      date_of_birth: student?.date_of_birth || '',
+      passport_number: student?.passport_number || '',
+      school_name: student?.school_name || '',
+      source_school: student?.source_school || '',
+      english_level: student?.english_level || '',
+      target_university: student?.target_university || '',
+      scholarship_requirement: student?.scholarship_requirement || '',
+      emergency_contact_name: student?.emergency_contact_name || '',
+      emergency_contact_phone: student?.emergency_contact_phone || '',
+      health_notes: student?.health_notes || '',
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setIsSaving(true);
+    const success = await updateStudent(student!.student_id, editForm);
+    setIsSaving(false);
+    if (success) {
+      message.success('档案已更新');
+      setIsEditOpen(false);
+    } else {
+      message.error('保存失败，请重试');
+    }
+  };
 
   // Handle signing warning
   const handleSignWarning = (warning: any) => {
@@ -139,10 +172,69 @@ export default function StudentDetail() {
             <span>目标: {student.target_university || '—'}</span>
           </div>
         </div>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={handleOpenEdit}>
           <IconEdit size={16} style={{ marginRight: 6 }} />编辑档案
         </button>
       </div>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        title="编辑学生档案"
+        open={isEditOpen}
+        onCancel={() => setIsEditOpen(false)}
+        onOk={handleSaveEdit}
+        confirmLoading={isSaving}
+        width={640}
+        okText="保存"
+        cancelText="取消"
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+          <div className="form-group">
+            <label className="form-label">英文名</label>
+            <input className="input" value={editForm.english_name} onChange={e => setEditForm({ ...editForm, english_name: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">出生日期</label>
+            <input className="input" type="date" value={editForm.date_of_birth} onChange={e => setEditForm({ ...editForm, date_of_birth: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">护照号</label>
+            <input className="input" value={editForm.passport_number} onChange={e => setEditForm({ ...editForm, passport_number: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">就读学校</label>
+            <input className="input" value={editForm.school_name} onChange={e => setEditForm({ ...editForm, school_name: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">生源校</label>
+            <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">英语水平</label>
+            <input className="input" placeholder="如 IELTS 6.5" value={editForm.english_level} onChange={e => setEditForm({ ...editForm, english_level: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">目标院校</label>
+            <input className="input" value={editForm.target_university} onChange={e => setEditForm({ ...editForm, target_university: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">奖学金要求</label>
+            <input className="input" value={editForm.scholarship_requirement} onChange={e => setEditForm({ ...editForm, scholarship_requirement: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">紧急联系人姓名</label>
+            <input className="input" value={editForm.emergency_contact_name} onChange={e => setEditForm({ ...editForm, emergency_contact_name: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">紧急联系人电话</label>
+            <input className="input" value={editForm.emergency_contact_phone} onChange={e => setEditForm({ ...editForm, emergency_contact_phone: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">健康 / 禁忌备注</label>
+            <textarea className="input" rows={2} value={editForm.health_notes} onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })} />
+          </div>
+        </div>
+      </Modal>
 
       {/* Body content area */}
       <div style={{ flex: 1, padding: '0 32px 32px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
