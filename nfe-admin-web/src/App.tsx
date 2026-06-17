@@ -12,7 +12,8 @@ import RiskAlerts from './pages/Risk/RiskAlerts';
 import Communications from './pages/Communications/Communications';
 import Documents from './pages/Documents/Documents';
 import Finance from './pages/Finance/Finance';
-import { Reports, Notices, UniApplication, Activities, Library, Accounts, SystemLogs, Settings as SettingsPage } from './pages/Placeholders';
+import { Notices, UniApplication, Activities, Library, Accounts, SystemLogs, Settings as SettingsPage } from './pages/Placeholders';
+import ReportsPage from './pages/Reports/ReportsPage';
 import Login from './pages/Auth/Login';
 import RequireAuth from './components/RequireAuth';
 import { useAuthStore } from './store/useAuthStore';
@@ -45,7 +46,7 @@ export default function App() {
         <Route path="comms" element={<Communications />} />
         <Route path="docs" element={<Documents />} />
         <Route path="finance" element={<Finance />} />
-        <Route path="reports" element={<Reports />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route path="notices" element={<Notices />} />
         <Route path="uni-app" element={<UniApplication />} />
         <Route path="activities" element={<Activities />} />

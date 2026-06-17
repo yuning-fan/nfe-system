@@ -24,6 +24,10 @@ interface RiskStore {
   markWarningSigned: (warningId: number) => Promise<boolean>;
 }
 
+// Supabase 没有为这些自定义表生成类型，统一用 db 别名绕过 never 推断
+// 正确做法是运行 `supabase gen types typescript` 生成 database.types.ts
+const db = supabase as any;
+
 export const useRiskStore = create<RiskStore>((set, get) => ({
   pendingWarnings: [],
   isLoading: false,
@@ -32,7 +36,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
   fetchPendingWarnings: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('warning_letters')
         .select(`
           *,
@@ -40,14 +44,16 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
           profiles!warning_letters_issuer_id_fkey(full_name)
         `)
         .eq('status', 'pending_approval');
-        
+
       if (error) throw error;
-      
+
       // Flatten the profiles relationship for easier rendering
       const formattedData = (data || []).map((item: any) => ({
         ...item,
         students_info: {
-          profiles: Array.isArray(item.students_info?.profiles) ? item.students_info.profiles[0] : item.students_info?.profiles
+          profiles: Array.isArray(item.students_info?.profiles)
+            ? item.students_info.profiles[0]
+            : item.students_info?.profiles
         },
         profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
       }));
@@ -64,7 +70,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       const user = useAuthStore.getState().user;
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('warning_letters')
         .insert({
           student_id: studentId,
@@ -75,7 +81,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
         });
 
       if (error) throw error;
-      
+
       await get().fetchPendingWarnings();
       return true;
     } catch (err: any) {
@@ -91,25 +97,26 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       if (!user) throw new Error('Not authenticated');
 
       // 1. Update warning letter status
-      const { error: wError } = await supabase
+      const { error: wError } = await db
         .from('warning_letters')
         .update({ status: 'issued' })
         .eq('id', warningId);
       if (wError) throw wError;
 
       // 2. Fetch current student risk score
-      const { data: student, error: sError } = await supabase
+      const { data: student, error: sError } = await db
         .from('students_info')
         .select('risk_level, total_risk_score')
         .eq('student_id', studentId)
         .single();
       if (sError) throw sError;
+      if (!student) throw new Error('Student not found');
 
-      const oldLevel = student.risk_level;
-      const newScore = Math.max(0, student.total_risk_score - scoreDeduction);
+      const oldLevel: string = student.risk_level || 'low';
+      const newScore: number = Math.max(0, (student.total_risk_score || 0) - scoreDeduction);
 
       // 3. Update student risk level and score
-      const { error: uError } = await supabase
+      const { error: uError } = await db
         .from('students_info')
         .update({
           risk_level: newLevel,
@@ -119,13 +126,13 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       if (uError) throw uError;
 
       // 4. Log the risk change
-      const { error: lError } = await supabase
+      const { error: lError } = await db
         .from('log_risk_changes')
         .insert({
           student_id: studentId,
           old_level: oldLevel,
           new_level: newLevel,
-          trigger_type: 'manual_override', // or system_auto
+          trigger_type: 'manual_override',
           operator_id: user.id,
           reason: `Approved warning letter #${warningId}`
         });
@@ -142,9 +149,12 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
   markWarningSigned: async (warningId: number) => {
     set({ isLoading: true, error: null });
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('warning_letters')
-        .update({ signed_at: new Date().toISOString() })
+        .update({
+          status: 'signed_onsite',
+          signed_at: new Date().toISOString()
+        })
         .eq('id', warningId);
       if (error) throw error;
       return true;
