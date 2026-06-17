@@ -40,6 +40,7 @@ export interface StudentEnrollment {
 export interface StudentInfo {
   student_id: string;
   english_name: string | null;
+  gender: 'male' | 'female' | null;
   date_of_birth: string | null;
   passport_number: string | null;
   school_name: string | null;
@@ -60,6 +61,13 @@ export interface StudentInfo {
   dorm_assignments?: any[];
   warning_letters?: any[];
   school_timetable?: any[];
+  student_documents?: any[];
+  course_assets?: any[];
+  student_credentials?: any[];
+
+  // Computed fields added in store (list view)
+  visa_expiry?: string | null;
+  available_hours?: number | null;
 }
 
 // Database schema definition for Supabase client

@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Select, DatePicker, message } from 'antd';
 import { supabase } from '../../lib/supabase';
-import dayjs from 'dayjs';
 
 interface HousingAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   availableRooms: any[];
+  preselectedRoomId?: number | null;
 }
 
-export default function HousingAssignmentModal({ isOpen, onClose, onSuccess, availableRooms }: HousingAssignmentModalProps) {
+export default function HousingAssignmentModal({ isOpen, onClose, onSuccess, availableRooms, preselectedRoomId }: HousingAssignmentModalProps) {
   const [form] = Form.useForm();
   const [students, setStudents] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,29 +19,44 @@ export default function HousingAssignmentModal({ isOpen, onClose, onSuccess, ava
     if (isOpen) {
       fetchUnassignedStudents();
       form.resetFields();
+      // Pre-select the room if provided
+      if (preselectedRoomId != null) {
+        form.setFieldValue('dorm_id', preselectedRoomId);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, preselectedRoomId]);
 
   const fetchUnassignedStudents = async () => {
-    // get students without active dorm assignments
-    const { data: activeAssignments } = await supabase.from('dorm_assignments').select('student_id').eq('is_active', true);
-    const assignedIds = activeAssignments?.map(a => a.student_id) || [];
-    
-    let query = supabase.from('students_info').select('student_id, profiles(full_name)');
-    if (assignedIds.length > 0) {
-      query = query.not('student_id', 'in', `(${assignedIds.join(',')})`);
-    }
-    
-    const { data } = await query;
-    setStudents(data || []);
+    // Step 1: get all actively-assigned student IDs
+    const { data: activeAssignments } = await supabase
+      .from('dorm_assignments')
+      .select('student_id')
+      .eq('is_active', true);
+    const assignedIds = activeAssignments?.map((a: any) => a.student_id) || [];
+
+    // Step 2: get ALL student profiles (not limited to students_info rows)
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('role', 'student');
+
+    // Step 3: filter out already-assigned students in JS
+    const unassigned = (profileData || []).filter(
+      (p: any) => !assignedIds.includes(p.id)
+    );
+
+    // Normalise shape to match what the Select renders: student_id + profiles.full_name
+    setStudents(unassigned.map((p: any) => ({ student_id: p.id, profiles: { full_name: p.full_name } })));
   };
 
+
   const handleOk = async () => {
+    const db = supabase as any;
     try {
       const values = await form.validateFields();
       setIsSubmitting(true);
       
-      const { error } = await supabase.from('dorm_assignments').insert({
+      const { error } = await db.from('dorm_assignments').insert({
         student_id: values.student_id,
         dorm_id: values.dorm_id,
         start_date: values.start_date.format('YYYY-MM-DD'),
@@ -51,7 +66,7 @@ export default function HousingAssignmentModal({ isOpen, onClose, onSuccess, ava
       if (error) throw error;
       
       // Update room status to occupied
-      await supabase.from('dorms').update({ room_status: 'occupied' }).eq('id', values.dorm_id);
+      await db.from('dorms').update({ room_status: 'occupied' }).eq('id', values.dorm_id);
 
       message.success('房间分配成功！');
       onSuccess();

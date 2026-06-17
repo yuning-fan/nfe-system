@@ -28,7 +28,7 @@ import { useAuthStore } from '../store/useAuthStore';
 const pageTitles: Record<string, { title: string; sub: string }> = {
   '/': { title: '首页驾驶舱', sub: '2026年6月5日 星期五' },
   '/students': { title: '学生管理', sub: '共24名在读学生' },
-  '/housing': { title: '住宿管理', sub: '4 Tiverton Road' },
+  '/housing': { title: '住宿管理', sub: '公寓 · 房间 · 入住管理' },
   '/dorm-check': { title: '查寝管理', sub: '夜间住宿清点' },
   '/transport': { title: '接送管理', sub: '今日 · 3条路线' },
   '/academic': { title: '学业跟进', sub: '课表 · 排课 · 成绩' },

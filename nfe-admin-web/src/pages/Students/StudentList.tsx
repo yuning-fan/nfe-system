@@ -42,15 +42,27 @@ export default function StudentList() {
     return colors[Math.abs(hash) % colors.length];
   };
 
+  // Check if visa is expiring soon (within 90 days)
+  const getVisaStyle = (expiryDate: string | null) => {
+    if (!expiryDate) return {};
+    const diff = new Date(expiryDate).getTime() - Date.now();
+    const daysLeft = diff / (1000 * 60 * 60 * 24);
+    if (daysLeft < 0) return { color: '#A32D2D', fontWeight: 600 }; // expired
+    if (daysLeft < 90) return { color: '#A32D2D', fontWeight: 500 }; // <90 days
+    return {};
+  };
+
   // Filter state
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState(''); // empty = all
   const [riskFilter, setRiskFilter] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('');
 
+  // Dynamically extract school list
+  const schoolList = [...new Set(students.map(s => s.school_name).filter(Boolean))].sort();
+
   // Compute filtered list
   const filteredStudents = students.filter((student) => {
-    // 搜索文本匹配姓名、英文名、学号或学校
     const lower = searchText.toLowerCase();
     const matchesSearch =
       (student.profiles?.full_name ?? '').toLowerCase().includes(lower) ||
@@ -72,6 +84,8 @@ export default function StudentList() {
 
     return matchesSearch && statusMatch && riskMatch && schoolMatch;
   });
+
+  const totalCols = 12;
 
   return (
     <>
@@ -97,9 +111,7 @@ export default function StudentList() {
           </select>
           <select className="sel" value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}>
             <option value="">全部学校</option>
-            <option value="Avondale College">Avondale College</option>
-            <option value="MAGS">MAGS</option>
-            <option value="Western Springs">Western Springs</option>
+            {schoolList.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <button className="btn btn-primary">
@@ -113,10 +125,13 @@ export default function StudentList() {
             <tr>
               <th>编号</th>
               <th>姓名</th>
+              <th>性别</th>
               <th>就读学校</th>
               <th>项目</th>
               <th>在读状态</th>
               <th>风险等级</th>
+              <th>签证到期</th>
+              <th>可用课时</th>
               <th>入学时间</th>
               <th>家长联系方式</th>
               <th>操作</th>
@@ -125,20 +140,20 @@ export default function StudentList() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px 0' }}>
+                <td colSpan={totalCols} style={{ textAlign: 'center', padding: '40px 0' }}>
                   <IconLoader2 className="spinner" size={24} style={{ color: 'var(--color-primary)' }} />
                   <div style={{ marginTop: 8, color: 'var(--color-text-tertiary)', fontSize: 13 }}>加载中...</div>
                 </td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-danger)' }}>
+                <td colSpan={totalCols} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-danger)' }}>
                   数据加载失败：{error}
                 </td>
               </tr>
             ) : (filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-tertiary)' }}>
+                  <td colSpan={totalCols} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-tertiary)' }}>
                     暂无符合筛选条件的学生
                   </td>
                 </tr>
@@ -150,7 +165,6 @@ export default function StudentList() {
                   const enrollment = enrollmentArray[0];
                   const programArray = Array.isArray(enrollment?.programs) ? enrollment.programs : (enrollment?.programs ? [enrollment.programs] : []);
                   const program = programArray[0];
-                  // Formulate display ID like NFE-001 based on index for demo, or slice UUID
                   const displayId = `NFE-${String(index + 1).padStart(3, '0')}`;
                   
                   const riskInfo = getRiskLabel(student.risk_level);
@@ -158,6 +172,8 @@ export default function StudentList() {
                   
                   const avatarColor = getAvatarColor(student.student_id);
                   const avatarChar = profile?.avatar_url || profile?.full_name?.charAt(0) || 'U';
+
+                  const genderLabel = student.gender === 'male' ? '男' : student.gender === 'female' ? '女' : '—';
 
                   return (
                     <tr key={student.student_id}>
@@ -173,6 +189,7 @@ export default function StudentList() {
                           </div>
                         </div>
                       </td>
+                      <td>{genderLabel}</td>
                       <td>{student.school_name || '—'}</td>
                       <td>
                         {program || enrollment?.source ? (
@@ -187,6 +204,12 @@ export default function StudentList() {
                       </td>
                       <td><span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span></td>
                       <td><span className={`pill ${riskInfo.className}`}>{riskInfo.label}</span></td>
+                      <td style={getVisaStyle(student.visa_expiry)}>
+                        {student.visa_expiry || '—'}
+                      </td>
+                      <td>
+                        {student.available_hours != null ? `${student.available_hours}课时` : '—'}
+                      </td>
                       <td style={{ color: 'var(--color-text-secondary)' }}>
                         {enrollment?.start_date || '—'}
                       </td>
@@ -206,7 +229,7 @@ export default function StudentList() {
 
         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
           <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-            共{students.length}名学生
+            共{students.length}名学生，显示第1—{filteredStudents.length}条
           </span>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn" style={{ padding: '4px 10px' }} disabled>上一页</button>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudentStore } from '../../store/useStudentStore';
 import { useRiskStore } from '../../store/useRiskStore';
-import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil } from '@tabler/icons-react';
+import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
 
 export default function StudentDetail() {
@@ -16,6 +16,7 @@ export default function StudentDetail() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     // Clear stale student data immediately when the ID changes
@@ -30,6 +31,7 @@ export default function StudentDetail() {
   const handleOpenEdit = () => {
     setEditForm({
       english_name: student?.english_name || '',
+      gender: student?.gender || '',
       date_of_birth: student?.date_of_birth || '',
       passport_number: student?.passport_number || '',
       school_name: student?.school_name || '',
@@ -108,6 +110,44 @@ export default function StudentDetail() {
   const enrollment = enrollmentsArray[0];
   const program = enrollment?.programs;
 
+  // Computed fields
+  const genderLabel = student.gender === 'male' ? '男' : student.gender === 'female' ? '女' : '—';
+  
+  // Age calculation
+  const calcAge = (dob: string | null) => {
+    if (!dob) return null;
+    const birth = new Date(dob);
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) age--;
+    return age;
+  };
+  const age = calcAge(student.date_of_birth);
+
+  // Passport masking: show first char + dots + last 3 chars
+  const maskPassport = (pp: string | null) => {
+    if (!pp || pp.length < 4) return pp || '—';
+    return pp[0] + '•'.repeat(pp.length - 4) + pp.slice(-3);
+  };
+
+  // Documents helpers
+  const docs = student.student_documents || [];
+  const visaDoc = docs.find((d: any) => d.doc_type === 'visa');
+  const insuranceDoc = docs.find((d: any) => d.doc_type === 'insurance');
+
+  // Course assets helpers
+  const courseAssets = student.course_assets || [];
+  const totalAvailableHours = courseAssets.reduce((sum: number, a: any) => sum + ((a.total_hours || 0) - (a.used_hours || 0)), 0);
+
+  // Credentials
+  const credentials = student.student_credentials || [];
+
+  // Dorm address helper
+  const activeDorm = (student.dorm_assignments || [])[0];
+
+  // Subjects from school_timetable
+  const timetableSubjects = [...new Set((student.school_timetable || []).map((t: any) => t.program_subjects?.subject_name).filter(Boolean))];
+
   // Helper mappings
   const getRiskLabel = (risk: string) => {
     switch (risk) {
@@ -142,6 +182,9 @@ export default function StudentDetail() {
   const avatarColor = getAvatarColor(student.student_id);
   const avatarChar = profile?.avatar_url || profile?.full_name?.charAt(0) || 'U';
 
+  // Display ID (slice UUID for now)
+  const displayId = `NFE-${student.student_id.slice(0, 6).toUpperCase()}`;
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column' }}>
       {/* Full-screen header bar */}
@@ -167,13 +210,15 @@ export default function StudentDetail() {
             <span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span>
           </div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+            <span>编号 {displayId}</span>
             <span>{student.school_name || '—'}</span>
             <span>
-              {enrollment?.source === 'green_channel' && <span className="pill p-green" style={{marginRight: 8}}>绿通</span>}
-              {enrollment?.source === 'agent' && <span className="pill p-blue" style={{marginRight: 8}}>散客</span>}
+              {enrollment?.source === 'green_channel' && <span className="pill p-green" style={{marginRight: 4, fontSize: 10}}>绿通</span>}
+              {enrollment?.source === 'agent' && <span className="pill p-blue" style={{marginRight: 4, fontSize: 10}}>散客</span>}
               {program?.name || '未分配阶段'}
             </span>
-            <span>目标: {student.target_university || '—'}</span>
+            <span>签证至 {visaDoc?.expiry_date || '—'}</span>
+            <span>可用课时 {totalAvailableHours}</span>
           </div>
         </div>
         <button className="btn btn-primary" onClick={handleOpenEdit}>
@@ -196,6 +241,14 @@ export default function StudentDetail() {
           <div className="form-group">
             <label className="form-label">英文名</label>
             <input className="input" value={editForm.english_name} onChange={e => setEditForm({ ...editForm, english_name: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">性别</label>
+            <select className="input" value={editForm.gender} onChange={e => setEditForm({ ...editForm, gender: e.target.value })}>
+              <option value="">未设置</option>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">出生日期</label>
@@ -255,26 +308,36 @@ export default function StudentDetail() {
         {activeTab === 'basic' && (
           <div className="tabpage active">
             <div className="g3" style={{ alignItems: 'start' }}>
+              {/* 身份识别 */}
               <div className="card">
                 <div className="group-head"><IconId size={16} />身份识别</div>
-                <div className="field"><span className="field-k">姓名</span><span className="field-v">{profile?.full_name}</span></div>
-                <div className="field"><span className="field-k">英文名</span><span className="field-v">{student.english_name || '—'}</span></div>
+                <div className="field"><span className="field-k">编号</span><span className="field-v">{displayId}</span></div>
+                <div className="field"><span className="field-k">姓名 / 英文名</span><span className="field-v">{profile?.full_name} / {student.english_name || '—'}</span></div>
+                <div className="field"><span className="field-k">性别</span><span className="field-v">{genderLabel}</span></div>
                 <div className="field"><span className="field-k">出生日期</span><span className="field-v">{student.date_of_birth || '—'}</span></div>
-                <div className="field"><span className="field-k">护照号</span><span className="field-v">{student.passport_number || '—'}</span></div>
+                <div className="field"><span className="field-k">年龄</span><span className="field-v">
+                  {age != null ? (
+                    <>{age}岁 {age < 18 && <span className="pill p-amber" style={{ fontSize: 10 }}>未成年</span>}</>
+                  ) : '—'}
+                </span></div>
+                <div className="field"><span className="field-k">护照号</span><span className="field-v">{maskPassport(student.passport_number)}</span></div>
               </div>
               
+              {/* 来源与归属 */}
               <div className="card">
                 <div className="group-head"><IconSchool size={16} />来源与归属</div>
                 <div className="field"><span className="field-k">生源校</span><span className="field-v">{student.source_school || '—'}</span></div>
                 <div className="field"><span className="field-k">就读学校</span><span className="field-v">{student.school_name || '—'}</span></div>
+                <div className="field"><span className="field-k">课程</span><span className="field-v">{timetableSubjects.length > 0 ? timetableSubjects.join(' / ') : '—'}</span></div>
                 <div className="field"><span className="field-k">来源</span><span className="field-v">{enrollment?.source === 'green_channel' ? '绿通' : enrollment?.source === 'agent' ? '散客' : '—'}</span></div>
                 <div className="field"><span className="field-k">阶段</span><span className="field-v">{program?.name || '—'}</span></div>
               </div>
 
+              {/* 在读状态 + 留学目标 */}
               <div className="card">
                 <div className="group-head"><IconCalendarStats size={16} />在读状态</div>
+                <div className="field"><span className="field-k">项目周期</span><span className="field-v">{enrollment?.start_date || '—'} 至 {enrollment?.end_date || '—'}</span></div>
                 <div className="field"><span className="field-k">在读状态</span><span className="field-v"><span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span></span></div>
-                <div className="field"><span className="field-k">项目周期</span><span className="field-v">{enrollment?.start_date} 至 {enrollment?.end_date}</span></div>
                 
                 <div className="group-head" style={{ marginTop: 16 }}><IconTarget size={16} />留学目标</div>
                 <div className="field"><span className="field-k">目标院校</span><span className="field-v">{student.target_university || '—'}</span></div>
@@ -282,14 +345,53 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">奖学金要求</span><span className="field-v">{student.scholarship_requirement || '无'}</span></div>
               </div>
 
+              {/* 地址 */}
               <div className="card">
-                <div className="group-head"><IconMapPin size={16} />联系方式</div>
-                <div className="field"><span className="field-k">健康与禁忌</span><span className="field-v">{student.health_notes || '—'}</span></div>
+                <div className="group-head"><IconMapPin size={16} />地址</div>
                 <div className="field"><span className="field-k">学生电话</span><span className="field-v">{profile?.phone || '—'}</span></div>
+                <div className="field"><span className="field-k">新西兰住址</span><span className="field-v">
+                  {activeDorm ? (
+                    <>{activeDorm.dorms?.building_name}, Room {activeDorm.dorms?.room_number} <span className="link" onClick={() => setActiveTab('life')}>查看住宿</span></>
+                  ) : '—'}
+                </span></div>
               </div>
 
+              {/* 学校平台账户 + 服务与费用 */}
+              <div className="card">
+                <div className="group-head"><IconLock size={16} />学校平台账户</div>
+                {credentials.length > 0 ? (
+                  credentials.map((cred: any) => (
+                    <div key={cred.id} style={{ marginBottom: 12 }}>
+                      <div className="field"><span className="field-k">{cred.platform_name} 账号</span><span className="field-v">{cred.account}</span></div>
+                      <div className="field"><span className="field-k">{cred.platform_name} 密码</span><span className="field-v">
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--color-background-secondary)', padding: '2px 8px', borderRadius: 4 }}>
+                          {showPasswords[cred.id] ? cred.encrypted_password : '••••••••'}
+                          <span className="link" onClick={() => setShowPasswords(prev => ({ ...prev, [cred.id]: !prev[cred.id] }))}>
+                            {showPasswords[cred.id] ? <IconEyeOff size={13} /> : <IconEye size={13} />}
+                            {showPasswords[cred.id] ? ' 隐藏' : ' 查看'}
+                          </span>
+                        </span>
+                      </span></div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>暂无平台账户记录</div>
+                )}
+                <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 8, lineHeight: 1.6 }}>
+                  仅管理员及学管老师可查看，所有查看操作记录操作日志。
+                </div>
+
+                <div className="group-head" style={{ marginTop: 16 }}><IconWallet size={16} />服务与费用</div>
+                <div className="field"><span className="field-k">可用课时</span><span className="field-v">{totalAvailableHours} 课时 <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>（只读）</span></span></div>
+              </div>
+
+              {/* 证件与状态 */}
               <div className="card">
                 <div className="group-head"><IconShieldCheck size={16} />证件与状态</div>
+                <div className="field"><span className="field-k">签证状态</span><span className="field-v">{visaDoc ? (visaDoc.status === 'valid' ? '有效' : visaDoc.status) : '—'}</span></div>
+                <div className="field"><span className="field-k">签证到期日</span><span className="field-v" style={visaDoc?.expiry_date && new Date(visaDoc.expiry_date).getTime() - Date.now() < 90 * 86400000 ? { color: '#A32D2D', fontWeight: 500 } : {}}>{visaDoc?.expiry_date || '—'}</span></div>
+                <div className="field"><span className="field-k">保险状态</span><span className="field-v">{insuranceDoc ? (insuranceDoc.status === 'valid' ? '有效' : insuranceDoc.status) : '—'}</span></div>
+                <div className="field"><span className="field-k">保险到期日</span><span className="field-v">{insuranceDoc?.expiry_date || '—'}</span></div>
                 <div className="field"><span className="field-k">风险等级</span><span className="field-v"><span className={`pill ${riskInfo.className}`}>{riskInfo.label}</span></span></div>
                 <div className="field"><span className="field-k">风险积分</span><span className="field-v">{student.total_risk_score} 分</span></div>
               </div>
@@ -324,7 +426,6 @@ export default function StudentDetail() {
           </div>
         )}
 
-        {/* Placeholders for other tabs */}
         {/* Tab Content: Academic */}
         {activeTab === 'academic' && (
           <div className="tabpage active">
@@ -368,20 +469,19 @@ export default function StudentDetail() {
           <div className="tabpage active">
             <div className="g2" style={{ alignItems: 'start' }}>
               <div className="card">
-                <div className="card-title">住宿安排</div>
-                {student.dorm_assignments && student.dorm_assignments.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {student.dorm_assignments.map((da: any) => (
-                      <div key={da.id} style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 8 }}>
-                        <div style={{ fontWeight: 500, marginBottom: 4 }}>{da.dorms?.building_name}</div>
-                        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>房间号: {da.dorms?.room_number}</div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 8 }}>入离时间: {da.start_date} 至 {da.end_date || '至今'}</div>
-                      </div>
-                    ))}
-                  </div>
+                <div className="group-head"><IconBed size={16} />住宿信息</div>
+                {activeDorm ? (
+                  <>
+                    <div className="field"><span className="field-k">住宿地址</span><span className="field-v">{activeDorm.dorms?.building_name}</span></div>
+                    <div className="field"><span className="field-k">房间</span><span className="field-v">Room {activeDorm.dorms?.room_number}</span></div>
+                    <div className="field"><span className="field-k">入住时间</span><span className="field-v">{activeDorm.start_date} 至 {activeDorm.end_date || '至今'}</span></div>
+                  </>
                 ) : (
                   <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>暂无住宿记录</div>
                 )}
+
+                <div className="group-head" style={{ marginTop: 16 }}><IconHeart size={16} />健康与禁忌</div>
+                <div className="field"><span className="field-k">健康情况</span><span className="field-v">{student.health_notes || '—'}</span></div>
               </div>
               
               <div className="card">

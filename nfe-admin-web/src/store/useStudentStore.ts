@@ -25,11 +25,11 @@ export const useStudentStore = create<StudentStore>((set) => ({
       // Step 1: Get all student profiles
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, full_name, role')
+        .select('id, full_name, role, phone')
         .eq('role', 'student');
       if (profileError) throw profileError;
 
-      // Step 2: Get students_info with enrollments (has unambiguous FK from students_info.student_id)
+      // Step 2: Get students_info with enrollments
       const { data: infoData, error: infoError } = await supabase
         .from('students_info')
         .select(`
@@ -41,10 +41,31 @@ export const useStudentStore = create<StudentStore>((set) => ({
         `);
       if (infoError) throw infoError;
 
-      // Step 3: Merge - every profile gets matched with its info (if exists)
+      // Step 3: Get visa expiry dates from student_documents
+      const { data: docsData } = await supabase
+        .from('student_documents')
+        .select('student_id, doc_type, expiry_date, status')
+        .eq('doc_type', 'visa')
+        .order('expiry_date', { ascending: false });
+
+      // Step 4: Get course hours from course_assets
+      const { data: assetsData } = await supabase
+        .from('course_assets')
+        .select('student_id, total_hours, used_hours');
+
+      // Build lookup maps
       const infoMap: Record<string, any> = {};
       for (const info of (infoData as any[] || [])) {
         infoMap[info.student_id] = info;
+      }
+      const visaMap: Record<string, string> = {};
+      for (const doc of (docsData as any[] || [])) {
+        if (!visaMap[doc.student_id]) visaMap[doc.student_id] = doc.expiry_date;
+      }
+      const hoursMap: Record<string, number> = {};
+      for (const asset of (assetsData as any[] || [])) {
+        const remaining = (asset.total_hours || 0) - (asset.used_hours || 0);
+        hoursMap[asset.student_id] = (hoursMap[asset.student_id] || 0) + remaining;
       }
 
       const normalized = (profileData || []).map((p: any) => {
@@ -52,8 +73,10 @@ export const useStudentStore = create<StudentStore>((set) => ({
         return {
           student_id: p.id,
           ...info,
-          profiles: { id: p.id, full_name: p.full_name, role: p.role },
-          student_enrollments: info.student_enrollments || []
+          profiles: { id: p.id, full_name: p.full_name, role: p.role, phone: p.phone },
+          student_enrollments: info.student_enrollments || [],
+          visa_expiry: visaMap[p.id] || null,
+          available_hours: hoursMap[p.id] ?? null,
         };
       });
 
@@ -98,10 +121,13 @@ export const useStudentStore = create<StudentStore>((set) => ({
         .maybeSingle();
 
       // Step 3: Get extra aggregates
-      const [dormRes, warningRes, timetableRes] = await Promise.all([
+      const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes] = await Promise.all([
         supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
         supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('created_at', { ascending: false }),
-        supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time')
+        supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
+        supabase.from('student_documents').select('*').eq('student_id', id).order('expiry_date', { ascending: true }),
+        supabase.from('course_assets').select('*, courses(*)').eq('student_id', id),
+        supabase.from('student_credentials').select('*').eq('student_id', id),
       ]);
 
       const merged = {
@@ -112,6 +138,9 @@ export const useStudentStore = create<StudentStore>((set) => ({
         dorm_assignments: dormRes.data || [],
         warning_letters: warningRes.data || [],
         school_timetable: timetableRes.data || [],
+        student_documents: docsRes.data || [],
+        course_assets: assetsRes.data || [],
+        student_credentials: credsRes.data || [],
       };
 
       set({ currentStudent: merged as any, isLoading: false });
