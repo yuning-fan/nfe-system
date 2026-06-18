@@ -532,7 +532,7 @@ export default function StudentDetail() {
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     {[1, 2, 3, 4, 5].map(day => {
                       const dayName = ['周一', '周二', '周三', '周四', '周五'][day - 1];
-                      const dayClasses = student.school_timetable.filter((t: any) => t.day_of_week === day).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
+                      const dayClasses = (student.school_timetable || []).filter((t: any) => t.day_of_week === day).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
                       return (
                         <div key={day} style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 6, padding: 8, background: 'var(--color-bg-secondary)' }}>
                           <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{dayName}</div>

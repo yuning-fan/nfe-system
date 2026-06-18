@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAcademicStore } from '../../store/useAcademicStore';
-import { IconTarget, IconPlus, IconEdit, IconTrash } from '@tabler/icons-react';
+import { IconTarget, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Modal, message } from 'antd';
 
 export default function MilestoneManagement() {

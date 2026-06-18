@@ -9,10 +9,14 @@ interface Program {
 
 interface ProgramSubject {
   id: number;
+  program_id: number;
   subject_name: string;
   subject_category: string;
+  subject_area?: string;
+  difficulty_level?: string;
   hours_per_week: number;
   sessions_per_week: number;
+  max_students?: number;
   default_schedule?: { day_of_week: number; start_time: string; end_time: string; room: string }[];
 }
 
@@ -221,7 +225,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
 
       // 3. Insert core subjects
       if (coreSubjects && coreSubjects.length > 0) {
-        const selections = coreSubjects.map(subj => ({
+        const selections = coreSubjects.map((subj: any) => ({
           enrollment_id: enrollment.id,
           program_subject_id: subj.id,
           selection_type: 'core',

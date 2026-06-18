@@ -27,8 +27,7 @@ export default function ReportsPage() {
   };
 
   const filteredReports = reports.filter(r => {
-    const matchesSearch = (r.student?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (r.student?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (r.student?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' 
                           ? true 
                           : statusFilter === 'draft' ? r.status === 'draft' : r.status === 'sent';

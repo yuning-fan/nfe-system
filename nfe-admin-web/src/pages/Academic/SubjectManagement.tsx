@@ -93,7 +93,8 @@ export default function SubjectManagement() {
             difficulty_level: 'standard',
             hours_per_week: 4,
             sessions_per_week: 2,
-            max_students: 20
+            max_students: 20,
+            default_schedule: []
           });
           setIsModalOpen(true);
         }}>

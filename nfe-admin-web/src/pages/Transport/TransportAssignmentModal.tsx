@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Select, Input, TimePicker, message } from 'antd';
 import { supabase } from '../../lib/supabase';
-import { useDailyCheckStore } from '../../store/useDailyCheckStore';
-import dayjs from 'dayjs';
 
 interface TransportAssignmentModalProps {
   isOpen: boolean;
@@ -36,7 +34,7 @@ export default function TransportAssignmentModal({ isOpen, onClose, onSuccess }:
       const values = await form.validateFields();
       setIsSubmitting(true);
       
-      const { error } = await supabase.from('transport_passengers').insert({
+      const { error } = await (supabase as any).from('transport_passengers').insert({
         student_id: values.student_id,
         pickup_time: values.pickup_time ? values.pickup_time.format('HH:mm:ss') : null,
         pickup_location: values.pickup_location,

@@ -43,7 +43,7 @@ export default function StudentList() {
   };
 
   // Check if visa is expiring soon (within 90 days)
-  const getVisaStyle = (expiryDate: string | null) => {
+  const getVisaStyle = (expiryDate: string | null | undefined) => {
     if (!expiryDate) return {};
     const diff = new Date(expiryDate).getTime() - Date.now();
     const daysLeft = diff / (1000 * 60 * 60 * 24);
@@ -59,7 +59,7 @@ export default function StudentList() {
   const [schoolFilter, setSchoolFilter] = useState('');
 
   // Dynamically extract school list
-  const schoolList = [...new Set(students.map(s => s.school_name).filter(Boolean))].sort();
+  const schoolList = [...new Set(students.map(s => s.school_name).filter((n): n is string => !!n))].sort();
 
   // Compute filtered list
   const filteredStudents = students.filter((student) => {
