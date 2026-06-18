@@ -7,34 +7,43 @@
 
 ## 🟢 日常运维速查（上线后最常用）
 
-> **2026-06-19 起：本地开发已直连云端，不再依赖 Docker。** `.env.local` 已指向云端 Supabase，
-> 本地 `npm run dev` 看到的就是云端真实数据。**Docker 可永久关闭**（Docker Desktop 可直接退出）。
-> ⚠️ 注意：本地改数据 = 改云端真实数据，勿在本地乱填测试数据。
-> 如需切回本地 Docker 库：`npx supabase start` 后把 `.env.local` 换回 `http://127.0.0.1:54321` + 本地 anon key。
+### 环境说明（2026-06-19 起）
 
-**部署前端（改完页面/逻辑后）：**
+- **本地开发已直连云端，不再依赖 Docker。** `.env.local` 已指向云端 Supabase，本地 `npm run dev` 看到的就是云端真实数据。**Docker 可永久关闭**（Docker Desktop 可直接退出）。
+  - ⚠️ 本地改数据 = 改云端真实数据，勿在本地乱填测试数据。
+  - 如需切回本地 Docker 库：`npx supabase start` 后把 `.env.local` 换回 `http://127.0.0.1:54321` + 本地 anon key。
+- **Vercel 已连 GitHub 自动部署。** 仓库 `yuning-fan/nfe-system`，生产分支 `main`，Root Directory = `nfe-admin-web`，环境变量（`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`）已配在 Vercel 后台。
+
+### ① 部署前端（改完页面/逻辑后）—— 现在只要 push
+
 ```bash
-cd nfe-system/nfe-admin-web
-npm run build          # 看到 ✓ built 才算成功；有 error TS 先修
-npx vercel --prod      # 看到 ▲ Aliased https://nfe-admin-web.vercel.app 即上线
+cd nfe-system
+npm --prefix nfe-admin-web run build   # 可选：本地先验证，看到 ✓ built 再推；有 error TS 先修
+git add -A && git commit -m "你的说明"
+git push                                # 推到 main → Vercel 自动构建上线
 ```
-> `git push` 不会自动触发部署，必须手动跑 `npx vercel --prod`。线上没更新多为浏览器缓存，按 Cmd+Shift+R。
+> - 推到 **main** 自动上生产；其他分支生成 preview 预览链接。
+> - 构建约 1~2 分钟，push 完稍等再刷新线上。线上没更新多为浏览器缓存，按 Cmd+Shift+R。
+> - 想手动部署仍可 `cd nfe-admin-web && npx vercel --prod`（应急用，平时不需要）。
 
-**改了数据库（加字段/导数据）：**
+### ② 改了数据库（加字段/导数据）—— 不在自动化范围，需手动
+
 ```bash
-# 1. 直推云端
+# 1. 直推云端（SQL 同时存一份到 supabase/migrations/ 并登记 schema_migrations 历史）
 PGPASSWORD='<密码>' psql "<云端pooler连接串>" -f 你的.sql
 # 2. 重新生成前端类型
 cd nfe-system
 SUPABASE_ACCESS_TOKEN=<token> npx supabase gen types typescript --project-id pypznlokmhzvzscaibii > nfe-admin-web/src/types/database.types.ts
-# 3. 再按上面部署前端
+# 3. 然后照 ① 提交 push（类型文件变化也要一起提交）
 ```
 
-| 改了什么 | 要跑什么 |
+### 场景对照
+
+| 改了什么 | 要做什么 |
 |---|---|
-| 只改前端页面/逻辑 | 部署前端三步 |
-| 改表结构/导数据 | 先推 SQL + 重生成类型，再部署前端 |
-| 改 R2 签名逻辑 | `supabase functions deploy r2-sign --use-api` |
+| 只改前端页面/逻辑 | `git push`（自动部署） |
+| 改表结构/导数据 | 先推 SQL + 重生成类型，再 `git push` |
+| 改 R2 签名逻辑 | `supabase functions deploy r2-sign --use-api`（Edge Function 不走 Vercel） |
 
 ---
 
