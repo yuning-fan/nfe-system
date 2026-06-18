@@ -98,15 +98,12 @@ export default function WarningLetterModal({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="field-k">违规事项及佐证 <span style={{ color: 'var(--color-danger)' }}>*</span></span>
-            <textarea 
+            <textarea
+              className="input"
               value={evidence}
               onChange={(e) => setEvidence(e.target.value)}
               placeholder="例如：多次无故缺勤，且宿舍发现违禁品。请附上具体时间及照片链接等佐证..."
-              style={{
-                width: '100%', height: 100, padding: 12,
-                borderRadius: 6, border: '1px solid var(--color-border)',
-                resize: 'none', fontFamily: 'inherit'
-              }}
+              style={{ height: 100 }}
             />
           </div>
         </div>
