@@ -51,6 +51,9 @@ export interface StudentInfo {
   scholarship_requirement: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
+  emergency_contact_email: string | null;
+  home_address: string | null;
+  payment_note: string | null;
   health_notes: string | null;
   risk_level: RiskLevel;
   total_risk_score: number;

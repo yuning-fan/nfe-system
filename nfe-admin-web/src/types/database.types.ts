@@ -1413,6 +1413,7 @@ export type Database = {
         Row: {
           arrival_date: string | null
           date_of_birth: string | null
+          emergency_contact_email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           english_level: string | null
@@ -1420,7 +1421,9 @@ export type Database = {
           enrollment_id: number | null
           gender: string | null
           health_notes: string | null
+          home_address: string | null
           passport_number: string | null
+          payment_note: string | null
           risk_level: Database["public"]["Enums"]["risk_level"] | null
           scholarship_requirement: string | null
           school_name: string | null
@@ -1432,6 +1435,7 @@ export type Database = {
         Insert: {
           arrival_date?: string | null
           date_of_birth?: string | null
+          emergency_contact_email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           english_level?: string | null
@@ -1439,7 +1443,9 @@ export type Database = {
           enrollment_id?: number | null
           gender?: string | null
           health_notes?: string | null
+          home_address?: string | null
           passport_number?: string | null
+          payment_note?: string | null
           risk_level?: Database["public"]["Enums"]["risk_level"] | null
           scholarship_requirement?: string | null
           school_name?: string | null
@@ -1451,6 +1457,7 @@ export type Database = {
         Update: {
           arrival_date?: string | null
           date_of_birth?: string | null
+          emergency_contact_email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           english_level?: string | null
@@ -1458,7 +1465,9 @@ export type Database = {
           enrollment_id?: number | null
           gender?: string | null
           health_notes?: string | null
+          home_address?: string | null
           passport_number?: string | null
+          payment_note?: string | null
           risk_level?: Database["public"]["Enums"]["risk_level"] | null
           scholarship_requirement?: string | null
           school_name?: string | null

@@ -70,6 +70,9 @@ export default function StudentDetail() {
       scholarship_requirement: student?.scholarship_requirement || '',
       emergency_contact_name: student?.emergency_contact_name || '',
       emergency_contact_phone: student?.emergency_contact_phone || '',
+      emergency_contact_email: student?.emergency_contact_email || '',
+      home_address: student?.home_address || '',
+      payment_note: student?.payment_note || '',
       health_notes: student?.health_notes || '',
       arrival_date: student?.arrival_date || '',
     });
@@ -388,6 +391,18 @@ export default function StudentDetail() {
             <input className="input" value={editForm.emergency_contact_phone} onChange={e => setEditForm({ ...editForm, emergency_contact_phone: e.target.value })} />
           </div>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">家长邮箱</label>
+            <input className="input" value={editForm.emergency_contact_email} onChange={e => setEditForm({ ...editForm, emergency_contact_email: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">国内家庭住址</label>
+            <input className="input" value={editForm.home_address} onChange={e => setEditForm({ ...editForm, home_address: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">缴费备注</label>
+            <input className="input" value={editForm.payment_note} onChange={e => setEditForm({ ...editForm, payment_note: e.target.value })} placeholder="如：5个月+本科半年" />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">健康 / 禁忌备注</label>
             <textarea className="input" rows={2} value={editForm.health_notes} onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })} />
           </div>
@@ -471,6 +486,7 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">课程</span><span className="field-v">{timetableSubjects.length > 0 ? timetableSubjects.join(' / ') : '—'}</span></div>
                 <div className="field"><span className="field-k">来源</span><span className="field-v">{enrollment?.source === 'green_channel' ? '绿通' : enrollment?.source === 'agent' ? '散客' : '—'}</span></div>
                 <div className="field"><span className="field-k">阶段</span><span className="field-v">{program?.name || '—'}</span></div>
+                <div className="field"><span className="field-k">缴费备注</span><span className="field-v">{student.payment_note || '—'}</span></div>
               </div>
 
               {/* 在读状态 + 留学目标 */}
@@ -494,6 +510,7 @@ export default function StudentDetail() {
                     <>{activeDorm.dorms?.building_name}, Room {activeDorm.dorms?.room_number} <span className="link" onClick={() => setActiveTab('life')}>查看住宿</span></>
                   ) : '—'}
                 </span></div>
+                <div className="field"><span className="field-k">国内住址</span><span className="field-v">{student.home_address || '—'}</span></div>
               </div>
 
               {/* 学校平台账户 + 服务与费用 */}
@@ -552,6 +569,11 @@ export default function StudentDetail() {
                       <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <IconLock size={14} /> {student.emergency_contact_phone || '未提供电话'}
                       </div>
+                      {student.emergency_contact_email && (
+                        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                          ✉️ {student.emergency_contact_email}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>无紧急联系人记录</div>
