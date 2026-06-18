@@ -72,9 +72,9 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
   updatePassengerStatus: async (passengerId: number, newStatus: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('transport_passengers')
-        .update({ status: newStatus })
+        .update({ status: newStatus as any })
         .eq('id', passengerId);
       if (error) throw error;
       await get().loadTodayPassengers();
@@ -125,9 +125,9 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
         notes: r.notes || null
       }));
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('daily_checks')
-        .insert(inserts);
+        .insert(inserts as any);
 
       if (error) throw error;
       
@@ -135,7 +135,7 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
       // Doing this here for MVP
       const absentStudents = records.filter(r => r.status === 'absent').map(r => r.student_id);
       if (absentStudents.length > 0) {
-        await (supabase as any)
+        await supabase
           .from('students_info')
           .update({ risk_level: 'yellow' })
           .in('student_id', absentStudents)

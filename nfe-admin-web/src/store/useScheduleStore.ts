@@ -12,6 +12,7 @@ export interface Schedule {
   start_time: string;
   end_time: string;
   status: 'pending_approval' | 'scheduled' | 'completed' | 'rescheduling';
+  material_url: string | null;
   // Relations
   student?: { full_name: string };
   tutor?: { full_name: string };
@@ -44,6 +45,7 @@ interface ScheduleStore {
   }) => Promise<boolean>;
   approveSchedule: (scheduleId: number) => Promise<boolean>;
   rejectSchedule: (scheduleId: number) => Promise<boolean>;
+  attachMaterial: (scheduleId: number, key: string) => Promise<boolean>;
 }
 
 export const useScheduleStore = create<ScheduleStore>((set, get) => ({
@@ -124,7 +126,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
   createSchedule: async (payload) => {
     set({ isLoading: true });
     try {
-      const { error } = await (supabase as any).from('schedules').insert({
+      const { error } = await supabase.from('schedules').insert({
         ...payload,
         status: 'pending_approval',
       });
@@ -143,7 +145,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
       const user = useAuthStore.getState().user;
 
       // 1. Get the schedule details to know duration and course
-      const { data: schedule, error: fetchErr } = await (supabase as any)
+      const { data: schedule, error: fetchErr } = await supabase
         .from('schedules')
         .select('*, course:courses(name)')
         .eq('id', scheduleId)
@@ -151,14 +153,14 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
       if (fetchErr) throw fetchErr;
 
       // 2. Approve: update status to 'scheduled'
-      const { error: updateErr } = await (supabase as any)
+      const { error: updateErr } = await supabase
         .from('schedules')
         .update({ status: 'scheduled' })
         .eq('id', scheduleId);
       if (updateErr) throw updateErr;
 
       // 3. Write approval log to schedule_changes
-      await (supabase as any).from('schedule_changes').insert({
+      await supabase.from('schedule_changes').insert({
         schedule_id: scheduleId,
         requester_id: schedule.student_id,
         new_start_time: schedule.start_time,
@@ -173,18 +175,18 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
       const durationHours = (endMs - startMs) / (1000 * 60 * 60);
 
       if (schedule.course_id) {
-        const { data: asset } = await (supabase as any)
+        const { data: asset } = await supabase
           .from('course_assets')
           .select('*')
-          .eq('student_id', schedule.student_id)
-          .eq('course_id', schedule.course_id)
+          .eq('student_id', schedule.student_id!)
+          .eq('course_id', schedule.course_id!)
           .single() as { data: any };
 
         if (asset) {
-          const newUsed = Number(asset.used_hours) + durationHours;
-          await (supabase as any)
+          const remaining = Math.max(0, Number(asset.total_hours) - durationHours);
+          await supabase
             .from('course_assets')
-            .update({ used_hours: newUsed })
+            .update({ total_hours: remaining })
             .eq('id', asset.id);
         }
       }
@@ -200,7 +202,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
   rejectSchedule: async (scheduleId) => {
     set({ isLoading: true });
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('schedules')
         .delete()
         .eq('id', scheduleId);
@@ -209,6 +211,21 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  attachMaterial: async (scheduleId, key) => {
+    try {
+      const { error } = await supabase
+        .from('schedules')
+        .update({ material_url: key })
+        .eq('id', scheduleId);
+      if (error) throw error;
+      await get().fetchSchedules();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message });
       return false;
     }
   },

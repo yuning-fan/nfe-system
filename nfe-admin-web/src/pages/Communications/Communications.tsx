@@ -92,7 +92,7 @@ export default function Communications() {
         .eq('student_id', selectedStudent!.student_id)
         .order('created_at', { ascending: false });
       if (data && data.length > 0) {
-        setLogs(data as CommLog[]);
+        setLogs(data as unknown as CommLog[]);
       } else {
         setLogs(MOCK_LOGS[name] || []);
       }

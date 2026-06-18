@@ -154,7 +154,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
     set({ isLoading: true });
     try {
       // Upsert students_info (creates the row if it doesn't exist yet)
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('students_info')
         .upsert({ student_id: id, ...payload }, { onConflict: 'student_id' });
       if (error) throw error;

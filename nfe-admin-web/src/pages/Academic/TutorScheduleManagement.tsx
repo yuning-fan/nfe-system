@@ -2,12 +2,24 @@ import { useState, useEffect } from 'react';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useStudentStore } from '../../store/useStudentStore';
 import { useAcademicStore } from '../../store/useAcademicStore';
-import { IconCalendarPlus, IconPlus, IconCheck, IconX, IconClock, IconUser, IconBook } from '@tabler/icons-react';
+import { IconCalendarPlus, IconPlus, IconCheck, IconX, IconClock, IconUser, IconBook, IconPaperclip } from '@tabler/icons-react';
 import { Modal, message } from 'antd';
+import { getDownloadUrl } from '../../lib/r2';
+import FileUploadButton from '../../components/common/FileUploadButton';
 
 
 export default function TutorScheduleManagement() {
-  const { pendingSchedules, schedules, tutors, fetchPendingSchedules, fetchSchedules, fetchTutors, createSchedule, approveSchedule, rejectSchedule, isLoading } = useScheduleStore();
+  const { pendingSchedules, schedules, tutors, fetchPendingSchedules, fetchSchedules, fetchTutors, createSchedule, approveSchedule, rejectSchedule, attachMaterial, isLoading } = useScheduleStore();
+
+  const openMaterial = async (key: string | null) => {
+    if (!key) return;
+    try {
+      const url = await getDownloadUrl('materials', key);
+      window.open(url, '_blank');
+    } catch (e: any) {
+      message.error(e.message || '获取课件失败');
+    }
+  };
   const { students, fetchStudents } = useStudentStore();
   const { courses, fetchCourses, courseAssets, fetchCourseAssets } = useAcademicStore();
 
@@ -303,6 +315,21 @@ export default function TutorScheduleManagement() {
                           {formatHour(s.start_time)} – {formatHour(s.end_time)}
                         </div>
                         <div style={{ color: 'var(--color-text-secondary)', fontSize: 10 }}>👨‍🏫 {(s.tutor as any)?.full_name}</div>
+                        <div style={{ marginTop: 4 }}>
+                          {s.material_url ? (
+                            <span className="link" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 2 }} onClick={() => openMaterial(s.material_url)}>
+                              <IconPaperclip size={10} /> 查看课件
+                            </span>
+                          ) : (
+                            <FileUploadButton
+                              bucket="materials"
+                              prefix={`${s.id}`}
+                              label="课件"
+                              className="btn-tiny"
+                              onUploaded={async ({ key }) => { await attachMaterial(s.id, key); }}
+                            />
+                          )}
+                        </div>
                       </div>
                     ))
                   )}

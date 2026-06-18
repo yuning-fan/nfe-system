@@ -24,10 +24,6 @@ interface RiskStore {
   markWarningSigned: (warningId: number) => Promise<boolean>;
 }
 
-// Supabase 没有为这些自定义表生成类型，统一用 db 别名绕过 never 推断
-// 正确做法是运行 `supabase gen types typescript` 生成 database.types.ts
-const db = supabase as any;
-
 export const useRiskStore = create<RiskStore>((set, get) => ({
   pendingWarnings: [],
   isLoading: false,
@@ -38,7 +34,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
     try {
       // warning_letters.student_id → profiles (直接关联，无需经过 students_info)
       // warning_letters.issuer_id  → profiles (FK: warning_letters_issuer_id_fkey)
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('warning_letters')
         .select(`
           *,
@@ -70,7 +66,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       const user = useAuthStore.getState().user;
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await db
+      const { error } = await supabase
         .from('warning_letters')
         .insert({
           student_id: studentId,
@@ -97,14 +93,14 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       if (!user) throw new Error('Not authenticated');
 
       // 1. Update warning letter status
-      const { error: wError } = await db
+      const { error: wError } = await supabase
         .from('warning_letters')
         .update({ status: 'issued' })
         .eq('id', warningId);
       if (wError) throw wError;
 
       // 2. Fetch current student risk score
-      const { data: student, error: sError } = await db
+      const { data: student, error: sError } = await supabase
         .from('students_info')
         .select('risk_level, total_risk_score')
         .eq('student_id', studentId)
@@ -116,22 +112,22 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       const newScore: number = Math.max(0, (student.total_risk_score || 0) - scoreDeduction);
 
       // 3. Update student risk level and score
-      const { error: uError } = await db
+      const { error: uError } = await supabase
         .from('students_info')
         .update({
-          risk_level: newLevel,
+          risk_level: newLevel as any,
           total_risk_score: newScore
         })
         .eq('student_id', studentId);
       if (uError) throw uError;
 
       // 4. Log the risk change
-      const { error: lError } = await db
+      const { error: lError } = await supabase
         .from('log_risk_changes')
         .insert({
           student_id: studentId,
-          old_level: oldLevel,
-          new_level: newLevel,
+          old_level: oldLevel as any,
+          new_level: newLevel as any,
           trigger_type: 'manual_override',
           operator_id: user.id,
           reason: `Approved warning letter #${warningId}`
@@ -149,7 +145,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
   markWarningSigned: async (warningId: number) => {
     set({ isLoading: true, error: null });
     try {
-      const { error } = await db
+      const { error } = await supabase
         .from('warning_letters')
         .update({
           status: 'signed_onsite',

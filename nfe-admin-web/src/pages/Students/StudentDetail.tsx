@@ -4,6 +4,8 @@ import { useStudentStore } from '../../store/useStudentStore';
 import { useRiskStore } from '../../store/useRiskStore';
 import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
+import { supabase } from '../../lib/supabase';
+import { uploadFile, getDownloadUrl } from '../../lib/r2';
 
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -17,15 +19,42 @@ export default function StudentDetail() {
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
 
   useEffect(() => {
     // Clear stale student data immediately when the ID changes
     clearCurrentStudent();
+    setAvatarSrc(null);
     if (id) {
       fetchStudentById(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // 头像：若 avatar_url 是上传的文件 key（含 '/'），换取预签名图片 URL
+  useEffect(() => {
+    const prof = Array.isArray(student?.profiles) ? student?.profiles[0] : student?.profiles;
+    const av = prof?.avatar_url;
+    if (av && av.includes('/')) {
+      getDownloadUrl('avatars', av).then(setAvatarSrc).catch(() => setAvatarSrc(null));
+    } else {
+      setAvatarSrc(null);
+    }
+  }, [student]);
+
+  // 上传头像
+  const handleAvatarUpload = async (file: File) => {
+    if (!id) return;
+    try {
+      const { key } = await uploadFile('avatars', id, file);
+      const { error } = await (supabase as any).from('profiles').update({ avatar_url: key }).eq('id', id);
+      if (error) throw error;
+      message.success('头像已更新');
+      fetchStudentById(id);
+    } catch (err: any) {
+      message.error(err.message || '头像上传失败');
+    }
+  };
 
   // Open edit modal pre-filled with current student data
   const handleOpenEdit = () => {
@@ -237,7 +266,10 @@ export default function StudentDetail() {
   const riskInfo = getRiskLabel(student.risk_level);
   const statusInfo = getStatusLabel(enrollment?.status || 'active');
   const avatarColor = getAvatarColor(student.student_id);
-  const avatarChar = profile?.avatar_url || profile?.full_name?.charAt(0) || 'U';
+  // avatar_url 含 '/' 表示是上传的文件 key（用图片展示），否则当作中文首字
+  const avatarChar = (profile?.avatar_url && !profile.avatar_url.includes('/'))
+    ? profile.avatar_url
+    : (profile?.full_name?.charAt(0) || 'U');
 
   // Display ID (slice UUID for now)
   const displayId = `NFE-${student.student_id.slice(0, 6).toUpperCase()}`;
@@ -258,7 +290,19 @@ export default function StudentDetail() {
         >
           <IconArrowLeft size={16} /> 返回列表
         </button>
-        <div className={`avatar-lg ${avatarColor}`}>{avatarChar}</div>
+        <label title="点击上传头像" style={{ cursor: 'pointer', position: 'relative', display: 'inline-block' }}>
+          {avatarSrc ? (
+            <img src={avatarSrc} alt="头像" className="avatar-lg" style={{ objectFit: 'cover' }} />
+          ) : (
+            <div className={`avatar-lg ${avatarColor}`}>{avatarChar}</div>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); e.target.value = ''; }}
+          />
+        </label>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 20, fontWeight: 600 }}>{profile?.full_name || '未知姓名'}</span>

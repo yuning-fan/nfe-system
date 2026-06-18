@@ -9,7 +9,7 @@ export interface Profile {
   full_name: string;
   phone: string | null;
   avatar_url: string | null;
-  status: number;
+  status: number | null;
   created_at: string;
 }
 
@@ -71,22 +71,3 @@ export interface StudentInfo {
   available_hours?: number | null;
 }
 
-// Database schema definition for Supabase client
-export interface Database {
-  public: {
-    Tables: {
-      profiles: {
-        Row: Profile;
-      };
-      students_info: {
-        Row: StudentInfo;
-      };
-      programs: {
-        Row: Program;
-      };
-      student_enrollments: {
-        Row: StudentEnrollment;
-      };
-    };
-  };
-}

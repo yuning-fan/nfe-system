@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         .eq('id', session.user.id)
         .single();
         
-      set({ session, user: session.user, profile: profile || null, isLoading: false });
+      set({ session, user: session.user, profile: (profile as Profile) || null, isLoading: false });
     } else {
       set({ session: null, user: null, profile: null, isLoading: false });
     }
@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           .select('*')
           .eq('id', newSession.user.id)
           .single();
-        set({ session: newSession, user: newSession.user, profile: profile || null });
+        set({ session: newSession, user: newSession.user, profile: (profile as Profile) || null });
       } else {
         set({ session: null, user: null, profile: null });
       }

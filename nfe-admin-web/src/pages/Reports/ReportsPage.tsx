@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useReportStore } from '../../store/useReportStore';
 import { IconReport } from '@tabler/icons-react';
+import { message } from 'antd';
+import { getDownloadUrl } from '../../lib/r2';
+import FileUploadButton from '../../components/common/FileUploadButton';
 
 export default function ReportsPage() {
-  const { reports, fetchReports, publishReport, generateBiweeklyReports, isLoading } = useReportStore();
+  const { reports, fetchReports, publishReport, generateBiweeklyReports, attachPdf, isLoading } = useReportStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  const viewPdf = async (key: string | null) => {
+    if (!key) { message.info('该报告尚未上传 PDF'); return; }
+    try {
+      const url = await getDownloadUrl('reports', key);
+      window.open(url, '_blank');
+    } catch (e: any) {
+      message.error(e.message || '获取PDF失败');
+    }
+  };
 
   useEffect(() => {
     fetchReports();
@@ -89,14 +102,25 @@ export default function ReportsPage() {
                   <td style={{ padding: '12px 16px' }}>{formatDate(r.generated_at)}</td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button 
-                        className="btn btn-primary" 
+                      <button
+                        className="btn btn-primary"
                         style={{ padding: '4px 8px', fontSize: 11, minHeight: 0 }}
                         onClick={() => publishReport(r.id)}
                       >
                         审核发布
                       </button>
-                      <button className="btn" style={{ padding: '4px 8px', fontSize: 11, minHeight: 0 }}>预览</button>
+                      {r.pdf_url ? (
+                        <button className="btn" style={{ padding: '4px 8px', fontSize: 11, minHeight: 0 }} onClick={() => viewPdf(r.pdf_url)}>预览</button>
+                      ) : (
+                        <FileUploadButton
+                          bucket="reports"
+                          prefix={`${r.student_id}`}
+                          accept=".pdf"
+                          label="上传PDF"
+                          className=""
+                          onUploaded={async ({ key }) => { await attachPdf(r.id, key); }}
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -136,8 +160,7 @@ export default function ReportsPage() {
                   <td style={{ padding: '12px 16px' }}>{formatDate(r.reviewed_at || r.generated_at)}</td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <span className="link" style={{ fontSize: 12 }}>查看</span>
-                      <span className="link" style={{ fontSize: 12 }}>导出PDF</span>
+                      <span className="link" style={{ fontSize: 12 }} onClick={() => viewPdf(r.pdf_url)}>查看PDF</span>
                     </div>
                   </td>
                 </tr>

@@ -25,9 +25,8 @@ interface ReportStore {
   fetchReports: () => Promise<void>;
   publishReport: (id: number) => Promise<boolean>;
   generateBiweeklyReports: () => Promise<boolean>;
+  attachPdf: (id: number, key: string) => Promise<boolean>;
 }
-
-const db = supabase as any;
 
 export const useReportStore = create<ReportStore>((set, get) => ({
   reports: [],
@@ -36,7 +35,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   fetchReports: async () => {
     set({ isLoading: true });
     try {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('reports')
         .select(`
           *,
@@ -45,7 +44,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
         .order('generated_at', { ascending: false });
 
       if (error) throw error;
-      set({ reports: data || [] });
+      set({ reports: (data || []) as unknown as ReportRecord[] });
     } catch (err: any) {
       console.error('Fetch reports error:', err);
       message.error('获取报告列表失败');
@@ -56,7 +55,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
 
   publishReport: async (id: number) => {
     try {
-      const { error } = await db
+      const { error } = await supabase
         .from('reports')
         .update({
           status: 'sent',
@@ -76,12 +75,25 @@ export const useReportStore = create<ReportStore>((set, get) => ({
     }
   },
 
+  attachPdf: async (id: number, key: string) => {
+    try {
+      const { error } = await supabase.from('reports').update({ pdf_url: key }).eq('id', id);
+      if (error) throw error;
+      get().fetchReports();
+      return true;
+    } catch (err: any) {
+      console.error('Attach pdf error:', err);
+      message.error('保存PDF失败');
+      return false;
+    }
+  },
+
   generateBiweeklyReports: async () => {
     try {
       const user = useAuthStore.getState().user;
 
       // Fetch all student profiles
-      const { data: students, error: studentError } = await db
+      const { data: students, error: studentError } = await supabase
         .from('profiles')
         .select('id')
         .eq('role', 'student');
@@ -100,9 +112,9 @@ export const useReportStore = create<ReportStore>((set, get) => ({
         generated_by: user?.id ?? null,
       }));
 
-      const { error } = await db
+      const { error } = await supabase
         .from('reports')
-        .insert(newReports);
+        .insert(newReports as any);
 
       if (error) throw error;
 

@@ -202,7 +202,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       const user = useAuthStore.getState().user;
       
       // 1. Insert enrollment
-      const { data: enrollment, error: eError } = await (supabase as any)
+      const { data: enrollment, error: eError } = await supabase
         .from('student_enrollments')
         .insert({
           student_id: studentId,
@@ -217,7 +217,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       if (eError) throw eError;
 
       // 2. Fetch core subjects for this program
-      const { data: coreSubjects } = await (supabase as any)
+      const { data: coreSubjects } = await supabase
         .from('program_subjects')
         .select('id')
         .eq('program_id', programId)
@@ -231,7 +231,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
           selection_type: 'core',
           status: 'confirmed'
         }));
-        await (supabase as any).from('student_subject_selections').insert(selections);
+        await supabase.from('student_subject_selections').insert(selections as any);
       }
 
       await get().fetchEnrollments();
@@ -245,7 +245,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   addElective: async (enrollmentId, subjectId) => {
     set({ isLoading: true });
     try {
-      await (supabase as any).from('student_subject_selections').insert({
+      await supabase.from('student_subject_selections').insert({
         enrollment_id: enrollmentId,
         program_subject_id: subjectId,
         selection_type: 'elective',
@@ -341,7 +341,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       await supabase.from('school_timetable').delete().eq('enrollment_id', enrollmentId);
       
       // Insert new
-      await (supabase as any).from('school_timetable').insert(inserts);
+      await supabase.from('school_timetable').insert(inserts);
 
       await get().fetchTimetable();
       return true;
@@ -373,7 +373,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   createMilestone: async (payload) => {
     set({ isLoading: true });
     try {
-      const { error } = await (supabase as any).from('academic_milestones').insert(payload);
+      const { error } = await supabase.from('academic_milestones').insert(payload as any);
       if (error) throw error;
       await get().fetchMilestones();
       return true;
@@ -399,7 +399,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   createProgramSubject: async (payload) => {
     set({ isLoading: true });
     try {
-      const { error } = await (supabase as any).from('program_subjects').insert(payload);
+      const { error } = await supabase.from('program_subjects').insert(payload as any);
       if (error) throw error;
       await get().fetchProgramsAndSubjects();
       return true;
@@ -412,7 +412,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   updateProgramSubject: async (id, payload) => {
     set({ isLoading: true });
     try {
-      const { error } = await (supabase as any).from('program_subjects').update(payload).eq('id', id);
+      const { error } = await supabase.from('program_subjects').update(payload as any).eq('id', id);
       if (error) throw error;
       await get().fetchProgramsAndSubjects();
       return true;
@@ -467,7 +467,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     set({ isLoading: true });
     try {
       // check if asset exists
-      const { data: existing } = await (supabase as any)
+      const { data: existing } = await supabase
         .from('course_assets')
         .select('*')
         .eq('student_id', studentId)
@@ -476,18 +476,17 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
 
       if (existing) {
         // update
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from('course_assets')
           .update({ total_hours: Number(existing.total_hours) + Number(hours) })
           .eq('id', existing.id);
         if (error) throw error;
       } else {
         // insert
-        const { error } = await (supabase as any).from('course_assets').insert({
+        const { error } = await supabase.from('course_assets').insert({
           student_id: studentId,
           course_id: courseId,
           total_hours: Number(hours),
-          used_hours: 0
         });
         if (error) throw error;
       }
@@ -526,10 +525,10 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { error } = await (supabase as any).from('grade_records').insert({
+      const { error } = await supabase.from('grade_records').insert({
         ...payload,
         recorded_by: user?.id
-      });
+      } as any);
       if (error) throw error;
       await get().fetchGradeRecords();
       return true;

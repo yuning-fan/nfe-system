@@ -169,7 +169,9 @@ export default function StudentList() {
                   const statusInfo = getStatusLabel(enrollment?.status || 'active');
                   
                   const avatarColor = getAvatarColor(student.student_id);
-                  const avatarChar = profile?.avatar_url || profile?.full_name?.charAt(0) || 'U';
+                  const avatarChar = (profile?.avatar_url && !profile.avatar_url.includes('/'))
+                    ? profile.avatar_url
+                    : (profile?.full_name?.charAt(0) || 'U');
 
                   const genderLabel = student.gender === 'male' ? '男' : student.gender === 'female' ? '女' : '—';
 
