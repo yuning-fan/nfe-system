@@ -1,24 +1,35 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from './useAuthStore';
 import type { StudentInfo } from '../types/database';
+
+export interface ProgramOption {
+  id: number;
+  name: string;
+  duration_months: number | null;
+}
 
 interface StudentStore {
   students: StudentInfo[];
   currentStudent: StudentInfo | null;
+  programs: ProgramOption[];
   isLoading: boolean;
   error: string | null;
   fetchStudents: () => Promise<void>;
   fetchStudentById: (id: string) => Promise<void>;
   updateStudent: (id: string, payload: Record<string, any>) => Promise<boolean>;
+  fetchPrograms: () => Promise<void>;
+  updateEnrollment: (studentId: string, payload: Record<string, any>) => Promise<boolean>;
   clearCurrentStudent: () => void;
 }
 
 export const useStudentStore = create<StudentStore>((set) => ({
   students: [],
   currentStudent: null,
+  programs: [],
   isLoading: false,
   error: null,
-  
+
   fetchStudents: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -211,6 +222,56 @@ export const useStudentStore = create<StudentStore>((set) => ({
       // 注意：不要写入全局 error 状态——详情页会因 error 被置而整页替换成错误页。
       // 保存失败由调用方根据返回值用 message.error 提示即可。
       set({ isLoading: false });
+      return false;
+    }
+  },
+
+  fetchPrograms: async () => {
+    try {
+      const { data } = await supabase
+        .from('programs')
+        .select('id, name, duration_months')
+        .eq('is_active', true)
+        .order('id');
+      set({ programs: (data as ProgramOption[]) || [] });
+    } catch (error: any) {
+      console.error('Error fetching programs:', error);
+    }
+  },
+
+  updateEnrollment: async (studentId: string, payload: Record<string, any>) => {
+    try {
+      const clean: Record<string, any> = {};
+      for (const [k, v] of Object.entries(payload)) clean[k] = v === '' ? null : v;
+
+      // 已有报名记录则更新，否则新建一条
+      const { data: existing } = await supabase
+        .from('student_enrollments')
+        .select('id')
+        .eq('student_id', studentId)
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from('student_enrollments')
+          .update(clean as any)
+          .eq('id', (existing as any).id);
+        if (error) throw error;
+      } else {
+        const user = useAuthStore.getState().user;
+        const { error } = await supabase
+          .from('student_enrollments')
+          .insert({ student_id: studentId, ...clean, enrolled_by: user?.id ?? null } as any);
+        if (error) throw error;
+      }
+
+      const store = useStudentStore.getState();
+      await store.fetchStudentById(studentId);
+      return true;
+    } catch (error: any) {
+      console.error('Error updating enrollment:', error);
       return false;
     }
   }

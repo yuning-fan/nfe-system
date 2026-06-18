@@ -22,7 +22,7 @@ const editSectionStyle: CSSProperties = {
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent, updateStudent } = useStudentStore();
+  const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent, updateStudent, programs, fetchPrograms, updateEnrollment } = useStudentStore();
   const { markWarningSigned } = useRiskStore();
   
   // Tab state
@@ -30,6 +30,9 @@ export default function StudentDetail() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isEnrollOpen, setIsEnrollOpen] = useState(false);
+  const [enrollForm, setEnrollForm] = useState<Record<string, any>>({});
+  const [isSavingEnroll, setIsSavingEnroll] = useState(false);
   const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
 
@@ -40,6 +43,7 @@ export default function StudentDetail() {
     if (id) {
       fetchStudentById(id);
     }
+    fetchPrograms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -104,6 +108,52 @@ export default function StudentDetail() {
     } else {
       message.error('保存失败，请重试');
     }
+  };
+
+  // 入学日期 + 阶段学制 → 自动算预计结束日
+  const computeEndDate = (start: string, programId: number | string) => {
+    if (!start) return '';
+    const prog = programs.find(p => p.id === Number(programId));
+    if (!prog?.duration_months) return ''; // 大学阶段等无固定学制 → 留空手填
+    const d = new Date(start);
+    d.setMonth(d.getMonth() + prog.duration_months);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const handleOpenEnroll = () => {
+    const en = Array.isArray(student?.student_enrollments) ? student?.student_enrollments[0] : student?.student_enrollments;
+    setEnrollForm({
+      source: en?.source || '',
+      program_id: en?.program_id || '',
+      start_date: en?.start_date || '',
+      end_date: en?.end_date || '',
+      status: en?.status || 'active',
+    });
+    setIsEnrollOpen(true);
+  };
+
+  // 改阶段或入学日期时，自动重算结束日（有学制时）
+  const onEnrollChange = (patch: Record<string, any>) => {
+    setEnrollForm(prev => {
+      const next = { ...prev, ...patch };
+      if ('program_id' in patch || 'start_date' in patch) {
+        const auto = computeEndDate(next.start_date, next.program_id);
+        if (auto) next.end_date = auto;
+      }
+      return next;
+    });
+  };
+
+  const handleSaveEnroll = async () => {
+    if (!enrollForm.program_id) { message.warning('请选择学习阶段'); return; }
+    setIsSavingEnroll(true);
+    const ok = await updateEnrollment(student!.student_id, {
+      ...enrollForm,
+      program_id: Number(enrollForm.program_id),
+    });
+    setIsSavingEnroll(false);
+    if (ok) { message.success('报名信息已更新'); setIsEnrollOpen(false); }
+    else message.error('保存失败，请重试');
   };
 
   // Handle signing warning
@@ -458,6 +508,58 @@ export default function StudentDetail() {
         </div>
       </Modal>
 
+      {/* Edit Enrollment Modal */}
+      <Modal
+        title="编辑报名信息"
+        open={isEnrollOpen}
+        onCancel={() => setIsEnrollOpen(false)}
+        onOk={handleSaveEnroll}
+        confirmLoading={isSavingEnroll}
+        width={520}
+        okText="保存"
+        cancelText="取消"
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+          <div className="form-group">
+            <label className="form-label">商务来源</label>
+            <select className="input" value={enrollForm.source} onChange={e => onEnrollChange({ source: e.target.value })}>
+              <option value="">未设置</option>
+              <option value="green_channel">绿通</option>
+              <option value="agent">散客</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">在读状态</label>
+            <select className="input" value={enrollForm.status} onChange={e => onEnrollChange({ status: e.target.value })}>
+              <option value="active">在读</option>
+              <option value="completed">已毕业</option>
+              <option value="withdrawn">退学</option>
+              <option value="suspended">暂停</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">学习阶段</label>
+            <select className="input" value={enrollForm.program_id} onChange={e => onEnrollChange({ program_id: e.target.value })}>
+              <option value="">请选择</option>
+              {programs.map(p => (
+                <option key={p.id} value={p.id}>{p.name}{p.duration_months ? `（${p.duration_months}个月）` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">入学日期</label>
+            <input className="input" type="date" value={enrollForm.start_date} onChange={e => onEnrollChange({ start_date: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">预计结束</label>
+            <input className="input" type="date" value={enrollForm.end_date} onChange={e => onEnrollChange({ end_date: e.target.value })} />
+          </div>
+          <div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: -6 }}>
+            选阶段或改入学日期时，「预计结束」会按学制自动算出，也可手动调整。
+          </div>
+        </div>
+      </Modal>
+
       {/* Body content area */}
       <div style={{ flex: 1, padding: '0 32px 32px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
         {/* Tabs */}
@@ -526,7 +628,12 @@ export default function StudentDetail() {
               
               {/* 来源与归属 */}
               <div className="card">
-                <div className="group-head"><IconSchool size={16} />来源与归属</div>
+                <div className="group-head" style={{ justifyContent: 'space-between' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconSchool size={16} />来源与归属</span>
+                  <button className="btn" style={{ padding: '2px 8px', fontSize: 11 }} onClick={handleOpenEnroll}>
+                    <IconPencil size={12} style={{ marginRight: 2 }} />编辑报名
+                  </button>
+                </div>
                 <div className="field"><span className="field-k">生源校</span><span className="field-v">{student.source_school || '—'}</span></div>
                 <div className="field"><span className="field-k">就读学校</span><span className="field-v">{student.school_name || '—'}</span></div>
                 <div className="field"><span className="field-k">课程</span><span className="field-v">{timetableSubjects.length > 0 ? timetableSubjects.join(' / ') : '—'}</span></div>
