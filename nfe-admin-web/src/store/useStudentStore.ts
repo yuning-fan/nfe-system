@@ -174,10 +174,16 @@ export const useStudentStore = create<StudentStore>((set) => ({
   updateStudent: async (id: string, payload: Record<string, any>) => {
     set({ isLoading: true });
     try {
+      // 空字符串转 null：避免 '' 写进 DATE 等列导致 22007 invalid input syntax
+      const clean: Record<string, any> = {};
+      for (const [k, v] of Object.entries(payload)) {
+        clean[k] = v === '' ? null : v;
+      }
+
       // Upsert students_info (creates the row if it doesn't exist yet)
       const { error } = await supabase
         .from('students_info')
-        .upsert({ student_id: id, ...payload }, { onConflict: 'student_id' });
+        .upsert({ student_id: id, ...clean }, { onConflict: 'student_id' });
       if (error) throw error;
 
       // Refresh the current student data
@@ -186,7 +192,9 @@ export const useStudentStore = create<StudentStore>((set) => ({
       return true;
     } catch (error: any) {
       console.error('Error updating student:', error);
-      set({ error: error.message, isLoading: false });
+      // 注意：不要写入全局 error 状态——详情页会因 error 被置而整页替换成错误页。
+      // 保存失败由调用方根据返回值用 message.error 提示即可。
+      set({ isLoading: false });
       return false;
     }
   }
