@@ -17,12 +17,12 @@ import {
   IconUserCog, 
   IconListDetails, 
   IconSettings,
-  IconBell,
-  IconSearch,
   IconLogout,
   IconMoonStars
 } from '@tabler/icons-react';
 import { useAuthStore } from '../store/useAuthStore';
+import NotificationBell from '../components/common/NotificationBell';
+import GlobalSearch from '../components/common/GlobalSearch';
 
 // 页面标题映射，根据当前路由动态显示标题
 const pageTitles: Record<string, { title: string; sub: string }> = {
@@ -133,14 +133,9 @@ export default function MainLayout() {
             <p id="page-sub">{currentTitle.sub}</p>
           </div>
           <div className="topbar-right">
-            <div className="icon-btn">
-              <IconBell stroke={1.5} />
-              <div className="notif-badge">5</div>
-            </div>
-            <div className="icon-btn">
-              <IconSearch stroke={1.5} />
-            </div>
-            
+            <NotificationBell />
+            <GlobalSearch />
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px', paddingLeft: '16px', borderLeft: '1px solid var(--color-border-tertiary)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                 <span style={{ fontSize: '14px', fontWeight: 500 }}>{userNameStr}</span>
