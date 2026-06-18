@@ -1779,7 +1779,11 @@ export type Database = {
         | "life"
         | "driver"
         | "student"
-      warning_status: "pending_approval" | "issued" | "signed_onsite"
+      warning_status:
+        | "pending_approval"
+        | "issued"
+        | "signed_onsite"
+        | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1971,7 +1975,12 @@ export const Constants = {
         "driver",
         "student",
       ],
-      warning_status: ["pending_approval", "issued", "signed_onsite"],
+      warning_status: [
+        "pending_approval",
+        "issued",
+        "signed_onsite",
+        "rejected",
+      ],
     },
   },
 } as const

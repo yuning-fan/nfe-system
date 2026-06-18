@@ -37,7 +37,12 @@ export default function RiskAlerts() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Store state for warning letters
-  const { pendingWarnings, fetchPendingWarnings, issueWarning, approveWarning, isLoading: isStoreLoading } = useRiskStore();
+  const {
+    pendingWarnings, issuedWarnings,
+    fetchPendingWarnings, fetchIssuedWarnings,
+    issueWarning, approveWarning, rejectWarning, markWarningSigned,
+    isLoading: isStoreLoading,
+  } = useRiskStore();
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -77,7 +82,8 @@ export default function RiskAlerts() {
   useEffect(() => {
     fetchDashboardData();
     fetchPendingWarnings();
-  }, [fetchDashboardData, fetchPendingWarnings]);
+    fetchIssuedWarnings();
+  }, [fetchDashboardData, fetchPendingWarnings, fetchIssuedWarnings]);
 
   const getRiskPill = (from: string, to: string) => {
     const arrow = `${from === 'green' ? '🟢' : from === 'yellow' ? '🟡' : '🔴'} → ${to === 'green' ? '🟢' : to === 'yellow' ? '🟡' : '🔴'}`;
@@ -104,19 +110,52 @@ export default function RiskAlerts() {
     setModalOpen(true);
   };
 
+  // 三步走规则：级别 → (目标风险等级, 风险分扣减)
+  // 1级 Verbal → 黄色, 扣0；2级 Written → 黄色, 扣10；3级 Final → 红色, 扣20
+  const levelToRisk = (level: number): { riskLevel: string; deduction: number } => {
+    if (level >= 3) return { riskLevel: 'red', deduction: 20 };
+    if (level === 2) return { riskLevel: 'yellow', deduction: 10 };
+    return { riskLevel: 'yellow', deduction: 0 };
+  };
+
   const handleApprove = async (warning: any) => {
+    const { riskLevel, deduction } = levelToRisk(warning.warning_level);
     Modal.confirm({
       title: '确认下发警告',
-      content: `确定批准发给 ${warning.students_info?.profiles?.full_name} 的 ${warning.warning_level} 级警告信吗？`,
+      content: `确定批准发给 ${warning.students_info?.profiles?.full_name} 的 ${warning.warning_level} 级警告信吗？将置为「${riskLevel === 'red' ? '红色' : '黄色'}」并扣 ${deduction} 分。`,
       onOk: async () => {
-        const success = await approveWarning(warning.id, warning.student_id, warning.warning_level >= 2 ? 'red' : 'yellow', warning.warning_level >= 2 ? 20 : 10);
+        const success = await approveWarning(warning.id, warning.student_id, riskLevel, deduction);
         if (success) {
           message.success('审批成功！已下发警告并更新风险分。');
-          fetchDashboardData();
-          fetchPendingWarnings();
+          await Promise.all([fetchDashboardData(), fetchPendingWarnings(), fetchIssuedWarnings()]);
         } else {
           message.error('审批失败，请重试。');
         }
+      }
+    });
+  };
+
+  const handleReject = (warning: any) => {
+    Modal.confirm({
+      title: '确认拒绝警告',
+      content: `确定拒绝发给 ${warning.students_info?.profiles?.full_name} 的警告信吗？拒绝后该申请将被关闭。`,
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        const success = await rejectWarning(warning.id);
+        if (success) message.success('已拒绝该警告申请。');
+        else message.error('操作失败，请重试。');
+      }
+    });
+  };
+
+  const handleMarkSigned = (warning: any) => {
+    Modal.confirm({
+      title: '确认已线下签字',
+      content: `确认 ${warning.students_info?.profiles?.full_name} 已线下签收该警告信吗？`,
+      onOk: async () => {
+        const success = await markWarningSigned(warning.id);
+        if (success) message.success('已标记为现场签字。');
+        else message.error('操作失败，请重试。');
       }
     });
   };
@@ -156,12 +195,48 @@ export default function RiskAlerts() {
                   <button className="btn btn-primary" onClick={() => handleApprove(w)} disabled={isStoreLoading}>
                     <IconCheck size={16} style={{ marginRight: 4 }} /> 批准下发
                   </button>
-                  <button className="btn" disabled={isStoreLoading}>
+                  <button className="btn" onClick={() => handleReject(w)} disabled={isStoreLoading} title="拒绝" style={{ color: 'var(--color-danger)' }}>
                     <IconX size={16} />
                   </button>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 已下发警告记录（含待签字 / 已签字） */}
+      {issuedWarnings.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">
+            <IconShieldX size={18} /> 已下发警告记录 ({issuedWarnings.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {issuedWarnings.map((w: any) => {
+              const signed = w.status === 'signed_onsite';
+              return (
+                <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: 'var(--color-background-secondary)', borderRadius: 6 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600 }}>{w.students_info?.profiles?.full_name || '未知学生'}</span>
+                      <span className="pill p-red">{w.warning_level} 级警告</span>
+                      <span className={`pill ${signed ? 'p-green' : 'p-amber'}`}>{signed ? '已签字' : '待签字'}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      佐证内容: {w.evidence_content}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {!signed && (
+                      <button className="btn" onClick={() => handleMarkSigned(w)} disabled={isStoreLoading}>
+                        <IconCheck size={16} style={{ marginRight: 4 }} /> 标记已签字
+                      </button>
+                    )}
+                    <span className="link" onClick={() => navigate(`/students/${w.student_id}`)} style={{ alignSelf: 'center' }}>查看档案</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

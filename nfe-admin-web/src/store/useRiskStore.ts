@@ -16,16 +16,36 @@ interface WarningLetter {
 
 interface RiskStore {
   pendingWarnings: WarningLetter[];
+  issuedWarnings: WarningLetter[];
   isLoading: boolean;
   error: string | null;
   fetchPendingWarnings: () => Promise<void>;
+  fetchIssuedWarnings: () => Promise<void>;
   issueWarning: (studentId: string, level: number, evidence: string) => Promise<boolean>;
   approveWarning: (warningId: number, studentId: string, newLevel: string, scoreDeduction: number) => Promise<boolean>;
+  rejectWarning: (warningId: number) => Promise<boolean>;
   markWarningSigned: (warningId: number) => Promise<boolean>;
 }
 
+// 把 warning_letters 查询结果统一成渲染层期望的别名结构
+const formatWarnings = (data: any[]) =>
+  (data || []).map((item: any) => ({
+    ...item,
+    students_info: {
+      profiles: Array.isArray(item.student) ? item.student[0] : item.student
+    },
+    profiles: Array.isArray(item.issuer) ? item.issuer[0] : item.issuer
+  }));
+
+const WARNING_SELECT = `
+  *,
+  student:profiles!warning_letters_student_id_fkey(full_name),
+  issuer:profiles!warning_letters_issuer_id_fkey(full_name)
+`;
+
 export const useRiskStore = create<RiskStore>((set, get) => ({
   pendingWarnings: [],
+  issuedWarnings: [],
   isLoading: false,
   error: null,
 
@@ -36,27 +56,29 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       // warning_letters.issuer_id  → profiles (FK: warning_letters_issuer_id_fkey)
       const { data, error } = await supabase
         .from('warning_letters')
-        .select(`
-          *,
-          student:profiles!warning_letters_student_id_fkey(full_name),
-          issuer:profiles!warning_letters_issuer_id_fkey(full_name)
-        `)
+        .select(WARNING_SELECT)
         .eq('status', 'pending_approval');
 
       if (error) throw error;
-
-      // 统一别名结构，兼容渲染层已有的 .students_info?.profiles?.full_name 访问路径
-      const formattedData = (data || []).map((item: any) => ({
-        ...item,
-        students_info: {
-          profiles: Array.isArray(item.student) ? item.student[0] : item.student
-        },
-        profiles: Array.isArray(item.issuer) ? item.issuer[0] : item.issuer
-      }));
-
-      set({ pendingWarnings: formattedData, isLoading: false });
+      set({ pendingWarnings: formatWarnings(data || []), isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
+    }
+  },
+
+  fetchIssuedWarnings: async () => {
+    try {
+      // 已下发（含已下发未签字 issued 和已现场签字 signed_onsite）
+      const { data, error } = await supabase
+        .from('warning_letters')
+        .select(WARNING_SELECT)
+        .in('status', ['issued', 'signed_onsite'])
+        .order('id', { ascending: false });
+
+      if (error) throw error;
+      set({ issuedWarnings: formatWarnings(data || []) });
+    } catch (err: any) {
+      set({ error: err.message });
     }
   },
 
@@ -142,6 +164,22 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
     }
   },
 
+  rejectWarning: async (warningId: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase
+        .from('warning_letters')
+        .update({ status: 'rejected' })
+        .eq('id', warningId);
+      if (error) throw error;
+      await get().fetchPendingWarnings();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
   markWarningSigned: async (warningId: number) => {
     set({ isLoading: true, error: null });
     try {
@@ -153,6 +191,8 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
         })
         .eq('id', warningId);
       if (error) throw error;
+      set({ isLoading: false });
+      await get().fetchIssuedWarnings();
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });

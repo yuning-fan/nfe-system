@@ -144,7 +144,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
       // Step 3: Get extra aggregates
       const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes] = await Promise.all([
         supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
-        supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('created_at', { ascending: false }),
+        supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('id', { ascending: false }),
         supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
         supabase.from('student_documents').select('*').eq('student_id', id).order('expiry_date', { ascending: true }),
         supabase.from('course_assets').select('*, courses(*)').eq('student_id', id),

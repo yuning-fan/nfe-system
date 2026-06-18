@@ -2,6 +2,7 @@
 
 > 创建日期：2026-06-18
 > 优先级：高（Phase 3 最后一块核心业务）
+> **✅ 2026-06-18 全部完成（Task 1-5），详见开发日志 Phase 9。**
 
 ---
 
@@ -14,10 +15,10 @@
 
 ---
 
-## Task 1 — 修 approveWarning 风险分逻辑
+## ✅ Task 1 — 修 approveWarning 风险分逻辑
 - **文件**：`src/pages/Risk/RiskAlerts.tsx`
 - **工时估计**：30 分钟
-- **状态**：[ ] 待完成
+- **状态**：[x] 已完成
 
 **问题**：`RiskAlerts.tsx` handleApprove 中写死了 `warning.warning_level >= 2 ? 'red' : 'yellow'` 和扣分逻辑，与文档不符。
 
@@ -28,10 +29,10 @@
 
 ---
 
-## Task 2 — 补"拒绝"按钮逻辑
+## ✅ Task 2 — 补"拒绝"按钮逻辑
 - **文件**：`src/store/useRiskStore.ts` + `src/pages/Risk/RiskAlerts.tsx`
 - **工时估计**：1 小时
-- **状态**：[ ] 待完成
+- **状态**：[x] 已完成
 
 **内容**：
 1. Store 中新增 `rejectWarning(warningId: number)` 方法，将 `warning_letters.status` 更新为 `rejected`
@@ -39,19 +40,19 @@
 
 ---
 
-## Task 3 — 修复审批后大盘数据刷新时序
+## ✅ Task 3 — 修复审批后大盘数据刷新时序
 - **文件**：`src/pages/Risk/RiskAlerts.tsx`
 - **工时估计**：15 分钟
-- **状态**：[ ] 待完成
+- **状态**：[x] 已完成
 
 **问题**：`handleApprove` 成功后调用了 `fetchDashboardData()` + `fetchPendingWarnings()`，但可能存在异步时序问题导致红/黄学生列表和风险分未能即时更新。需加 `await` 确保顺序执行。
 
 ---
 
-## Task 4 — 已下发警告信历史归档区块
+## ✅ Task 4 — 已下发警告信历史归档区块
 - **文件**：`src/store/useRiskStore.ts` + `src/pages/Risk/RiskAlerts.tsx`
 - **工时估计**：2 小时
-- **状态**：[ ] 待完成
+- **状态**：[x] 已完成
 
 **内容**：
 1. Store 中新增 `issuedWarnings` state 和 `fetchIssuedWarnings()` 方法，查询 `status IN ('issued', 'signed_onsite')` 的记录
@@ -60,10 +61,10 @@
 
 ---
 
-## Task 5 — 学生详情页嵌入警告历史卡片
+## ✅ Task 5 — 学生详情页嵌入警告历史卡片
 - **文件**：`src/pages/Students/StudentDetail.tsx`
 - **工时估计**：1.5 小时
-- **状态**：[ ] 待完成
+- **状态**：[x] 已完成
 
 **内容**：在学生档案页新增"警告记录"卡片，展示该学生所有历史警告（按时间倒序，含级别、佐证、发起人、状态），让学管无需跳转即可查看完整干预历史。
 

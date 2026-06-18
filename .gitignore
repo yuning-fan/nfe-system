@@ -37,3 +37,5 @@ supabase/.branch/
 .vscode/
 *.swp
 *.swo
+.vercel
+.env*

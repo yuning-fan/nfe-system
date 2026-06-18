@@ -266,6 +266,17 @@ export default function StudentDetail() {
     return colors[Math.abs(hash) % colors.length];
   };
 
+  const warningStatusInfo = (status: string) => {
+    switch (status) {
+      case 'pending_approval': return { label: '待审批', className: 'p-amber' };
+      case 'issued': return { label: '已下发·待签字', className: 'p-amber' };
+      case 'signed_onsite': return { label: '已签字', className: 'p-green' };
+      case 'rejected': return { label: '已拒绝', className: 'p-gray' };
+      default: return { label: status, className: 'p-gray' };
+    }
+  };
+
+
   const riskInfo = getRiskLabel(student.risk_level);
   const statusInfo = getStatusLabel(enrollment?.status || 'active');
   const avatarColor = getAvatarColor(student.student_id);
@@ -584,6 +595,37 @@ export default function StudentDetail() {
                 <div className="card-title"><IconBuildingCommunity size={16} />机构联系人 (占位)</div>
                 <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>开发中...</div>
               </div>
+            </div>
+
+            {/* 警告历史 */}
+            <div className="card" style={{ marginTop: 14 }}>
+              <div className="card-title"><IconAlertTriangle size={16} />警告记录</div>
+              {(student.warning_letters && student.warning_letters.length > 0) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {student.warning_letters.map((w: any) => {
+                    const st = warningStatusInfo(w.status);
+                    return (
+                      <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: 12, border: '1px solid var(--color-border-tertiary)', borderRadius: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span className="pill p-red">{w.warning_level} 级警告</span>
+                            <span className={`pill ${st.className}`}>{st.label}</span>
+                            {w.signed_at && <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>签字于 {new Date(w.signed_at).toLocaleDateString('zh-CN')}</span>}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{w.evidence_content || '无佐证说明'}</div>
+                        </div>
+                        {w.status === 'issued' && (
+                          <button className="btn" style={{ flexShrink: 0 }} onClick={() => handleSignWarning(w)}>
+                            <IconCheck size={14} style={{ marginRight: 4 }} />标记已签字
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', padding: '8px 0' }}>暂无警告记录</div>
+              )}
             </div>
           </div>
         )}
