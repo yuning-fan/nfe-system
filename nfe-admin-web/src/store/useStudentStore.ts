@@ -180,10 +180,26 @@ export const useStudentStore = create<StudentStore>((set) => ({
         clean[k] = v === '' ? null : v;
       }
 
+      // 姓名/电话属于 profiles 表，其余属于 students_info，拆开分别写
+      const PROFILE_KEYS = ['full_name', 'phone'];
+      const profilePatch: Record<string, any> = {};
+      const infoPatch: Record<string, any> = {};
+      for (const [k, v] of Object.entries(clean)) {
+        if (PROFILE_KEYS.includes(k)) profilePatch[k] = v;
+        else infoPatch[k] = v;
+      }
+      // full_name 不允许清空（NOT NULL）：为空则不更新该字段
+      if (profilePatch.full_name == null) delete profilePatch.full_name;
+
+      if (Object.keys(profilePatch).length > 0) {
+        const { error: pErr } = await supabase.from('profiles').update(profilePatch as any).eq('id', id);
+        if (pErr) throw pErr;
+      }
+
       // Upsert students_info (creates the row if it doesn't exist yet)
       const { error } = await supabase
         .from('students_info')
-        .upsert({ student_id: id, ...clean }, { onConflict: 'student_id' });
+        .upsert({ student_id: id, ...infoPatch }, { onConflict: 'student_id' });
       if (error) throw error;
 
       // Refresh the current student data

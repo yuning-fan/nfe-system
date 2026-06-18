@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudentStore } from '../../store/useStudentStore';
 import { useRiskStore } from '../../store/useRiskStore';
@@ -7,6 +7,17 @@ import { message, Modal } from 'antd';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import DcgPanel from './DcgPanel';
+
+// 编辑弹窗分组标题样式
+const editSectionStyle: CSSProperties = {
+  gridColumn: '1 / -1',
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'var(--color-text-info)',
+  borderBottom: '0.5px solid var(--color-border-tertiary)',
+  paddingBottom: 6,
+  marginTop: 4,
+};
 
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -59,7 +70,10 @@ export default function StudentDetail() {
 
   // Open edit modal pre-filled with current student data
   const handleOpenEdit = () => {
+    const prof = Array.isArray(student?.profiles) ? student?.profiles[0] : student?.profiles;
     setEditForm({
+      full_name: prof?.full_name || '',
+      phone: prof?.phone || '',
       english_name: student?.english_name || '',
       gender: student?.gender || '',
       date_of_birth: student?.date_of_birth || '',
@@ -354,6 +368,12 @@ export default function StudentDetail() {
         cancelText="取消"
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+          {/* 身份信息 */}
+          <div style={editSectionStyle}>身份信息</div>
+          <div className="form-group">
+            <label className="form-label">姓名（中文）</label>
+            <input className="input" value={editForm.full_name} onChange={e => setEditForm({ ...editForm, full_name: e.target.value })} />
+          </div>
           <div className="form-group">
             <label className="form-label">英文名</label>
             <input className="input" value={editForm.english_name} onChange={e => setEditForm({ ...editForm, english_name: e.target.value })} />
@@ -370,29 +390,39 @@ export default function StudentDetail() {
             <label className="form-label">出生日期</label>
             <input className="input" type="date" value={editForm.date_of_birth} onChange={e => setEditForm({ ...editForm, date_of_birth: e.target.value })} />
           </div>
-          <div className="form-group">
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">护照号</label>
             <input className="input" value={editForm.passport_number} onChange={e => setEditForm({ ...editForm, passport_number: e.target.value })} />
+          </div>
+
+          {/* 学业信息 */}
+          <div style={editSectionStyle}>学业信息</div>
+          <div className="form-group">
+            <label className="form-label">生源校</label>
+            <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
           </div>
           <div className="form-group">
             <label className="form-label">就读学校</label>
             <input className="input" value={editForm.school_name} onChange={e => setEditForm({ ...editForm, school_name: e.target.value })} />
           </div>
           <div className="form-group">
-            <label className="form-label">生源校</label>
-            <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
-          </div>
-          <div className="form-group">
             <label className="form-label">英语水平</label>
             <input className="input" placeholder="如 IELTS 6.5" value={editForm.english_level} onChange={e => setEditForm({ ...editForm, english_level: e.target.value })} />
           </div>
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+          <div className="form-group">
             <label className="form-label">目标院校</label>
             <input className="input" value={editForm.target_university} onChange={e => setEditForm({ ...editForm, target_university: e.target.value })} />
           </div>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">奖学金要求</label>
             <input className="input" value={editForm.scholarship_requirement} onChange={e => setEditForm({ ...editForm, scholarship_requirement: e.target.value })} />
+          </div>
+
+          {/* 联系方式 */}
+          <div style={editSectionStyle}>联系方式</div>
+          <div className="form-group">
+            <label className="form-label">学生电话</label>
+            <input className="input" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
           </div>
           <div className="form-group">
             <label className="form-label">紧急联系人姓名</label>
@@ -402,7 +432,7 @@ export default function StudentDetail() {
             <label className="form-label">紧急联系人电话</label>
             <input className="input" value={editForm.emergency_contact_phone} onChange={e => setEditForm({ ...editForm, emergency_contact_phone: e.target.value })} />
           </div>
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+          <div className="form-group">
             <label className="form-label">家长邮箱</label>
             <input className="input" value={editForm.emergency_contact_email} onChange={e => setEditForm({ ...editForm, emergency_contact_email: e.target.value })} />
           </div>
@@ -410,17 +440,20 @@ export default function StudentDetail() {
             <label className="form-label">国内家庭住址</label>
             <input className="input" value={editForm.home_address} onChange={e => setEditForm({ ...editForm, home_address: e.target.value })} />
           </div>
+
+          {/* 其他 */}
+          <div style={editSectionStyle}>其他</div>
           <div className="form-group">
             <label className="form-label">缴费备注</label>
             <input className="input" value={editForm.payment_note} onChange={e => setEditForm({ ...editForm, payment_note: e.target.value })} placeholder="如：5个月+本科半年" />
           </div>
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label className="form-label">健康 / 禁忌备注</label>
-            <textarea className="input" rows={2} value={editForm.health_notes} onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })} />
-          </div>
           <div className="form-group">
             <label className="form-label">✈️ 预计抵达日期</label>
             <input className="input" type="date" value={editForm.arrival_date} onChange={e => setEditForm({ ...editForm, arrival_date: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">健康 / 禁忌备注</label>
+            <textarea className="input" rows={2} value={editForm.health_notes} onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })} />
           </div>
         </div>
       </Modal>
