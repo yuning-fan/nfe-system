@@ -5,6 +5,39 @@
 
 ---
 
+## 🟢 日常运维速查（上线后最常用）
+
+> **2026-06-19 起：本地开发已直连云端，不再依赖 Docker。** `.env.local` 已指向云端 Supabase，
+> 本地 `npm run dev` 看到的就是云端真实数据。**Docker 可永久关闭**（Docker Desktop 可直接退出）。
+> ⚠️ 注意：本地改数据 = 改云端真实数据，勿在本地乱填测试数据。
+> 如需切回本地 Docker 库：`npx supabase start` 后把 `.env.local` 换回 `http://127.0.0.1:54321` + 本地 anon key。
+
+**部署前端（改完页面/逻辑后）：**
+```bash
+cd nfe-system/nfe-admin-web
+npm run build          # 看到 ✓ built 才算成功；有 error TS 先修
+npx vercel --prod      # 看到 ▲ Aliased https://nfe-admin-web.vercel.app 即上线
+```
+> `git push` 不会自动触发部署，必须手动跑 `npx vercel --prod`。线上没更新多为浏览器缓存，按 Cmd+Shift+R。
+
+**改了数据库（加字段/导数据）：**
+```bash
+# 1. 直推云端
+PGPASSWORD='<密码>' psql "<云端pooler连接串>" -f 你的.sql
+# 2. 重新生成前端类型
+cd nfe-system
+SUPABASE_ACCESS_TOKEN=<token> npx supabase gen types typescript --project-id pypznlokmhzvzscaibii > nfe-admin-web/src/types/database.types.ts
+# 3. 再按上面部署前端
+```
+
+| 改了什么 | 要跑什么 |
+|---|---|
+| 只改前端页面/逻辑 | 部署前端三步 |
+| 改表结构/导数据 | 先推 SQL + 重生成类型，再部署前端 |
+| 改 R2 签名逻辑 | `supabase functions deploy r2-sign --use-api` |
+
+---
+
 ## 产物清单
 
 | 文件 | 内容 | 用途 |
