@@ -23,13 +23,7 @@ interface DormAssignment {
   profiles: { full_name: string } | null;
 }
 
-// Guardian mapping from housing.md
-const GUARDIAN_MAP: Record<string, string> = {
-  '4B Tiverton Road': 'Krystal Hu',
-  '4 Tiverton Road': 'Ryan Wei',
-  '4A Tiverton Road': 'Nina Su',
-  '51B Shoreham Street': 'Krystal Hu',
-};
+// 公寓监护人现由 apartment_guardians 表驱动（DCG 流程共用同一份数据）
 
 const statusConfig: Record<string, { label: string; bg: string; borderColor: string; textColor: string }> = {
   occupied:      { label: '已入住', bg: '#EEFAD4', borderColor: '#C0DD97', textColor: '#3B6D11' },
@@ -50,7 +44,32 @@ function parseCityRoom(roomNumber: string) {
 export default function HousingManagement() {
   const [rooms, setRooms] = useState<DormRoom[]>([]);
   const [assignments, setAssignments] = useState<DormAssignment[]>([]);
+  const [guardians, setGuardians] = useState<Record<string, string | null>>({}); // building → staff_id
+  const [staffList, setStaffList] = useState<{ id: string; full_name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const changeGuardian = async (building: string, staffId: string) => {
+    const val = staffId || null;
+    setGuardians(prev => ({ ...prev, [building]: val }));
+    const { error } = await (supabase.from('apartment_guardians') as any)
+      .update({ guardian_staff_id: val, updated_at: new Date().toISOString() })
+      .eq('building_name', building);
+    if (error) message.error('监护人更新失败');
+    else message.success('监护人已更新');
+  };
+
+  const renderGuardianSelect = (building: string) => (
+    <select
+      className="sel"
+      value={guardians[building] || ''}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => changeGuardian(building, e.target.value)}
+      style={{ fontSize: 11, padding: '2px 6px', marginLeft: 4 }}
+    >
+      <option value="">未分配</option>
+      {staffList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+    </select>
+  );
   const [selectedBuilding, setSelectedBuilding] = useState('');
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [preselectedRoomId, setPreselectedRoomId] = useState<number | null>(null);
@@ -87,8 +106,20 @@ export default function HousingManagement() {
       .from('dorm_assignments')
       .select('*, profiles(full_name)')
       .eq('is_active', true);
+    const { data: guardianData } = await supabase
+      .from('apartment_guardians')
+      .select('building_name, guardian_staff_id');
+    const { data: staffData } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .neq('role', 'student')
+      .order('full_name');
     setRooms((dormData as DormRoom[]) || []);
     setAssignments((assignData as DormAssignment[]) || []);
+    const gmap: Record<string, string | null> = {};
+    for (const g of (guardianData as any[]) || []) gmap[g.building_name] = g.guardian_staff_id;
+    setGuardians(gmap);
+    setStaffList((staffData as any) || []);
     setIsLoading(false);
   };
 
@@ -240,8 +271,8 @@ export default function HousingManagement() {
         <div className="card-title">
           <IconBuilding size={16} />
           <span style={{ fontWeight: 600 }}>City UniLodge</span>
-          <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 4 }}>
-            · 监护人：—
+          <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 4, display: 'inline-flex', alignItems: 'center' }}>
+            · 监护人：{renderGuardianSelect('City UniLodge')}
           </span>
           <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
             {occupied}/{buildingRooms.length} 房间已入住 · {allResidents.length} 名学生 · 2层 · 10套间 · 50单间
@@ -390,7 +421,6 @@ export default function HousingManagement() {
         }
 
         // Standard buildings (Tiverton etc.)
-        const guardian = GUARDIAN_MAP[buildingName] || '—';
         const occupied = buildingRooms.filter((r) => r.room_status === 'occupied').length;
         const allResidents = buildingRooms.flatMap((r) => getAssignments(r.id));
 
@@ -399,8 +429,8 @@ export default function HousingManagement() {
             <div className="card-title">
               <IconHome size={16} />
               <span style={{ fontWeight: 600 }}>{buildingName}</span>
-              <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 4 }}>
-                · 监护人：{guardian}
+              <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 4, display: 'inline-flex', alignItems: 'center' }}>
+                · 监护人：{renderGuardianSelect(buildingName)}
               </span>
               <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
                 {occupied}/{buildingRooms.length} 房间已入住 · {allResidents.length} 名学生

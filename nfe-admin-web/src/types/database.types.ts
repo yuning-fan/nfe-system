@@ -69,6 +69,35 @@ export type Database = {
           },
         ]
       }
+      apartment_guardians: {
+        Row: {
+          building_name: string
+          guardian_staff_id: string | null
+          id: number
+          updated_at: string | null
+        }
+        Insert: {
+          building_name: string
+          guardian_staff_id?: string | null
+          id?: number
+          updated_at?: string | null
+        }
+        Update: {
+          building_name?: string
+          guardian_staff_id?: string | null
+          id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apartment_guardians_guardian_staff_id_fkey"
+            columns: ["guardian_staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       communication_logs: {
         Row: {
           attachment_url: string | null
@@ -207,6 +236,105 @@ export type Database = {
           {
             foreignKeyName: "daily_checks_student_id_fkey"
             columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dcg_cases: {
+        Row: {
+          archived_date: string | null
+          created_at: string | null
+          guardian_staff_id: string | null
+          host_visit_date: string | null
+          id: number
+          notes: string | null
+          offer_date: string | null
+          payment_date: string | null
+          stage: Database["public"]["Enums"]["dcg_stage"]
+          student_id: string
+        }
+        Insert: {
+          archived_date?: string | null
+          created_at?: string | null
+          guardian_staff_id?: string | null
+          host_visit_date?: string | null
+          id?: number
+          notes?: string | null
+          offer_date?: string | null
+          payment_date?: string | null
+          stage?: Database["public"]["Enums"]["dcg_stage"]
+          student_id: string
+        }
+        Update: {
+          archived_date?: string | null
+          created_at?: string | null
+          guardian_staff_id?: string | null
+          host_visit_date?: string | null
+          id?: number
+          notes?: string | null
+          offer_date?: string | null
+          payment_date?: string | null
+          stage?: Database["public"]["Enums"]["dcg_stage"]
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dcg_cases_guardian_staff_id_fkey"
+            columns: ["guardian_staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dcg_cases_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dcg_supervision_reports: {
+        Row: {
+          case_id: number
+          content: string | null
+          created_at: string | null
+          id: number
+          photo_url: string | null
+          report_date: string
+          reporter_staff_id: string | null
+        }
+        Insert: {
+          case_id: number
+          content?: string | null
+          created_at?: string | null
+          id?: number
+          photo_url?: string | null
+          report_date?: string
+          reporter_staff_id?: string | null
+        }
+        Update: {
+          case_id?: number
+          content?: string | null
+          created_at?: string | null
+          id?: number
+          photo_url?: string | null
+          report_date?: string
+          reporter_staff_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dcg_supervision_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "dcg_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dcg_supervision_reports_reporter_staff_id_fkey"
+            columns: ["reporter_staff_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1725,6 +1853,15 @@ export type Database = {
       check_type: "morning" | "night_study" | "dorm_check"
       contact_type: "student" | "parent" | "school" | "accommodation"
       course_type: "one_on_one" | "group_class"
+      dcg_stage:
+        | "applied"
+        | "conditional_offer"
+        | "dcg_required"
+        | "paid"
+        | "host_visit"
+        | "archived"
+        | "supervising"
+        | "completed"
       difficulty_level: "foundation" | "standard" | "advanced"
       doc_status: "valid" | "expiring_soon" | "expired"
       doc_type:
@@ -1734,6 +1871,9 @@ export type Database = {
         | "offer_letter"
         | "transcript"
         | "guardianship"
+        | "dcg_receipt"
+        | "parent_proof"
+        | "apartment_visit"
       duty_shift: "morning" | "afternoon" | "evening"
       duty_type: "dorm_check" | "night_study" | "transport" | "patrol"
       enrollment_source: "green_channel" | "agent"
@@ -1916,6 +2056,16 @@ export const Constants = {
       check_type: ["morning", "night_study", "dorm_check"],
       contact_type: ["student", "parent", "school", "accommodation"],
       course_type: ["one_on_one", "group_class"],
+      dcg_stage: [
+        "applied",
+        "conditional_offer",
+        "dcg_required",
+        "paid",
+        "host_visit",
+        "archived",
+        "supervising",
+        "completed",
+      ],
       difficulty_level: ["foundation", "standard", "advanced"],
       doc_status: ["valid", "expiring_soon", "expired"],
       doc_type: [
@@ -1925,6 +2075,9 @@ export const Constants = {
         "offer_letter",
         "transcript",
         "guardianship",
+        "dcg_receipt",
+        "parent_proof",
+        "apartment_visit",
       ],
       duty_shift: ["morning", "afternoon", "evening"],
       duty_type: ["dorm_check", "night_study", "transport", "patrol"],

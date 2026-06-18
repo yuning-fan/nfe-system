@@ -6,6 +6,7 @@ import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarge
 import { message, Modal } from 'antd';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
+import DcgPanel from './DcgPanel';
 
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -14,7 +15,7 @@ export default function StudentDetail() {
   const { markWarningSigned } = useRiskStore();
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<'basic' | 'guardian' | 'academic' | 'life' | 'comms'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'guardian' | 'dcg' | 'academic' | 'life' | 'comms'>('basic');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -430,6 +431,7 @@ export default function StudentDetail() {
         <div className="tab-bar" style={{ margin: '24px 0 20px' }}>
           <div className={`tab ${activeTab === 'basic' ? 'active' : ''}`} onClick={() => setActiveTab('basic')}>基本信息</div>
           <div className={`tab ${activeTab === 'guardian' ? 'active' : ''}`} onClick={() => setActiveTab('guardian')}>监护 / 联系人</div>
+          <div className={`tab ${activeTab === 'dcg' ? 'active' : ''}`} onClick={() => setActiveTab('dcg')}>DCG 监护</div>
           <div className={`tab ${activeTab === 'academic' ? 'active' : ''}`} onClick={() => setActiveTab('academic')}>学业跟进</div>
           <div className={`tab ${activeTab === 'life' ? 'active' : ''}`} onClick={() => setActiveTab('life')}>生活管理</div>
           <div className={`tab ${activeTab === 'comms' ? 'active' : ''}`} onClick={() => setActiveTab('comms')}>沟通记录</div>
@@ -627,6 +629,19 @@ export default function StudentDetail() {
                 <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', padding: '8px 0' }}>暂无警告记录</div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Tab Content: DCG */}
+        {activeTab === 'dcg' && (
+          <div className="tabpage active">
+            <DcgPanel
+              studentId={student.student_id}
+              studentName={profile?.full_name || '该学生'}
+              dateOfBirth={student.date_of_birth}
+              documents={student.student_documents || []}
+              onDocsChanged={() => id && fetchStudentById(id)}
+            />
           </div>
         )}
 

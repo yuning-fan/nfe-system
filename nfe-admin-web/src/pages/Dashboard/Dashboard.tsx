@@ -32,6 +32,8 @@ interface DashboardData {
   staffList: { name: string; initial: string; role: string }[];
   pendingWarnings: number;
   absentToday: number;
+  dcgOverdue: number;
+  dcgOverdueNames: string[];
 }
 
 function daysUntil(dateStr: string) {
@@ -134,6 +136,32 @@ export default function Dashboard() {
           .select('id', { count: 'exact', head: true })
           .gte('created_at', monthStart);
 
+        // DCG 监督报告逾期：supervising 阶段，最近报告（或存档日）距今超过1个月
+        const dcgOverdueNames: string[] = [];
+        const { data: dcgCases } = await db
+          .from('dcg_cases')
+          .select('id, archived_date, student:profiles!dcg_cases_student_id_fkey(full_name)')
+          .eq('stage', 'supervising');
+        if (dcgCases && dcgCases.length) {
+          const ids = dcgCases.map((c: any) => c.id);
+          const { data: reps } = await db
+            .from('dcg_supervision_reports')
+            .select('case_id, report_date')
+            .in('case_id', ids)
+            .order('report_date', { ascending: false });
+          const latest: Record<number, string> = {};
+          for (const r of reps || []) if (!latest[r.case_id]) latest[r.case_id] = r.report_date;
+          for (const c of dcgCases) {
+            const base = latest[c.id] || c.archived_date;
+            if (!base) continue;
+            const due = new Date(base); due.setMonth(due.getMonth() + 1);
+            if (due.getTime() < Date.now()) {
+              const nm = Array.isArray(c.student) ? c.student[0]?.full_name : c.student?.full_name;
+              dcgOverdueNames.push(nm || '某学生');
+            }
+          }
+        }
+
         // 员工列表：展示所有非学生角色的在职人员
         const staffList = profiles
           .filter((p: any) => p.role !== 'student')
@@ -157,6 +185,8 @@ export default function Dashboard() {
           staffList,
           pendingWarnings: pendingW || 0,
           absentToday: absences || 0,
+          dcgOverdue: dcgOverdueNames.length,
+          dcgOverdueNames,
         });
       } catch (e) {
         console.error('Dashboard load error:', e);
@@ -198,6 +228,17 @@ export default function Dashboard() {
           )}
           <span className="link" style={{ marginLeft: 'auto' }} onClick={() => navigate('/risk')}>
             查看详情 →
+          </span>
+        </div>
+      )}
+
+      {/* DCG 监督报告逾期提醒 */}
+      {data.dcgOverdue > 0 && (
+        <div className="alert-banner" style={{ background: '#FFF8EB', border: '0.5px solid #FAC775', color: '#854F0B', marginBottom: 14 }}>
+          <IconAlertCircle stroke={1.5} size={18} />
+          <span>
+            <span style={{ fontWeight: 500 }}>{data.dcgOverdueNames[0]}</span>
+            {data.dcgOverdue > 1 ? ` 等 ${data.dcgOverdue} 名 DCG 学生` : ''} 的月度监督报告已逾期 — 请尽快补交
           </span>
         </div>
       )}
