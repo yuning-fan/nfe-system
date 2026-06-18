@@ -85,7 +85,7 @@ export default function StudentList() {
     return matchesSearch && statusMatch && riskMatch && schoolMatch;
   });
 
-  const totalCols = 12;
+  const totalCols = 10;
 
   return (
     <>
@@ -126,14 +126,12 @@ export default function StudentList() {
               <th>编号</th>
               <th>姓名</th>
               <th>性别</th>
-              <th>就读学校</th>
               <th>项目</th>
               <th>在读状态</th>
               <th>风险等级</th>
               <th>签证到期</th>
               <th>可用课时</th>
               <th>入学时间</th>
-              <th>家长联系方式</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -212,7 +210,6 @@ export default function StudentList() {
                         </div>
                       </td>
                       <td>{genderLabel}</td>
-                      <td>{student.school_name || '—'}</td>
                       <td>
                         {program || enrollment?.source ? (
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -234,12 +231,6 @@ export default function StudentList() {
                       </td>
                       <td style={{ color: 'var(--color-text-secondary)' }}>
                         {enrollment?.start_date || '—'}
-                      </td>
-                      <td>
-                        <div style={{ fontSize: 13 }}>{student.emergency_contact_name || '—'}</div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                          {student.emergency_contact_phone || '—'}
-                        </div>
                       </td>
                       <td><span className="link" onClick={() => navigate(`/students/${student.student_id}`)}>查看档案</span></td>
                     </tr>
