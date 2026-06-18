@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import MyTodos from '../../components/common/MyTodos';
 import {
   IconAlertCircle,
   IconChecklist,
@@ -346,6 +347,9 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {/* 我的待办（手动） */}
+          <MyTodos />
 
           {/* 在职员工 */}
           <div className="card">

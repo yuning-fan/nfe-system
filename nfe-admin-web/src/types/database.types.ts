@@ -1621,6 +1621,47 @@ export type Database = {
           },
         ]
       }
+      todos: {
+        Row: {
+          collaborator_ids: string[]
+          content: string
+          created_at: string
+          created_by: string
+          done_at: string | null
+          due_at: string | null
+          id: number
+          is_done: boolean
+        }
+        Insert: {
+          collaborator_ids?: string[]
+          content: string
+          created_at?: string
+          created_by?: string
+          done_at?: string | null
+          due_at?: string | null
+          id?: number
+          is_done?: boolean
+        }
+        Update: {
+          collaborator_ids?: string[]
+          content?: string
+          created_at?: string
+          created_by?: string
+          done_at?: string | null
+          due_at?: string | null
+          id?: number
+          is_done?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transport_passengers: {
         Row: {
           drop_off_location: string | null
