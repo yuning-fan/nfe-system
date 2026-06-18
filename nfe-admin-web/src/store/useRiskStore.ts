@@ -36,26 +36,26 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
   fetchPendingWarnings: async () => {
     set({ isLoading: true, error: null });
     try {
+      // warning_letters.student_id → profiles (直接关联，无需经过 students_info)
+      // warning_letters.issuer_id  → profiles (FK: warning_letters_issuer_id_fkey)
       const { data, error } = await db
         .from('warning_letters')
         .select(`
           *,
-          students_info!inner(profiles(full_name)),
-          profiles!warning_letters_issuer_id_fkey(full_name)
+          student:profiles!warning_letters_student_id_fkey(full_name),
+          issuer:profiles!warning_letters_issuer_id_fkey(full_name)
         `)
         .eq('status', 'pending_approval');
 
       if (error) throw error;
 
-      // Flatten the profiles relationship for easier rendering
+      // 统一别名结构，兼容渲染层已有的 .students_info?.profiles?.full_name 访问路径
       const formattedData = (data || []).map((item: any) => ({
         ...item,
         students_info: {
-          profiles: Array.isArray(item.students_info?.profiles)
-            ? item.students_info.profiles[0]
-            : item.students_info?.profiles
+          profiles: Array.isArray(item.student) ? item.student[0] : item.student
         },
-        profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        profiles: Array.isArray(item.issuer) ? item.issuer[0] : item.issuer
       }));
 
       set({ pendingWarnings: formattedData, isLoading: false });

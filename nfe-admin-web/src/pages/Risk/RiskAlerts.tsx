@@ -20,8 +20,8 @@ interface RiskChangeLog {
   student_id: string;
   old_level: string;
   new_level: string;
-  changed_by: string | null;
-  change_reason: string | null;
+  operator_id: string | null;
+  reason: string | null;
   created_at: string;
   profiles?: { full_name: string };
 }
@@ -63,7 +63,7 @@ export default function RiskAlerts() {
 
     const { data: logs } = await supabase
       .from('log_risk_changes')
-      .select('*, profiles!log_risk_changes_changed_by_fkey(full_name)')
+      .select('*, profiles!log_risk_changes_operator_id_fkey(full_name)')
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -303,7 +303,7 @@ export default function RiskAlerts() {
                     {getRiskPill(log.old_level, log.new_level)}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                    {log.change_reason || (log.changed_by ? '手动覆盖' : '系统自动')}
+                    {log.reason || (log.operator_id ? '手动覆盖' : '系统自动')}
                   </div>
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{formatTime(log.created_at)}</span>
