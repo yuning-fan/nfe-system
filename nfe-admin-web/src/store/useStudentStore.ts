@@ -41,11 +41,10 @@ export const useStudentStore = create<StudentStore>((set) => ({
         `);
       if (infoError) throw infoError;
 
-      // Step 3: Get visa expiry dates from student_documents
+      // Step 3: Get all student_documents (for checklist + visa expiry)
       const { data: docsData } = await supabase
         .from('student_documents')
         .select('student_id, doc_type, expiry_date, status')
-        .eq('doc_type', 'visa')
         .order('expiry_date', { ascending: false });
 
       // Step 4: Get course hours from course_assets
@@ -53,20 +52,39 @@ export const useStudentStore = create<StudentStore>((set) => ({
         .from('course_assets')
         .select('student_id, total_hours, used_hours');
 
+      // Step 5: Get dorm assignments and school timetable for checklist
+      const { data: dormsData } = await supabase
+        .from('dorm_assignments')
+        .select('student_id')
+        .eq('is_active', true);
+
+      const { data: timetableData } = await supabase
+        .from('school_timetable')
+        .select('student_id');
+
       // Build lookup maps
       const infoMap: Record<string, any> = {};
       for (const info of (infoData as any[] || [])) {
         infoMap[info.student_id] = info;
       }
+      const docsMap: Record<string, any[]> = {};
+      for (const doc of (docsData as any[] || [])) {
+        if (!docsMap[doc.student_id]) docsMap[doc.student_id] = [];
+        docsMap[doc.student_id].push(doc);
+      }
       const visaMap: Record<string, string> = {};
       for (const doc of (docsData as any[] || [])) {
-        if (!visaMap[doc.student_id]) visaMap[doc.student_id] = doc.expiry_date;
+        if (doc.doc_type === 'visa' && !visaMap[doc.student_id]) {
+          visaMap[doc.student_id] = doc.expiry_date;
+        }
       }
       const hoursMap: Record<string, number> = {};
       for (const asset of (assetsData as any[] || [])) {
         const remaining = (asset.total_hours || 0) - (asset.used_hours || 0);
         hoursMap[asset.student_id] = (hoursMap[asset.student_id] || 0) + remaining;
       }
+      const dormsSet = new Set((dormsData || []).map((d: any) => d.student_id));
+      const timetableSet = new Set((timetableData || []).map((t: any) => t.student_id));
 
       const normalized = (profileData || []).map((p: any) => {
         const info = infoMap[p.id] || {};
@@ -75,6 +93,9 @@ export const useStudentStore = create<StudentStore>((set) => ({
           ...info,
           profiles: { id: p.id, full_name: p.full_name, role: p.role, phone: p.phone },
           student_enrollments: info.student_enrollments || [],
+          student_documents: docsMap[p.id] || [],
+          dorm_assignments: dormsSet.has(p.id) ? [{}] : [],
+          school_timetable: timetableSet.has(p.id) ? [{}] : [],
           visa_expiry: visaMap[p.id] || null,
           available_hours: hoursMap[p.id] ?? null,
         };

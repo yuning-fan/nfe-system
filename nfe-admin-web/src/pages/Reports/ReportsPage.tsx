@@ -4,6 +4,8 @@ import { IconReport } from '@tabler/icons-react';
 import { message } from 'antd';
 import { getDownloadUrl } from '../../lib/r2';
 import FileUploadButton from '../../components/common/FileUploadButton';
+import { usePagination } from '../../hooks/usePagination';
+import Pagination from '../../components/common/Pagination';
 
 export default function ReportsPage() {
   const { reports, fetchReports, publishReport, generateBiweeklyReports, attachPdf, isLoading } = useReportStore();
@@ -49,6 +51,9 @@ export default function ReportsPage() {
 
   const drafts = filteredReports.filter(r => r.status === 'draft');
   const archives = filteredReports.filter(r => r.status === 'sent');
+  const PAGE_SIZE = 20;
+  const draftsPage = usePagination(drafts, PAGE_SIZE);
+  const archivesPage = usePagination(archives, PAGE_SIZE);
 
   return (
     <div className="page active">
@@ -58,9 +63,9 @@ export default function ReportsPage() {
             className="search-bar" 
             placeholder="搜索学生…" 
             value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            onChange={e => { setSearchTerm(e.target.value); draftsPage.reset(); archivesPage.reset(); }}
           />
-          <select className="sel" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <select className="sel" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); draftsPage.reset(); archivesPage.reset(); }}>
             <option value="all">全部状态</option>
             <option value="draft">待审核</option>
             <option value="sent">已发布</option>
@@ -90,7 +95,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {drafts.map(r => (
+              {draftsPage.paged.map(r => (
                 <tr key={r.id} style={{ borderBottom: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -132,6 +137,9 @@ export default function ReportsPage() {
               )}
             </tbody>
           </table>
+          <div style={{ padding: '0 16px' }}>
+            <Pagination page={draftsPage.page} totalPages={draftsPage.totalPages} total={draftsPage.total} pageSize={PAGE_SIZE} onPage={draftsPage.setPage} />
+          </div>
         </div>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -148,7 +156,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {archives.map(r => (
+              {archivesPage.paged.map(r => (
                 <tr key={r.id} style={{ borderBottom: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -172,6 +180,9 @@ export default function ReportsPage() {
               )}
             </tbody>
           </table>
+          <div style={{ padding: '0 16px' }}>
+            <Pagination page={archivesPage.page} totalPages={archivesPage.totalPages} total={archivesPage.total} pageSize={PAGE_SIZE} onPage={archivesPage.setPage} />
+          </div>
         </div>
       </div>
     </div>

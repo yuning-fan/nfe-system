@@ -4,6 +4,8 @@ import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
 import { IconDatabase, IconLoader2, IconFileText, IconTrash, IconSearch } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
+import { usePagination } from '../../hooks/usePagination';
+import Pagination from '../../components/common/Pagination';
 
 const db = supabase as any;
 
@@ -93,13 +95,15 @@ export default function ResourcesPage() {
 
   const filtered = resources.filter(r =>
     r.title.includes(search) || (r.subject || '').includes(search));
+  const PAGE_SIZE = 20;
+  const { paged, page, totalPages, setPage, reset: resetPage, total } = usePagination(filtered, PAGE_SIZE);
 
   return (
     <div className="page active">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ position: 'relative' }}>
           <IconSearch size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-          <input className="search-bar" style={{ paddingLeft: 30 }} placeholder="搜索标题/科目…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="search-bar" style={{ paddingLeft: 30 }} placeholder="搜索标题/科目…" value={search} onChange={e => { setSearch(e.target.value); resetPage(); }} />
         </div>
         <button className="btn btn-primary" onClick={() => setOpen(true)}>
           <IconDatabase size={16} style={{ marginRight: 6 }} /> 上传资料
@@ -112,42 +116,47 @@ export default function ResourcesPage() {
         ) : filtered.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>暂无资料，点击右上角上传</div>
         ) : (
-          <table className="tbl" style={{ width: '100%', textAlign: 'left' }}>
-            <thead>
-              <tr>
-                <th style={{ padding: '12px 16px' }}>标题</th>
-                <th style={{ padding: '12px 16px' }}>科目</th>
-                <th style={{ padding: '12px 16px' }}>学生可见</th>
-                <th style={{ padding: '12px 16px' }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(r => (
-                <tr key={r.id} style={{ borderTop: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-                      <div>
-                        <div style={{ fontWeight: 500 }}>{r.title}</div>
-                        {r.description && <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{r.description}</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>{r.subject || '—'}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span className={`pill ${r.is_student_visible ? 'p-green' : 'p-gray'}`}>{r.is_student_visible ? '可见' : '隐藏'}</span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span className="link" onClick={() => handleView(r)}>查看</span>
-                    {' · '}
-                    <span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(r)}>
-                      <IconTrash size={12} style={{ verticalAlign: 'middle' }} /> 删除
-                    </span>
-                  </td>
+          <>
+            <table className="tbl" style={{ width: '100%', textAlign: 'left' }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '12px 16px' }}>标题</th>
+                  <th style={{ padding: '12px 16px' }}>科目</th>
+                  <th style={{ padding: '12px 16px' }}>学生可见</th>
+                  <th style={{ padding: '12px 16px' }}>操作</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paged.map(r => (
+                  <tr key={r.id} style={{ borderTop: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{r.title}</div>
+                          {r.description && <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{r.description}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>{r.subject || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className={`pill ${r.is_student_visible ? 'p-green' : 'p-gray'}`}>{r.is_student_visible ? '可见' : '隐藏'}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="link" onClick={() => handleView(r)}>查看</span>
+                      {' · '}
+                      <span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(r)}>
+                        <IconTrash size={12} style={{ verticalAlign: 'middle' }} /> 删除
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ padding: '0 16px' }}>
+              <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
+            </div>
+          </>
         )}
       </div>
 

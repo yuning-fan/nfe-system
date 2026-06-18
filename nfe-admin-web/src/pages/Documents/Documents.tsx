@@ -4,6 +4,8 @@ import { getDownloadUrl, uploadFile } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
 import { IconLoader2, IconFileText, IconSearch, IconUpload, IconTrash } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
+import { usePagination } from '../../hooks/usePagination';
+import Pagination from '../../components/common/Pagination';
 
 const db = supabase as any;
 
@@ -101,6 +103,7 @@ export default function Documents() {
   };
 
   const filtered = students.filter(s => getName(s).includes(search));
+  const { paged: pagedStudents, page, totalPages, setPage, reset: resetPage, total } = usePagination(filtered, 30);
   const selectedName = selected ? getName(selected) : '';
 
   // 顶部凭证状态卡：从真实 docs 提取签证/保险
@@ -185,11 +188,11 @@ export default function Documents() {
             style={{ width: '100%', paddingLeft: 30 }}
             placeholder="搜索学生…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); resetPage(); }}
           />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {filtered.map(s => {
+          {pagedStudents.map(s => {
             const isActive = selected?.student_id === s.student_id;
             return (
               <div
@@ -203,6 +206,7 @@ export default function Documents() {
               </div>
             );
           })}
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={30} onPage={setPage} />
         </div>
       </div>
 

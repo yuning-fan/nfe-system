@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconPlus, IconLoader2, IconAlertTriangle } from '@tabler/icons-react';
 import { useStudentStore } from '../../store/useStudentStore';
+import { usePagination } from '../../hooks/usePagination';
+import Pagination from '../../components/common/Pagination';
 
 export default function StudentList() {
   const navigate = useNavigate();
@@ -57,6 +59,7 @@ export default function StudentList() {
   const [statusFilter, setStatusFilter] = useState(''); // empty = all
   const [riskFilter, setRiskFilter] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('');
+  const PAGE_SIZE = 20;
 
   // Dynamically extract school list
   const schoolList = [...new Set(students.map(s => s.school_name).filter((n): n is string => !!n))].sort();
@@ -85,6 +88,8 @@ export default function StudentList() {
     return matchesSearch && statusMatch && riskMatch && schoolMatch;
   });
 
+  const { paged: pagedStudents, page, totalPages, setPage, reset: resetPage, total } = usePagination(filteredStudents, PAGE_SIZE);
+
   const totalCols = 10;
 
   return (
@@ -95,21 +100,21 @@ export default function StudentList() {
             className="search-bar"
             placeholder="搜索学生姓名 / 编号 / 学校…"
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => { setSearchText(e.target.value); resetPage(); }}
           />
-          <select className="sel" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="sel" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}>
             <option value="">全部状态</option>
             <option value="active">在读</option>
             <option value="completed">已毕业</option>
             <option value="suspended">暂停</option>
           </select>
-          <select className="sel" value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)}>
+          <select className="sel" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); resetPage(); }}>
             <option value="">全部风险</option>
             <option value="green">🟢 正常</option>
             <option value="yellow">🟡 关注</option>
             <option value="red">🔴 干预</option>
           </select>
-          <select className="sel" value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}>
+          <select className="sel" value={schoolFilter} onChange={(e) => { setSchoolFilter(e.target.value); resetPage(); }}>
             <option value="">全部学校</option>
             {schoolList.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -120,7 +125,8 @@ export default function StudentList() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="tbl">
+        <div className="table-scroll">
+        <table className="tbl" style={{ minWidth: 880 }}>
           <thead>
             <tr>
               <th>编号</th>
@@ -156,7 +162,7 @@ export default function StudentList() {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student, index) => {
+                pagedStudents.map((student, index) => {
                   const profileArray = Array.isArray(student.profiles) ? student.profiles : (student.profiles ? [student.profiles] : []);
                   const profile = profileArray[0];
                   const enrollmentArray = Array.isArray(student.student_enrollments) ? student.student_enrollments : (student.student_enrollments ? [student.student_enrollments] : []);
@@ -184,6 +190,7 @@ export default function StudentList() {
                     !docs.find((d: any) => d.doc_type === 'guardianship'),
                     !(student as any).arrival_date,
                     !(student as any).dorm_assignments?.length,
+                    !(student as any).school_timetable?.length,
                   ].filter(Boolean).length;
 
                   return (
@@ -241,15 +248,10 @@ export default function StudentList() {
               ))}
           </tbody>
         </table>
+        </div>
 
-        <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-            共{students.length}名学生，显示第1—{filteredStudents.length}条
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn" style={{ padding: '4px 10px' }} disabled>上一页</button>
-            <button className="btn btn-primary" style={{ padding: '4px 10px' }} disabled>下一页</button>
-          </div>
+        <div style={{ padding: '4px 16px 12px' }}>
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
         </div>
       </div>
     </>
