@@ -59,10 +59,21 @@ export default function StudentList() {
   const [statusFilter, setStatusFilter] = useState(''); // empty = all
   const [riskFilter, setRiskFilter] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('');
+  const [programFilter, setProgramFilter] = useState('');
   const PAGE_SIZE = 20;
+
+  // 取某学生的首个 enrollment
+  const firstEnrollment = (s: any) => {
+    const arr = Array.isArray(s.student_enrollments) ? s.student_enrollments : (s.student_enrollments ? [s.student_enrollments] : []);
+    return arr[0];
+  };
 
   // Dynamically extract school list
   const schoolList = [...new Set(students.map(s => s.school_name).filter((n): n is string => !!n))].sort();
+  // 动态生成「缴费备注」与「项目周期(阶段)」可选项
+  const paymentList = [...new Set(students.map(s => (s as any).payment_note).filter((n): n is string => !!n))].sort();
+  const programList = [...new Set(students.map(s => firstEnrollment(s)?.programs?.name).filter((n): n is string => !!n))].sort();
 
   // Compute filtered list
   const filteredStudents = students.filter((student) => {
@@ -73,8 +84,7 @@ export default function StudentList() {
       (student.student_id ?? '').toLowerCase().includes(lower) ||
       (student.school_name ?? '').toLowerCase().includes(lower);
 
-    const enrollmentArray = Array.isArray(student.student_enrollments) ? student.student_enrollments : (student.student_enrollments ? [student.student_enrollments] : []);
-    const enrollmentObj = enrollmentArray[0];
+    const enrollmentObj = firstEnrollment(student);
     const statusMatch = statusFilter
       ? (enrollmentObj?.status ?? '') === statusFilter
       : true;
@@ -84,8 +94,14 @@ export default function StudentList() {
     const schoolMatch = schoolFilter
       ? student.school_name === schoolFilter
       : true;
+    const paymentMatch = paymentFilter
+      ? (student as any).payment_note === paymentFilter
+      : true;
+    const programMatch = programFilter
+      ? (enrollmentObj?.programs?.name ?? '') === programFilter
+      : true;
 
-    return matchesSearch && statusMatch && riskMatch && schoolMatch;
+    return matchesSearch && statusMatch && riskMatch && schoolMatch && paymentMatch && programMatch;
   });
 
   const { paged: pagedStudents, page, totalPages, setPage, reset: resetPage, total } = usePagination(filteredStudents, PAGE_SIZE);
@@ -117,6 +133,14 @@ export default function StudentList() {
           <select className="sel" value={schoolFilter} onChange={(e) => { setSchoolFilter(e.target.value); resetPage(); }}>
             <option value="">全部学校</option>
             {schoolList.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="sel" value={programFilter} onChange={(e) => { setProgramFilter(e.target.value); resetPage(); }}>
+            <option value="">全部项目周期</option>
+            {programList.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select className="sel" value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); resetPage(); }}>
+            <option value="">全部缴费备注</option>
+            {paymentList.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
         <button className="btn btn-primary">
