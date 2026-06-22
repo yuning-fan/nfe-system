@@ -19,13 +19,6 @@ const avatarColor = (idStr: string) => {
   return colors[Math.abs(h) % colors.length];
 };
 
-const visaStyle = (d: string | null | undefined): React.CSSProperties => {
-  if (!d) return {};
-  const days = (new Date(d).getTime() - Date.now()) / 86400000;
-  if (days < 0) return { color: '#A32D2D', fontWeight: 600 };
-  if (days < 90) return { color: '#A32D2D', fontWeight: 500 };
-  return {};
-};
 
 // 当前阶段开学月份
 const intakeMonth = (s: any): number | null => {
@@ -80,18 +73,18 @@ export default function StudentList() {
   );
 
   const schoolFilters = useMemo(() => {
-    const names = [...new Set(students.map(s => s.school_name).filter(Boolean))].sort();
+    const names = [...new Set(students.map(s => s.source_school).filter(Boolean))].sort();
     return names.map(n => ({ text: n as string, value: n as string }));
   }, [students]);
 
-  // 顶部全局搜索（姓名/英文名/学校）
+  // 顶部全局搜索（姓名/英文名/生源校）
   const dataSource = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return students;
     return students.filter(s =>
       (s.profiles?.full_name ?? '').toLowerCase().includes(q) ||
       (s.english_name ?? '').toLowerCase().includes(q) ||
-      (s.school_name ?? '').toLowerCase().includes(q));
+      (s.source_school ?? '').toLowerCase().includes(q));
   }, [students, search]);
 
   const feeColumn = (t: FeeType): ColumnsType<any>[number] => ({
@@ -170,10 +163,10 @@ export default function StudentList() {
       render: (_: any, s: any) => { const r = RISK(s.risk_level); return pill(r.label, r.cls); },
     },
     {
-      title: '学校', key: 'school', width: 120,
+      title: '生源校', key: 'school', width: 120,
       filters: schoolFilters, filterSearch: true,
-      onFilter: (v, r) => r.school_name === v,
-      render: (_: any, s: any) => s.school_name || '—',
+      onFilter: (v, r) => r.source_school === v,
+      render: (_: any, s: any) => s.source_school || '—',
     },
     {
       title: '缴费状态', key: 'fee_overall', width: 100,
@@ -187,19 +180,9 @@ export default function StudentList() {
     },
     ...FEE_TYPES.map(feeColumn),
     {
-      title: '签证到期', key: 'visa', width: 110,
-      sorter: (a, b) => (a.visa_expiry || '9999').localeCompare(b.visa_expiry || '9999'),
-      render: (_: any, s: any) => <span style={visaStyle(s.visa_expiry)}>{s.visa_expiry || '—'}</span>,
-    },
-    {
       title: '可用课时', key: 'hours', width: 90, align: 'right',
       sorter: (a, b) => (a.available_hours ?? -1) - (b.available_hours ?? -1),
       render: (_: any, s: any) => s.available_hours != null ? `${s.available_hours}` : '—',
-    },
-    {
-      title: '入学时间', key: 'start', width: 110,
-      sorter: (a, b) => (a.current_phase?.start_date || '').localeCompare(b.current_phase?.start_date || ''),
-      render: (_: any, s: any) => s.current_phase?.start_date || '—',
     },
     {
       title: '操作', key: 'action', fixed: 'right', width: 90,
@@ -231,7 +214,7 @@ export default function StudentList() {
         loading={isLoading ? { indicator: <IconLoader2 className="spinner" size={24} /> } : false}
         columns={columns}
         dataSource={dataSource}
-        scroll={{ x: 1700 }}
+        scroll={{ x: 1450 }}
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 名学生` }}
       />
     </>

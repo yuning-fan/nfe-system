@@ -334,7 +334,7 @@ export default function StudentDetail() {
           </div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
             <span>编号 {displayId}</span>
-            <span>{student.school_name || '—'}</span>
+            <span>{student.source_school || '—'}</span>
             <span>
               {enrollment?.source === 'green_channel' && <span className="pill p-green" style={{marginRight: 4, fontSize: 10}}>绿通</span>}
               {enrollment?.source === 'agent' && <span className="pill p-blue" style={{marginRight: 4, fontSize: 10}}>散客</span>}
@@ -393,10 +393,6 @@ export default function StudentDetail() {
           <div className="form-group">
             <label className="form-label">生源校</label>
             <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">就读学校</label>
-            <input className="input" value={editForm.school_name} onChange={e => setEditForm({ ...editForm, school_name: e.target.value })} />
           </div>
           <div className="form-group">
             <label className="form-label">英语水平</label>
@@ -521,7 +517,6 @@ export default function StudentDetail() {
               <div className="card">
                 <div className="group-head"><IconSchool size={16} />来源与归属</div>
                 <div className="field"><span className="field-k">生源校</span><span className="field-v">{student.source_school || '—'}</span></div>
-                <div className="field"><span className="field-k">就读学校</span><span className="field-v">{student.school_name || '—'}</span></div>
                 <div className="field"><span className="field-k">课程</span><span className="field-v">{timetableSubjects.length > 0 ? timetableSubjects.join(' / ') : '—'}</span></div>
                 <div className="field"><span className="field-k">来源</span><span className="field-v">{enrollment?.source === 'green_channel' ? '绿通' : enrollment?.source === 'agent' ? '散客' : '—'}</span></div>
                 <div className="field"><span className="field-k">阶段</span><span className="field-v">{program?.name || '—'}</span></div>
