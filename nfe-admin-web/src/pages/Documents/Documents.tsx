@@ -69,6 +69,48 @@ export default function Documents() {
   const [uploadFileObj, setUploadFileObj] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // 编辑弹窗（改类型/到期日，可选替换文件）
+  const [editDoc, setEditDoc] = useState<DocRow | null>(null);
+  const [editType, setEditType] = useState('passport');
+  const [editExpiry, setEditExpiry] = useState('');
+  const [editFileObj, setEditFileObj] = useState<File | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (doc: DocRow) => {
+    setEditDoc(doc);
+    setEditType(doc.doc_type);
+    setEditExpiry(doc.expiry_date || '');
+    setEditFileObj(null);
+    setSavingEdit(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDoc || !selected) return;
+    setSavingEdit(true);
+    try {
+      const patch: Record<string, any> = {
+        doc_type: editType,
+        expiry_date: editExpiry || null,
+        status: editExpiry ? (daysUntil(editExpiry) < 0 ? 'expired' : daysUntil(editExpiry) <= 30 ? 'expiring_soon' : 'valid') : 'valid',
+      };
+      // 如选了新文件，重新上传并替换 key
+      if (editFileObj) {
+        const { key } = await uploadFile('student-docs', `${selected.student_id}/${editType}`, editFileObj);
+        patch.file_url = key;
+      }
+      const { error } = await db.from('student_documents').update(patch).eq('id', editDoc.id);
+      if (error) throw error;
+      message.success('已更新');
+      setEditDoc(null);
+      fetchDocs(selected.student_id);
+    } catch (err: any) {
+      console.error(err);
+      message.error(err.message || '更新失败');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   useEffect(() => {
     async function fetchStudents() {
       const { data } = await db
@@ -282,6 +324,8 @@ export default function Documents() {
                       <td>
                         <span className="link" onClick={() => handleView(doc)}>查看</span>
                         {' · '}
+                        <span className="link" onClick={() => openEdit(doc)}>编辑</span>
+                        {' · '}
                         <span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(doc)}>
                           <IconTrash size={12} style={{ verticalAlign: 'middle' }} /> 删除
                         </span>
@@ -323,6 +367,36 @@ export default function Documents() {
               onChange={e => setUploadFileObj(e.target.files?.[0] || null)}
             />
             {uploadFileObj && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>已选：{uploadFileObj.name}</div>}
+          </div>
+        </div>
+      </Modal>
+
+      {/* 编辑弹窗 */}
+      <Modal
+        title={`编辑文件 — ${docLabel(editDoc?.doc_type || '')}`}
+        open={!!editDoc}
+        onCancel={() => setEditDoc(null)}
+        onOk={handleSaveEdit}
+        okText={savingEdit ? '保存中…' : '保存'}
+        confirmLoading={savingEdit}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+          <div>
+            <label className="form-label">文件类型</label>
+            <select className="input" style={{ width: '100%' }} value={editType} onChange={e => setEditType(e.target.value)}>
+              {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">到期日（签证/保险建议填，用于预警）</label>
+            <input className="input" type="date" style={{ width: '100%' }} value={editExpiry} onChange={e => setEditExpiry(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">替换文件（可选，不选则保留原文件）</label>
+            <input type="file" accept="image/*,.pdf" onChange={e => setEditFileObj(e.target.files?.[0] || null)} />
+            {editFileObj
+              ? <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>新文件：{editFileObj.name}</div>
+              : <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 4 }}>当前：{fileName(editDoc?.file_url || '')}</div>}
           </div>
         </div>
       </Modal>
