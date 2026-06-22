@@ -5,7 +5,7 @@ import { useFeeStore, FEE_TYPE_LABELS, type FeeType } from '../../store/useFeeSt
 
 const FEE_TYPES = Object.entries(FEE_TYPE_LABELS) as [FeeType, string][];
 
-export default function FeePanel({ studentId }: { studentId: string }) {
+export default function FeePanel({ studentId, legacyNote }: { studentId: string; legacyNote?: string | null }) {
   const { fees, fetchFees, addFee, togglePaid, deleteFee } = useFeeStore();
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState<FeeType>('supervision');
@@ -28,6 +28,12 @@ export default function FeePanel({ studentId }: { studentId: string }) {
           <IconPlus size={14} style={{ marginRight: 2 }} />添加费用项
         </button>
       </div>
+
+      {legacyNote && (
+        <div style={{ fontSize: 12, color: '#854F0B', background: '#FFF8EB', border: '0.5px solid #FAC775', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+          历史缴费备注（待结构化）：<b>{legacyNote}</b>　—　请据此把各类费用按时段登记到下方
+        </div>
+      )}
 
       {adding && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 12, padding: 12, background: 'var(--color-background-secondary)', borderRadius: 8 }}>

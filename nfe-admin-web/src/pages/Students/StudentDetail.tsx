@@ -709,7 +709,7 @@ export default function StudentDetail() {
             </div>
 
             {/* 费用明细 */}
-            <FeePanel studentId={student.student_id} />
+            <FeePanel studentId={student.student_id} legacyNote={student.payment_note} />
           </div>
         )}
 
