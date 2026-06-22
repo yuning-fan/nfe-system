@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
-export type FeeType = 'supervision' | 'tutoring' | 'accommodation' | 'tuition';
+// 注：机构收费不含学费，故费用类别只有监管/辅导/住宿（DB 枚举仍保留 tuition，未使用）
+export type FeeType = 'supervision' | 'tutoring' | 'accommodation';
 
 export const FEE_TYPE_LABELS: Record<FeeType, string> = {
   supervision: '监管',
   tutoring: '辅导',
   accommodation: '住宿',
-  tuition: '学费',
 };
 
 export const FEE_TYPES = Object.keys(FEE_TYPE_LABELS) as FeeType[];

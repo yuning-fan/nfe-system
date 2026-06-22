@@ -214,7 +214,7 @@ export default function StudentList() {
         loading={isLoading ? { indicator: <IconLoader2 className="spinner" size={24} /> } : false}
         columns={columns}
         dataSource={dataSource}
-        scroll={{ x: 1450 }}
+        scroll={{ x: 1370 }}
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 名学生` }}
       />
     </>
