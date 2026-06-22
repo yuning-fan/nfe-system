@@ -5,17 +5,12 @@ import type { ColumnsType } from 'antd/es/table';
 import { IconPlus, IconLoader2, IconAlertTriangle, IconSearch } from '@tabler/icons-react';
 import { useStudentStore } from '../../store/useStudentStore';
 import { FEE_TYPE_LABELS, FEE_TYPES, type FeeType } from '../../store/useFeeStore';
+import { derivePhaseStatus } from '../../lib/phaseStatus';
 
 const RISK = (r: string) =>
   r === 'red' ? { label: '🔴 干预', cls: 'p-red' }
   : r === 'yellow' ? { label: '🟡 关注', cls: 'p-amber' }
   : { label: '🟢 正常', cls: 'p-green' };
-
-const STATUS = (s: string) =>
-  s === 'completed' ? { label: '已完成', cls: 'p-blue' }
-  : s === 'withdrawn' ? { label: '退学', cls: 'p-red' }
-  : s === 'suspended' ? { label: '暂停', cls: 'p-amber' }
-  : { label: '在读', cls: 'p-green' };
 
 const avatarColor = (idStr: string) => {
   const colors = ['av-blue', 'av-pink', 'av-teal', 'av-green', 'av-amber', 'av-purple'];
@@ -164,9 +159,9 @@ export default function StudentList() {
     },
     {
       title: '在读状态', key: 'status', width: 90,
-      filters: [{ text: '在读', value: 'active' }, { text: '已完成', value: 'completed' }, { text: '退学', value: 'withdrawn' }, { text: '暂停', value: 'suspended' }],
-      onFilter: (v, r) => (r.current_phase?.status ?? 'active') === v,
-      render: (_: any, s: any) => { const st = STATUS(s.current_phase?.status); return pill(st.label, st.cls); },
+      filters: [{ text: '待入学', value: 'pending' }, { text: '在读', value: 'active' }, { text: '已完成', value: 'completed' }, { text: '退学', value: 'withdrawn' }, { text: '暂停', value: 'suspended' }],
+      onFilter: (v, r) => derivePhaseStatus(r.current_phase).key === v,
+      render: (_: any, s: any) => { const st = derivePhaseStatus(s.current_phase); return pill(st.label, st.cls); },
     },
     {
       title: '风险', key: 'risk', width: 90,

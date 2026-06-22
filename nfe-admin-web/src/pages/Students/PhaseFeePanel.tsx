@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useStudentStore } from '../../store/useStudentStore';
 import { useFeeStore, FEE_TYPE_LABELS, FEE_TYPES, type FeeType } from '../../store/useFeeStore';
+import { derivePhaseStatus } from '../../lib/phaseStatus';
 
 interface Phase {
   id: number;
@@ -15,13 +16,6 @@ interface Phase {
   status: string;
   programs?: { name: string; duration_months: number | null } | null;
 }
-
-const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  active: { label: '在读', cls: 'p-green' },
-  completed: { label: '已完成', cls: 'p-blue' },
-  withdrawn: { label: '退学', cls: 'p-red' },
-  suspended: { label: '暂停', cls: 'p-amber' },
-};
 
 const blankForm = { program_id: '', source: '', start_date: '', end_date: '', status: 'active' };
 
@@ -134,7 +128,7 @@ export default function PhaseFeePanel({ studentId, legacyNote }: { studentId: st
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {phases.map(ph => {
-            const st = STATUS_LABEL[ph.status] || { label: ph.status, cls: 'p-gray' };
+            const st = derivePhaseStatus(ph);
             const phaseFees = feesOf(ph.id);
             const addable = availableTypes(ph.id);
             return (
@@ -209,8 +203,8 @@ export default function PhaseFeePanel({ studentId, legacyNote }: { studentId: st
           <div className="form-group">
             <label className="form-label">在读状态</label>
             <select className="input" value={form.status} onChange={e => onFormChange({ status: e.target.value })}>
-              <option value="active">在读</option>
-              <option value="completed">已完成</option>
+              <option value="active">按日期自动（待入学/在读/已完成）</option>
+              <option value="completed">强制标记已完成</option>
               <option value="withdrawn">退学</option>
               <option value="suspended">暂停</option>
             </select>

@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import DcgPanel from './DcgPanel';
 import PhaseFeePanel from './PhaseFeePanel';
+import { derivePhaseStatus } from '../../lib/phaseStatus';
 
 // 编辑弹窗分组标题样式
 const editSectionStyle: CSSProperties = {
@@ -264,16 +265,6 @@ export default function StudentDetail() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active': return { label: '在读', className: 'p-green' };
-      case 'completed': return { label: '已毕业', className: 'p-blue' };
-      case 'withdrawn': return { label: '退学', className: 'p-red' };
-      case 'suspended': return { label: '暂停', className: 'p-amber' };
-      default: return { label: '在读', className: 'p-green' };
-    }
-  };
-
   const getAvatarColor = (idStr: string) => {
     const colors = ['av-blue', 'av-pink', 'av-teal', 'av-green', 'av-amber', 'av-purple'];
     let hash = 0;
@@ -295,7 +286,7 @@ export default function StudentDetail() {
 
 
   const riskInfo = getRiskLabel(student.risk_level);
-  const statusInfo = getStatusLabel(enrollment?.status || 'active');
+  const statusInfo = derivePhaseStatus(enrollment);
   const avatarColor = getAvatarColor(student.student_id);
   // avatar_url 含 '/' 表示是上传的文件 key（用图片展示），否则当作中文首字
   const avatarChar = (profile?.avatar_url && !profile.avatar_url.includes('/'))
@@ -339,7 +330,7 @@ export default function StudentDetail() {
             <span style={{ fontSize: 20, fontWeight: 600 }}>{profile?.full_name || '未知姓名'}</span>
             <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{student.english_name}</span>
             <span className={`pill ${riskInfo.className}`}>{riskInfo.label}</span>
-            <span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span>
+            <span className={`pill ${statusInfo.cls}`}>{statusInfo.label}</span>
           </div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
             <span>编号 {displayId}</span>
@@ -541,7 +532,7 @@ export default function StudentDetail() {
               <div className="card">
                 <div className="group-head"><IconCalendarStats size={16} />在读状态</div>
                 <div className="field"><span className="field-k">项目周期</span><span className="field-v">{enrollment?.start_date || '—'} 至 {enrollment?.end_date || '—'}</span></div>
-                <div className="field"><span className="field-k">在读状态</span><span className="field-v"><span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span></span></div>
+                <div className="field"><span className="field-k">在读状态</span><span className="field-v"><span className={`pill ${statusInfo.cls}`}>{statusInfo.label}</span></span></div>
                 
                 <div className="group-head" style={{ marginTop: 16 }}><IconTarget size={16} />留学目标</div>
                 <div className="field"><span className="field-k">目标院校</span><span className="field-v">{student.target_university || '—'}</span></div>
