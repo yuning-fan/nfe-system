@@ -19,6 +19,13 @@ interface Phase {
 
 const blankForm = { program_id: '', source: '', start_date: '', end_date: '', status: 'active' };
 
+// 各项目官方开学季（月-日），按项目名匹配。点快捷按钮即按所选年份生成入学日期。
+const PROGRAM_INTAKES: Record<string, { label: string; md: string }[]> = {
+  '预科-Standard': [{ label: '2月', md: '02-02' }, { label: '7月', md: '07-20' }],
+  '预科-Accelerated': [{ label: '2月', md: '02-02' }, { label: '9月', md: '09-07' }],
+  '预科-Fast-track': [{ label: '4月', md: '04-28' }, { label: '10月', md: '10-05' }],
+};
+
 export default function PhaseFeePanel({ studentId, legacyNote }: { studentId: string; legacyNote?: string | null }) {
   const { programs, fetchPrograms } = useStudentStore();
   const { fees, fetchFees, addFee, togglePaid, deleteFee } = useFeeStore();
@@ -212,6 +219,23 @@ export default function PhaseFeePanel({ studentId, legacyNote }: { studentId: st
           <div className="form-group">
             <label className="form-label">入学日期</label>
             <input className="input" type="date" value={form.start_date} onChange={e => onFormChange({ start_date: e.target.value })} />
+            {(() => {
+              const progName = programs.find(p => p.id === Number(form.program_id))?.name;
+              const intakes = progName ? PROGRAM_INTAKES[progName] : null;
+              if (!intakes) return null;
+              const year = (form.start_date && /^\d{4}/.test(form.start_date)) ? form.start_date.slice(0, 4) : String(new Date().getFullYear());
+              return (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>开学季：</span>
+                  {intakes.map(it => (
+                    <button key={it.md} type="button" className="btn" style={{ padding: '2px 10px', fontSize: 12 }}
+                      onClick={() => onFormChange({ start_date: `${year}-${it.md}` })}>
+                      {it.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
           <div className="form-group">
             <label className="form-label">预计结束</label>
