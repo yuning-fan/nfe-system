@@ -1,306 +1,244 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconPlus, IconLoader2, IconAlertTriangle } from '@tabler/icons-react';
+import { Table, Input } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import { IconPlus, IconLoader2, IconAlertTriangle, IconSearch } from '@tabler/icons-react';
 import { useStudentStore } from '../../store/useStudentStore';
-import { usePagination } from '../../hooks/usePagination';
-import Pagination from '../../components/common/Pagination';
+import { FEE_TYPE_LABELS, FEE_TYPES, type FeeType } from '../../store/useFeeStore';
+
+const RISK = (r: string) =>
+  r === 'red' ? { label: '🔴 干预', cls: 'p-red' }
+  : r === 'yellow' ? { label: '🟡 关注', cls: 'p-amber' }
+  : { label: '🟢 正常', cls: 'p-green' };
+
+const STATUS = (s: string) =>
+  s === 'completed' ? { label: '已完成', cls: 'p-blue' }
+  : s === 'withdrawn' ? { label: '退学', cls: 'p-red' }
+  : s === 'suspended' ? { label: '暂停', cls: 'p-amber' }
+  : { label: '在读', cls: 'p-green' };
+
+const avatarColor = (idStr: string) => {
+  const colors = ['av-blue', 'av-pink', 'av-teal', 'av-green', 'av-amber', 'av-purple'];
+  let h = 0;
+  for (let i = 0; i < idStr.length; i++) h = idStr.charCodeAt(i) + ((h << 5) - h);
+  return colors[Math.abs(h) % colors.length];
+};
+
+const visaStyle = (d: string | null | undefined): React.CSSProperties => {
+  if (!d) return {};
+  const days = (new Date(d).getTime() - Date.now()) / 86400000;
+  if (days < 0) return { color: '#A32D2D', fontWeight: 600 };
+  if (days < 90) return { color: '#A32D2D', fontWeight: 500 };
+  return {};
+};
+
+// 当前阶段开学月份
+const intakeMonth = (s: any): number | null => {
+  const d = s.current_phase?.start_date;
+  return d ? new Date(d).getMonth() + 1 : null;
+};
+// 某类服务在当前阶段的缴费态：paid / unpaid / none(未登记)
+const feeOf = (s: any, t: FeeType): 'paid' | 'unpaid' | 'none' => {
+  const f = (s.current_fees || []).find((x: any) => x.fee_type === t);
+  return !f ? 'none' : f.is_paid ? 'paid' : 'unpaid';
+};
+const overallFee = (s: any): 'paid' | 'partial' | 'unpaid' | 'none' => {
+  const fees = s.current_fees || [];
+  if (fees.length === 0) return 'none';
+  const paid = fees.filter((f: any) => f.is_paid).length;
+  if (paid === 0) return 'unpaid';
+  if (paid === fees.length) return 'paid';
+  return 'partial';
+};
+const FEE_STATE_PILL: Record<string, { label: string; cls: string }> = {
+  paid: { label: '已缴', cls: 'p-green' },
+  unpaid: { label: '未缴', cls: 'p-amber' },
+  none: { label: '—', cls: 'p-gray' },
+};
+
+const onboardingMissing = (s: any): number => {
+  const docs = s.student_documents || [];
+  return [
+    !docs.find((d: any) => d.doc_type === 'offer_letter'),
+    !docs.find((d: any) => d.doc_type === 'visa' && d.status !== 'expired'),
+    !docs.find((d: any) => d.doc_type === 'insurance' && d.status !== 'expired'),
+    !docs.find((d: any) => d.doc_type === 'guardianship'),
+    !s.arrival_date,
+    !s.dorm_assignments?.length,
+    !s.school_timetable?.length,
+  ].filter(Boolean).length;
+};
+
+const pill = (label: string, cls: string) => <span className={`pill ${cls}`}>{label}</span>;
 
 export default function StudentList() {
   const navigate = useNavigate();
   const { students, isLoading, error, fetchStudents } = useStudentStore();
+  const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchStudents();
-  }, [fetchStudents]);
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
-  // Helper to map DB risk enum to UI label and pill class
-  const getRiskLabel = (risk: string) => {
-    switch (risk) {
-      case 'green': return { label: '🟢 正常', className: 'p-green' };
-      case 'yellow': return { label: '🟡 关注', className: 'p-amber' };
-      case 'red': return { label: '🔴 干预', className: 'p-red' };
-      default: return { label: '🟢 正常', className: 'p-green' };
-    }
-  };
+  // 动态项目列表（当前阶段的项目名）做列筛选项
+  const programFilters = useMemo(() => {
+    const names = [...new Set(students.map(s => (s as any).current_phase?.programs?.name).filter(Boolean))].sort();
+    return names.map(n => ({ text: n as string, value: n as string }));
+  }, [students]);
 
-  // Helper to map DB status enum to UI label and pill class
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active': return { label: '在读', className: 'p-green' };
-      case 'completed': return { label: '已毕业', className: 'p-blue' };
-      case 'withdrawn': return { label: '退学', className: 'p-red' };
-      case 'suspended': return { label: '暂停', className: 'p-amber' };
-      default: return { label: '在读', className: 'p-green' };
-    }
-  };
+  const schoolFilters = useMemo(() => {
+    const names = [...new Set(students.map(s => s.school_name).filter(Boolean))].sort();
+    return names.map(n => ({ text: n as string, value: n as string }));
+  }, [students]);
 
-  // Helper to generate a consistent avatar color class based on student ID string
-  const getAvatarColor = (idStr: string) => {
-    const colors = ['av-blue', 'av-pink', 'av-teal', 'av-green', 'av-amber', 'av-purple'];
-    let hash = 0;
-    for (let i = 0; i < idStr.length; i++) {
-      hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
+  // 顶部全局搜索（姓名/英文名/学校）
+  const dataSource = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(s =>
+      (s.profiles?.full_name ?? '').toLowerCase().includes(q) ||
+      (s.english_name ?? '').toLowerCase().includes(q) ||
+      (s.school_name ?? '').toLowerCase().includes(q));
+  }, [students, search]);
 
-  // Check if visa is expiring soon (within 90 days)
-  const getVisaStyle = (expiryDate: string | null | undefined) => {
-    if (!expiryDate) return {};
-    const diff = new Date(expiryDate).getTime() - Date.now();
-    const daysLeft = diff / (1000 * 60 * 60 * 24);
-    if (daysLeft < 0) return { color: '#A32D2D', fontWeight: 600 }; // expired
-    if (daysLeft < 90) return { color: '#A32D2D', fontWeight: 500 }; // <90 days
-    return {};
-  };
-
-  // Filter state
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState(''); // empty = all
-  const [riskFilter, setRiskFilter] = useState('');
-  const [schoolFilter, setSchoolFilter] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('');
-  const [programFilter, setProgramFilter] = useState('');
-  const [feeFilter, setFeeFilter] = useState(''); // 缴费状态
-  const PAGE_SIZE = 20;
-
-  // 取某学生的首个 enrollment
-  const firstEnrollment = (s: any) => {
-    const arr = Array.isArray(s.student_enrollments) ? s.student_enrollments : (s.student_enrollments ? [s.student_enrollments] : []);
-    return arr[0];
-  };
-
-  // 缴费汇总状态
-  const feeStatus = (s: any): { key: string; label: string; className: string } => {
-    const fees = (s as any).student_fees || [];
-    if (fees.length === 0) return { key: 'none', label: '未登记', className: 'p-gray' };
-    const paid = fees.filter((f: any) => f.is_paid).length;
-    if (paid === 0) return { key: 'unpaid', label: '未缴费', className: 'p-red' };
-    if (paid === fees.length) return { key: 'paid', label: '已缴清', className: 'p-green' };
-    return { key: 'partial', label: `部分(${paid}/${fees.length})`, className: 'p-amber' };
-  };
-
-  // Dynamically extract school list
-  const schoolList = [...new Set(students.map(s => s.school_name).filter((n): n is string => !!n))].sort();
-  // 动态生成「缴费备注」与「项目周期(阶段)」可选项
-  const paymentList = [...new Set(students.map(s => (s as any).payment_note).filter((n): n is string => !!n))].sort();
-  const programList = [...new Set(students.map(s => firstEnrollment(s)?.programs?.name).filter((n): n is string => !!n))].sort();
-
-  // Compute filtered list
-  const filteredStudents = students.filter((student) => {
-    const lower = searchText.toLowerCase();
-    const matchesSearch =
-      (student.profiles?.full_name ?? '').toLowerCase().includes(lower) ||
-      (student.english_name ?? '').toLowerCase().includes(lower) ||
-      (student.student_id ?? '').toLowerCase().includes(lower) ||
-      (student.school_name ?? '').toLowerCase().includes(lower);
-
-    const enrollmentObj = firstEnrollment(student);
-    const statusMatch = statusFilter
-      ? (enrollmentObj?.status ?? '') === statusFilter
-      : true;
-    const riskMatch = riskFilter
-      ? student.risk_level === riskFilter
-      : true;
-    const schoolMatch = schoolFilter
-      ? student.school_name === schoolFilter
-      : true;
-    const paymentMatch = paymentFilter
-      ? (student as any).payment_note === paymentFilter
-      : true;
-    const programMatch = programFilter
-      ? (enrollmentObj?.programs?.name ?? '') === programFilter
-      : true;
-    const feeMatch = feeFilter
-      ? feeStatus(student).key === feeFilter
-      : true;
-
-    return matchesSearch && statusMatch && riskMatch && schoolMatch && paymentMatch && programMatch && feeMatch;
+  const feeColumn = (t: FeeType): ColumnsType<any>[number] => ({
+    title: FEE_TYPE_LABELS[t],
+    key: `fee_${t}`,
+    width: 80,
+    align: 'center',
+    filters: [{ text: '已缴', value: 'paid' }, { text: '未缴', value: 'unpaid' }, { text: '未登记', value: 'none' }],
+    onFilter: (v, r) => feeOf(r, t) === v,
+    render: (_: any, r: any) => { const st = FEE_STATE_PILL[feeOf(r, t)]; return pill(st.label, st.cls); },
   });
 
-  const { paged: pagedStudents, page, totalPages, setPage, reset: resetPage, total } = usePagination(filteredStudents, PAGE_SIZE);
+  const columns: ColumnsType<any> = [
+    {
+      title: '姓名', key: 'name', fixed: 'left', width: 170,
+      sorter: (a, b) => (a.profiles?.full_name || '').localeCompare(b.profiles?.full_name || ''),
+      render: (_: any, s: any) => {
+        const miss = onboardingMissing(s);
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className={`avatar-xs ${avatarColor(s.student_id)}`}>{(s.profiles?.full_name || '?').charAt(0)}</div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontWeight: 500 }}>{s.profiles?.full_name || '未知'}</span>
+                {miss > 0 && (
+                  <span title={`入学清单还有 ${miss} 项未完成`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, color: '#A05000', background: '#FFF5E6', border: '1px solid #F5C97F', borderRadius: 4, padding: '0 4px' }}>
+                    <IconAlertTriangle size={9} />{miss}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{s.english_name || '—'}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      title: '性别', key: 'gender', width: 70,
+      filters: [{ text: '男', value: 'male' }, { text: '女', value: 'female' }],
+      onFilter: (v, r) => r.gender === v,
+      render: (_: any, s: any) => s.gender === 'male' ? '男' : s.gender === 'female' ? '女' : '—',
+    },
+    {
+      title: '开学季', key: 'intake', width: 90,
+      filters: [2, 4, 7, 9, 10].map(m => ({ text: `${m}月`, value: m })),
+      onFilter: (v, r) => intakeMonth(r) === v,
+      sorter: (a, b) => (intakeMonth(a) || 0) - (intakeMonth(b) || 0),
+      render: (_: any, s: any) => { const m = intakeMonth(s); return m ? `${m}月` : '—'; },
+    },
+    {
+      title: '课程/阶段', key: 'program', width: 150,
+      filters: programFilters, filterSearch: true,
+      onFilter: (v, r) => (r.current_phase?.programs?.name ?? '') === v,
+      render: (_: any, s: any) => {
+        const name = s.current_phase?.programs?.name;
+        const src = s.current_phase?.source;
+        return (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {src === 'green_channel' && pill('绿通', 'p-green')}
+            {src === 'agent' && pill('散客', 'p-blue')}
+            {name ? pill(name, 'p-purple') : <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>}
+          </div>
+        );
+      },
+    },
+    {
+      title: '在读状态', key: 'status', width: 90,
+      filters: [{ text: '在读', value: 'active' }, { text: '已完成', value: 'completed' }, { text: '退学', value: 'withdrawn' }, { text: '暂停', value: 'suspended' }],
+      onFilter: (v, r) => (r.current_phase?.status ?? 'active') === v,
+      render: (_: any, s: any) => { const st = STATUS(s.current_phase?.status); return pill(st.label, st.cls); },
+    },
+    {
+      title: '风险', key: 'risk', width: 90,
+      filters: [{ text: '正常', value: 'green' }, { text: '关注', value: 'yellow' }, { text: '干预', value: 'red' }],
+      onFilter: (v, r) => (r.risk_level || 'green') === v,
+      render: (_: any, s: any) => { const r = RISK(s.risk_level); return pill(r.label, r.cls); },
+    },
+    {
+      title: '学校', key: 'school', width: 120,
+      filters: schoolFilters, filterSearch: true,
+      onFilter: (v, r) => r.school_name === v,
+      render: (_: any, s: any) => s.school_name || '—',
+    },
+    {
+      title: '缴费状态', key: 'fee_overall', width: 100,
+      filters: [{ text: '已缴清', value: 'paid' }, { text: '部分', value: 'partial' }, { text: '未缴费', value: 'unpaid' }, { text: '未登记', value: 'none' }],
+      onFilter: (v, r) => overallFee(r) === v,
+      render: (_: any, s: any) => {
+        const o = overallFee(s);
+        const map: any = { paid: { l: '已缴清', c: 'p-green' }, partial: { l: '部分', c: 'p-amber' }, unpaid: { l: '未缴费', c: 'p-red' }, none: { l: '未登记', c: 'p-gray' } };
+        return pill(map[o].l, map[o].c);
+      },
+    },
+    ...FEE_TYPES.map(feeColumn),
+    {
+      title: '签证到期', key: 'visa', width: 110,
+      sorter: (a, b) => (a.visa_expiry || '9999').localeCompare(b.visa_expiry || '9999'),
+      render: (_: any, s: any) => <span style={visaStyle(s.visa_expiry)}>{s.visa_expiry || '—'}</span>,
+    },
+    {
+      title: '可用课时', key: 'hours', width: 90, align: 'right',
+      sorter: (a, b) => (a.available_hours ?? -1) - (b.available_hours ?? -1),
+      render: (_: any, s: any) => s.available_hours != null ? `${s.available_hours}` : '—',
+    },
+    {
+      title: '入学时间', key: 'start', width: 110,
+      sorter: (a, b) => (a.current_phase?.start_date || '').localeCompare(b.current_phase?.start_date || ''),
+      render: (_: any, s: any) => s.current_phase?.start_date || '—',
+    },
+    {
+      title: '操作', key: 'action', fixed: 'right', width: 90,
+      render: (_: any, s: any) => <span className="link" onClick={() => navigate(`/students/${s.student_id}`)}>查看档案</span>,
+    },
+  ];
 
-  const totalCols = 11;
+  if (error) {
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-danger)' }}>加载失败：{error}</div>;
+  }
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <input
-            className="search-bar"
-            placeholder="搜索学生姓名 / 编号 / 学校…"
-            value={searchText}
-            onChange={(e) => { setSearchText(e.target.value); resetPage(); }}
-          />
-          <select className="sel" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}>
-            <option value="">全部状态</option>
-            <option value="active">在读</option>
-            <option value="completed">已毕业</option>
-            <option value="suspended">暂停</option>
-          </select>
-          <select className="sel" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); resetPage(); }}>
-            <option value="">全部风险</option>
-            <option value="green">🟢 正常</option>
-            <option value="yellow">🟡 关注</option>
-            <option value="red">🔴 干预</option>
-          </select>
-          <select className="sel" value={schoolFilter} onChange={(e) => { setSchoolFilter(e.target.value); resetPage(); }}>
-            <option value="">全部学校</option>
-            {schoolList.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="sel" value={programFilter} onChange={(e) => { setProgramFilter(e.target.value); resetPage(); }}>
-            <option value="">全部项目周期</option>
-            {programList.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select className="sel" value={feeFilter} onChange={(e) => { setFeeFilter(e.target.value); resetPage(); }}>
-            <option value="">全部缴费状态</option>
-            <option value="paid">已缴清</option>
-            <option value="partial">部分缴费</option>
-            <option value="unpaid">未缴费</option>
-            <option value="none">未登记</option>
-          </select>
-          <select className="sel" value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); resetPage(); }}>
-            <option value="">全部缴费备注</option>
-            {paymentList.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-        <button className="btn btn-primary">
-          <IconPlus stroke={1.5} size={16} />新建学生档案
-        </button>
+        <Input
+          allowClear
+          prefix={<IconSearch size={14} style={{ color: 'var(--color-text-tertiary)' }} />}
+          placeholder="搜索姓名 / 英文名 / 学校"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 280 }}
+        />
+        <button className="btn btn-primary"><IconPlus stroke={1.5} size={16} />新建学生档案</button>
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-scroll">
-        <table className="tbl" style={{ minWidth: 880 }}>
-          <thead>
-            <tr>
-              <th>编号</th>
-              <th>姓名</th>
-              <th>性别</th>
-              <th>项目</th>
-              <th>在读状态</th>
-              <th>风险等级</th>
-              <th>缴费状态</th>
-              <th>签证到期</th>
-              <th>可用课时</th>
-              <th>入学时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={totalCols} style={{ textAlign: 'center', padding: '40px 0' }}>
-                  <IconLoader2 className="spinner" size={24} style={{ color: 'var(--color-primary)' }} />
-                  <div style={{ marginTop: 8, color: 'var(--color-text-tertiary)', fontSize: 13 }}>加载中...</div>
-                </td>
-              </tr>
-            ) : error ? (
-              <tr>
-                <td colSpan={totalCols} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-danger)' }}>
-                  数据加载失败：{error}
-                </td>
-              </tr>
-            ) : (filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={totalCols} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-tertiary)' }}>
-                    暂无符合筛选条件的学生
-                  </td>
-                </tr>
-              ) : (
-                pagedStudents.map((student, index) => {
-                  const profileArray = Array.isArray(student.profiles) ? student.profiles : (student.profiles ? [student.profiles] : []);
-                  const profile = profileArray[0];
-                  const enrollmentArray = Array.isArray(student.student_enrollments) ? student.student_enrollments : (student.student_enrollments ? [student.student_enrollments] : []);
-                  const enrollment = enrollmentArray[0];
-                  const programArray = Array.isArray(enrollment?.programs) ? enrollment.programs : (enrollment?.programs ? [enrollment.programs] : []);
-                  const program = programArray[0];
-                  const displayId = `NFE-${String(index + 1).padStart(3, '0')}`;
-                  
-                  const riskInfo = getRiskLabel(student.risk_level);
-                  const statusInfo = getStatusLabel(enrollment?.status || 'active');
-                  
-                  const avatarColor = getAvatarColor(student.student_id);
-                  const avatarChar = (profile?.avatar_url && !profile.avatar_url.includes('/'))
-                    ? profile.avatar_url
-                    : (profile?.full_name?.charAt(0) || 'U');
-
-                  const genderLabel = student.gender === 'male' ? '男' : student.gender === 'female' ? '女' : '—';
-
-                  // Onboarding checklist — count missing items
-                  const docs = (student as any).student_documents || [];
-                  const onboardingMissingCount = [
-                    !docs.find((d: any) => d.doc_type === 'offer_letter'),
-                    !docs.find((d: any) => d.doc_type === 'visa' && d.status !== 'expired'),
-                    !docs.find((d: any) => d.doc_type === 'insurance' && d.status !== 'expired'),
-                    !docs.find((d: any) => d.doc_type === 'guardianship'),
-                    !(student as any).arrival_date,
-                    !(student as any).dorm_assignments?.length,
-                    !(student as any).school_timetable?.length,
-                  ].filter(Boolean).length;
-
-                  return (
-                    <tr key={student.student_id}>
-                      <td style={{ color: 'var(--color-text-tertiary)' }}>{displayId}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className={`avatar-xs ${avatarColor}`}>{avatarChar}</div>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontWeight: 500 }}>{profile?.full_name || '未知姓名'}</span>
-                              {onboardingMissingCount > 0 && (
-                                <span title={`入学清单还有 ${onboardingMissingCount} 项未完成`} style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 2,
-                                  fontSize: 10, color: '#A05000', background: '#FFF5E6',
-                                  border: '1px solid #F5C97F', borderRadius: 4, padding: '1px 5px',
-                                }}>
-                                  <IconAlertTriangle size={10} />{onboardingMissingCount}项待补
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                              {student.english_name || 'No English Name'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{genderLabel}</td>
-                      <td>
-                        {program || enrollment?.source ? (
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            {enrollment?.source === 'green_channel' && <span className="pill p-green">绿通</span>}
-                            {enrollment?.source === 'agent' && <span className="pill p-blue">散客</span>}
-                            {program && <span className="pill p-purple">{program.name}</span>}
-                          </div>
-                        ) : (
-                          <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>
-                        )}
-                      </td>
-                      <td><span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span></td>
-                      <td><span className={`pill ${riskInfo.className}`}>{riskInfo.label}</span></td>
-                      <td>{(() => { const fs = feeStatus(student); return <span className={`pill ${fs.className}`}>{fs.label}</span>; })()}</td>
-                      <td style={getVisaStyle(student.visa_expiry)}>
-                        {student.visa_expiry || '—'}
-                      </td>
-                      <td>
-                        {student.available_hours != null ? `${student.available_hours}课时` : '—'}
-                      </td>
-                      <td style={{ color: 'var(--color-text-secondary)' }}>
-                        {enrollment?.start_date || '—'}
-                      </td>
-                      <td><span className="link" onClick={() => navigate(`/students/${student.student_id}`)}>查看档案</span></td>
-                    </tr>
-                  );
-                })
-              ))}
-          </tbody>
-        </table>
-        </div>
-
-        <div style={{ padding: '4px 16px 12px' }}>
-          <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
-        </div>
-      </div>
+      <Table
+        rowKey="student_id"
+        size="small"
+        loading={isLoading ? { indicator: <IconLoader2 className="spinner" size={24} /> } : false}
+        columns={columns}
+        dataSource={dataSource}
+        scroll={{ x: 1700 }}
+        pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 名学生` }}
+      />
     </>
   );
 }

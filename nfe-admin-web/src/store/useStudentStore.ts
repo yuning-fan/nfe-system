@@ -73,10 +73,31 @@ export const useStudentStore = create<StudentStore>((set) => ({
         .from('school_timetable')
         .select('student_id');
 
-      // Step 6: 费用（用于列表缴费状态列与筛选）
+      // Step 6: 所有报名阶段（按 student_id 取全部，挑当前在读那段）
+      const { data: enrollAll } = await supabase
+        .from('student_enrollments')
+        .select('id, student_id, program_id, source, start_date, end_date, status, programs(name)');
+      const enrollByStudent: Record<string, any[]> = {};
+      for (const e of (enrollAll as any[] || [])) {
+        if (!e.student_id) continue;
+        (enrollByStudent[e.student_id] ||= []).push(e);
+      }
+      // 当前阶段：优先 active，其次 start_date 最新
+      const currentPhaseMap: Record<string, any> = {};
+      for (const [sid, list] of Object.entries(enrollByStudent)) {
+        const actives = list.filter(e => e.status === 'active');
+        const pool = actives.length ? actives : list;
+        currentPhaseMap[sid] = pool.slice().sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''))[0];
+      }
+
+      // Step 7: 费用（挂在阶段上；列表按当前阶段算缴费）
       const { data: feesData } = await supabase
         .from('student_fees')
-        .select('student_id, fee_type, is_paid');
+        .select('enrollment_id, student_id, fee_type, is_paid');
+      const feesByEnroll: Record<number, any[]> = {};
+      for (const f of (feesData as any[] || [])) {
+        (feesByEnroll[f.enrollment_id] ||= []).push(f);
+      }
 
       // Build lookup maps
       const infoMap: Record<string, any> = {};
@@ -101,14 +122,11 @@ export const useStudentStore = create<StudentStore>((set) => ({
       }
       const dormsSet = new Set((dormsData || []).map((d: any) => d.student_id));
       const timetableSet = new Set((timetableData || []).map((t: any) => t.student_id));
-      const feesMap: Record<string, any[]> = {};
-      for (const f of (feesData as any[] || [])) {
-        if (!feesMap[f.student_id]) feesMap[f.student_id] = [];
-        feesMap[f.student_id].push(f);
-      }
 
       const normalized = (profileData || []).map((p: any) => {
         const info = infoMap[p.id] || {};
+        const cur = currentPhaseMap[p.id] || null;
+        const curFees = cur ? (feesByEnroll[cur.id] || []) : [];
         return {
           student_id: p.id,
           ...info,
@@ -117,7 +135,8 @@ export const useStudentStore = create<StudentStore>((set) => ({
           student_documents: docsMap[p.id] || [],
           dorm_assignments: dormsSet.has(p.id) ? [{}] : [],
           school_timetable: timetableSet.has(p.id) ? [{}] : [],
-          student_fees: feesMap[p.id] || [],
+          current_phase: cur,        // 当前在读阶段（id/program/source/start_date/status/programs.name）
+          current_fees: curFees,     // 当前阶段的服务费用
           visa_expiry: visaMap[p.id] || null,
           available_hours: hoursMap[p.id] ?? null,
         };
