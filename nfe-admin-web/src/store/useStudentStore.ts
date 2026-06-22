@@ -82,12 +82,22 @@ export const useStudentStore = create<StudentStore>((set) => ({
         if (!e.student_id) continue;
         (enrollByStudent[e.student_id] ||= []).push(e);
       }
-      // 当前阶段：优先 active，其次 start_date 最新
+      // 当前阶段：学生"此刻所在"的那段（不是最靠后的未来段）
+      // 1) 正在进行（已开学、未结束、未完成）取最近一段
+      // 2) 否则取最早的"即将开学"段（待入学）
+      // 3) 否则取最近一段（多为已完成/已毕业）
+      const today = new Date().toISOString().slice(0, 10);
+      const byStart = (a: any, b: any) => (a.start_date || '').localeCompare(b.start_date || '');
       const currentPhaseMap: Record<string, any> = {};
       for (const [sid, list] of Object.entries(enrollByStudent)) {
-        const actives = list.filter(e => e.status === 'active');
-        const pool = actives.length ? actives : list;
-        currentPhaseMap[sid] = pool.slice().sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''))[0];
+        const pool = list.filter(e => e.status !== 'withdrawn');
+        const usable = pool.length ? pool : list;
+        const inRange = usable.filter(e => e.status !== 'completed' && (!e.start_date || e.start_date <= today) && (!e.end_date || today <= e.end_date));
+        const upcoming = usable.filter(e => e.status !== 'completed' && e.start_date && e.start_date > today);
+        currentPhaseMap[sid] =
+          inRange.length ? inRange.slice().sort(byStart).reverse()[0]
+          : upcoming.length ? upcoming.slice().sort(byStart)[0]
+          : usable.slice().sort(byStart).reverse()[0];
       }
 
       // Step 7: 费用（挂在阶段上；列表按当前阶段算缴费）
