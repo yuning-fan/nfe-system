@@ -34,6 +34,7 @@ const DOC_TYPES: { value: string; label: string; cls: string }[] = [
   { value: 'offer_letter', label: '录取通知书', cls: 'p-purple' },
   { value: 'transcript', label: '成绩单', cls: 'p-amber' },
   { value: 'guardianship', label: '监护协议', cls: 'p-gray' },
+  { value: 'contract', label: '机构合同', cls: 'p-teal' },
 ];
 const docLabel = (t: string) => DOC_TYPES.find(d => d.value === t)?.label || t;
 const docCls = (t: string) => DOC_TYPES.find(d => d.value === t)?.cls || 'p-gray';

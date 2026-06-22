@@ -1463,36 +1463,36 @@ export type Database = {
         Row: {
           cohort_name: string | null
           created_at: string | null
-          end_date: string
+          end_date: string | null
           enrolled_by: string | null
           id: number
           program_id: number | null
           source: Database["public"]["Enums"]["enrollment_source"] | null
-          start_date: string
+          start_date: string | null
           status: Database["public"]["Enums"]["program_status"] | null
           student_id: string | null
         }
         Insert: {
           cohort_name?: string | null
           created_at?: string | null
-          end_date: string
+          end_date?: string | null
           enrolled_by?: string | null
           id?: number
           program_id?: number | null
           source?: Database["public"]["Enums"]["enrollment_source"] | null
-          start_date: string
+          start_date?: string | null
           status?: Database["public"]["Enums"]["program_status"] | null
           student_id?: string | null
         }
         Update: {
           cohort_name?: string | null
           created_at?: string | null
-          end_date?: string
+          end_date?: string | null
           enrolled_by?: string | null
           id?: number
           program_id?: number | null
           source?: Database["public"]["Enums"]["enrollment_source"] | null
-          start_date?: string
+          start_date?: string | null
           status?: Database["public"]["Enums"]["program_status"] | null
           student_id?: string | null
         }
@@ -1988,6 +1988,7 @@ export type Database = {
         | "dcg_receipt"
         | "parent_proof"
         | "apartment_visit"
+        | "contract"
       duty_shift: "morning" | "afternoon" | "evening"
       duty_type: "dorm_check" | "night_study" | "transport" | "patrol"
       enrollment_source: "green_channel" | "agent"
@@ -2196,6 +2197,7 @@ export const Constants = {
         "dcg_receipt",
         "parent_proof",
         "apartment_visit",
+        "contract",
       ],
       duty_shift: ["morning", "afternoon", "evening"],
       duty_type: ["dorm_check", "night_study", "transport", "patrol"],
