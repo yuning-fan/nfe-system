@@ -1523,35 +1523,42 @@ export type Database = {
       student_fees: {
         Row: {
           created_at: string
+          enrollment_id: number
           fee_type: Database["public"]["Enums"]["fee_type"]
           id: number
           is_paid: boolean
           note: string | null
           paid_date: string | null
-          period: string
           student_id: string
         }
         Insert: {
           created_at?: string
+          enrollment_id: number
           fee_type: Database["public"]["Enums"]["fee_type"]
           id?: number
           is_paid?: boolean
           note?: string | null
           paid_date?: string | null
-          period: string
           student_id: string
         }
         Update: {
           created_at?: string
+          enrollment_id?: number
           fee_type?: Database["public"]["Enums"]["fee_type"]
           id?: number
           is_paid?: boolean
           note?: string | null
           paid_date?: string | null
-          period?: string
           student_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "student_fees_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "student_enrollments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "student_fees_student_id_fkey"
             columns: ["student_id"]

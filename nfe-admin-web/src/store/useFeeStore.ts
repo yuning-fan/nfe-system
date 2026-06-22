@@ -10,11 +10,13 @@ export const FEE_TYPE_LABELS: Record<FeeType, string> = {
   tuition: '学费',
 };
 
+export const FEE_TYPES = Object.keys(FEE_TYPE_LABELS) as FeeType[];
+
 export interface StudentFee {
   id: number;
+  enrollment_id: number;
   student_id: string;
   fee_type: FeeType;
-  period: string;
   is_paid: boolean;
   paid_date: string | null;
   note: string | null;
@@ -24,7 +26,7 @@ interface FeeStore {
   fees: StudentFee[];
   isLoading: boolean;
   fetchFees: (studentId: string) => Promise<void>;
-  addFee: (studentId: string, feeType: FeeType, period: string) => Promise<boolean>;
+  addFee: (enrollmentId: number, studentId: string, feeType: FeeType) => Promise<boolean>;
   togglePaid: (id: number, isPaid: boolean) => Promise<void>;
   deleteFee: (id: number) => Promise<void>;
 }
@@ -39,9 +41,7 @@ export const useFeeStore = create<FeeStore>((set, get) => ({
       const { data } = await supabase
         .from('student_fees')
         .select('*')
-        .eq('student_id', studentId)
-        .order('period')
-        .order('fee_type');
+        .eq('student_id', studentId);
       set({ fees: (data as StudentFee[]) || [], isLoading: false });
     } catch (err) {
       console.error('fetchFees error', err);
@@ -49,10 +49,10 @@ export const useFeeStore = create<FeeStore>((set, get) => ({
     }
   },
 
-  addFee: async (studentId, feeType, period) => {
+  addFee: async (enrollmentId, studentId, feeType) => {
     try {
       const { error } = await supabase.from('student_fees').insert({
-        student_id: studentId, fee_type: feeType, period, is_paid: false,
+        enrollment_id: enrollmentId, student_id: studentId, fee_type: feeType, is_paid: false,
       } as any);
       if (error) throw error;
       await get().fetchFees(studentId);

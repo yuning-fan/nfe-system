@@ -76,7 +76,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
       // Step 6: 费用（用于列表缴费状态列与筛选）
       const { data: feesData } = await supabase
         .from('student_fees')
-        .select('student_id, fee_type, period, is_paid');
+        .select('student_id, fee_type, is_paid');
 
       // Build lookup maps
       const infoMap: Record<string, any> = {};
