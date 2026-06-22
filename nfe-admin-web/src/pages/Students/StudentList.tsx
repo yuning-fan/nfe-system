@@ -73,16 +73,16 @@ const pill = (label: string, cls: string) => <span className={`pill ${cls}`}>{la
 
 export default function StudentList() {
   const navigate = useNavigate();
-  const { students, isLoading, error, fetchStudents } = useStudentStore();
+  const { students, programs, isLoading, error, fetchStudents, fetchPrograms } = useStudentStore();
   const [search, setSearch] = useState('');
 
-  useEffect(() => { fetchStudents(); }, [fetchStudents]);
+  useEffect(() => { fetchStudents(); fetchPrograms(); }, [fetchStudents, fetchPrograms]);
 
-  // 动态项目列表（当前阶段的项目名）做列筛选项
-  const programFilters = useMemo(() => {
-    const names = [...new Set(students.map(s => (s as any).current_phase?.programs?.name).filter(Boolean))].sort();
-    return names.map(n => ({ text: n as string, value: n as string }));
-  }, [students]);
+  // 项目筛选项取自完整项目表（含奥大/大学阶段，即使暂无学生在读也显示）
+  const programFilters = useMemo(
+    () => programs.map(p => ({ text: p.name, value: p.name })),
+    [programs]
+  );
 
   const schoolFilters = useMemo(() => {
     const names = [...new Set(students.map(s => s.school_name).filter(Boolean))].sort();
