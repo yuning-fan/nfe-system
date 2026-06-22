@@ -73,6 +73,11 @@ export const useStudentStore = create<StudentStore>((set) => ({
         .from('school_timetable')
         .select('student_id');
 
+      // Step 6: 费用（用于列表缴费状态列与筛选）
+      const { data: feesData } = await supabase
+        .from('student_fees')
+        .select('student_id, fee_type, period, is_paid');
+
       // Build lookup maps
       const infoMap: Record<string, any> = {};
       for (const info of (infoData as any[] || [])) {
@@ -96,6 +101,11 @@ export const useStudentStore = create<StudentStore>((set) => ({
       }
       const dormsSet = new Set((dormsData || []).map((d: any) => d.student_id));
       const timetableSet = new Set((timetableData || []).map((t: any) => t.student_id));
+      const feesMap: Record<string, any[]> = {};
+      for (const f of (feesData as any[] || [])) {
+        if (!feesMap[f.student_id]) feesMap[f.student_id] = [];
+        feesMap[f.student_id].push(f);
+      }
 
       const normalized = (profileData || []).map((p: any) => {
         const info = infoMap[p.id] || {};
@@ -107,6 +117,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
           student_documents: docsMap[p.id] || [],
           dorm_assignments: dormsSet.has(p.id) ? [{}] : [],
           school_timetable: timetableSet.has(p.id) ? [{}] : [],
+          student_fees: feesMap[p.id] || [],
           visa_expiry: visaMap[p.id] || null,
           available_hours: hoursMap[p.id] ?? null,
         };

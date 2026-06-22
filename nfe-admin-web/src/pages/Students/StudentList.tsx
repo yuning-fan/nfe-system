@@ -61,12 +61,23 @@ export default function StudentList() {
   const [schoolFilter, setSchoolFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
   const [programFilter, setProgramFilter] = useState('');
+  const [feeFilter, setFeeFilter] = useState(''); // 缴费状态
   const PAGE_SIZE = 20;
 
   // 取某学生的首个 enrollment
   const firstEnrollment = (s: any) => {
     const arr = Array.isArray(s.student_enrollments) ? s.student_enrollments : (s.student_enrollments ? [s.student_enrollments] : []);
     return arr[0];
+  };
+
+  // 缴费汇总状态
+  const feeStatus = (s: any): { key: string; label: string; className: string } => {
+    const fees = (s as any).student_fees || [];
+    if (fees.length === 0) return { key: 'none', label: '未登记', className: 'p-gray' };
+    const paid = fees.filter((f: any) => f.is_paid).length;
+    if (paid === 0) return { key: 'unpaid', label: '未缴费', className: 'p-red' };
+    if (paid === fees.length) return { key: 'paid', label: '已缴清', className: 'p-green' };
+    return { key: 'partial', label: `部分(${paid}/${fees.length})`, className: 'p-amber' };
   };
 
   // Dynamically extract school list
@@ -100,13 +111,16 @@ export default function StudentList() {
     const programMatch = programFilter
       ? (enrollmentObj?.programs?.name ?? '') === programFilter
       : true;
+    const feeMatch = feeFilter
+      ? feeStatus(student).key === feeFilter
+      : true;
 
-    return matchesSearch && statusMatch && riskMatch && schoolMatch && paymentMatch && programMatch;
+    return matchesSearch && statusMatch && riskMatch && schoolMatch && paymentMatch && programMatch && feeMatch;
   });
 
   const { paged: pagedStudents, page, totalPages, setPage, reset: resetPage, total } = usePagination(filteredStudents, PAGE_SIZE);
 
-  const totalCols = 10;
+  const totalCols = 11;
 
   return (
     <>
@@ -138,6 +152,13 @@ export default function StudentList() {
             <option value="">全部项目周期</option>
             {programList.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
+          <select className="sel" value={feeFilter} onChange={(e) => { setFeeFilter(e.target.value); resetPage(); }}>
+            <option value="">全部缴费状态</option>
+            <option value="paid">已缴清</option>
+            <option value="partial">部分缴费</option>
+            <option value="unpaid">未缴费</option>
+            <option value="none">未登记</option>
+          </select>
           <select className="sel" value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); resetPage(); }}>
             <option value="">全部缴费备注</option>
             {paymentList.map(p => <option key={p} value={p}>{p}</option>)}
@@ -159,6 +180,7 @@ export default function StudentList() {
               <th>项目</th>
               <th>在读状态</th>
               <th>风险等级</th>
+              <th>缴费状态</th>
               <th>签证到期</th>
               <th>可用课时</th>
               <th>入学时间</th>
@@ -256,6 +278,7 @@ export default function StudentList() {
                       </td>
                       <td><span className={`pill ${statusInfo.className}`}>{statusInfo.label}</span></td>
                       <td><span className={`pill ${riskInfo.className}`}>{riskInfo.label}</span></td>
+                      <td>{(() => { const fs = feeStatus(student); return <span className={`pill ${fs.className}`}>{fs.label}</span>; })()}</td>
                       <td style={getVisaStyle(student.visa_expiry)}>
                         {student.visa_expiry || '—'}
                       </td>

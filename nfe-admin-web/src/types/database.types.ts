@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       academic_milestones: {
@@ -1495,6 +1520,47 @@ export type Database = {
           },
         ]
       }
+      student_fees: {
+        Row: {
+          created_at: string
+          fee_type: Database["public"]["Enums"]["fee_type"]
+          id: number
+          is_paid: boolean
+          note: string | null
+          paid_date: string | null
+          period: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          fee_type: Database["public"]["Enums"]["fee_type"]
+          id?: number
+          is_paid?: boolean
+          note?: string | null
+          paid_date?: string | null
+          period: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          fee_type?: Database["public"]["Enums"]["fee_type"]
+          id?: number
+          is_paid?: boolean
+          note?: string | null
+          paid_date?: string | null
+          period?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_fees_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_subject_selections: {
         Row: {
           confirmed_at: string | null
@@ -1919,6 +1985,7 @@ export type Database = {
       duty_type: "dorm_check" | "night_study" | "transport" | "patrol"
       enrollment_source: "green_channel" | "agent"
       enrollment_status: "enrolled" | "graduated" | "withdrawn" | "suspended"
+      fee_type: "supervision" | "tutoring" | "accommodation" | "tuition"
       leave_type: "sick_leave" | "personal_leave" | "overnight_stay"
       milestone_type: "exam" | "assignment" | "report_due"
       notification_type: "internal" | "external" | "system_auto"
@@ -2090,6 +2157,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       approval_status: ["pending", "approved", "rejected"],
@@ -2124,6 +2194,7 @@ export const Constants = {
       duty_type: ["dorm_check", "night_study", "transport", "patrol"],
       enrollment_source: ["green_channel", "agent"],
       enrollment_status: ["enrolled", "graduated", "withdrawn", "suspended"],
+      fee_type: ["supervision", "tutoring", "accommodation", "tuition"],
       leave_type: ["sick_leave", "personal_leave", "overnight_stay"],
       milestone_type: ["exam", "assignment", "report_due"],
       notification_type: ["internal", "external", "system_auto"],

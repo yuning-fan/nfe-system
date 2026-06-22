@@ -7,6 +7,7 @@ import { message, Modal } from 'antd';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import DcgPanel from './DcgPanel';
+import FeePanel from './FeePanel';
 
 // 编辑弹窗分组标题样式
 const editSectionStyle: CSSProperties = {
@@ -706,6 +707,9 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">风险积分</span><span className="field-v">{student.total_risk_score} 分</span></div>
               </div>
             </div>
+
+            {/* 费用明细 */}
+            <FeePanel studentId={student.student_id} />
           </div>
         )}
 
