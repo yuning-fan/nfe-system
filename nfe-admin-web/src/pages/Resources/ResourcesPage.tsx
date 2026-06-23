@@ -2,9 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
-import { IconDatabase, IconLoader2, IconFileText, IconTrash, IconSearch, IconPencil } from '@tabler/icons-react';
-import { message, Modal, Select, Upload } from 'antd';
-import { IconCloudUpload } from '@tabler/icons-react';
+import { IconDatabase, IconLoader2, IconFileText, IconTrash, IconSearch, IconPencil, IconCloudUpload, IconUsers } from '@tabler/icons-react';
+import { message, Modal, Select, InputNumber, Upload } from 'antd';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import { SUBJECTS, PROGRAM_STAGES, RESOURCE_TYPES } from '../../lib/resourceTags';
@@ -19,17 +18,21 @@ interface Resource {
   subject: string | null;
   program_stage: string | null;
   resource_type: string | null;
+  resource_year: number | null;
   knowledge_points: string[] | null;
   uploader_id: string | null;
   is_student_visible: boolean;
   created_at: string;
 }
 
+interface StudentOpt { id: string; full_name: string; }
+
 const blankForm = {
   title: '',
   subject: '',
   program_stage: '',
   resource_type: '',
+  resource_year: null as number | null,
   knowledge_points: [] as string[],
   description: '',
   studentVisible: true,
@@ -41,10 +44,15 @@ export default function ResourcesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
+  // 复用统计：resource_id -> 关联的 student_id 列表
+  const [linksByRes, setLinksByRes] = useState<Record<number, string[]>>({});
+  const [students, setStudents] = useState<StudentOpt[]>([]);
+
   // 筛选
   const [fStage, setFStage] = useState<string | undefined>();
   const [fSubject, setFSubject] = useState<string | undefined>();
   const [fType, setFType] = useState<string | undefined>();
+  const [fYear, setFYear] = useState<number | undefined>();
 
   // 上传/编辑弹窗
   const [open, setOpen] = useState(false);
@@ -53,17 +61,37 @@ export default function ResourcesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // 关联学生弹窗
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkRes, setLinkRes] = useState<Resource | null>(null);
+  const [linkSel, setLinkSel] = useState<string[]>([]);
+  const [linkSaving, setLinkSaving] = useState(false);
+
   const fetchResources = useCallback(async () => {
     setLoading(true);
-    const { data } = await db.from('resources').select('*').order('created_at', { ascending: false });
-    setResources((data as Resource[]) || []);
+    const [{ data: res }, { data: links }] = await Promise.all([
+      db.from('resources').select('*').order('created_at', { ascending: false }),
+      db.from('resource_student_links').select('resource_id, student_id'),
+    ]);
+    setResources((res as Resource[]) || []);
+    const map: Record<number, string[]> = {};
+    (links || []).forEach((l: any) => {
+      if (l.resource_id == null || l.student_id == null) return;
+      (map[l.resource_id] ||= []).push(l.student_id);
+    });
+    setLinksByRes(map);
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchResources(); }, [fetchResources]);
+  const fetchStudents = useCallback(async () => {
+    const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
+    setStudents((data as StudentOpt[]) || []);
+  }, []);
 
-  // 已上传知识点候选（历史复用）
+  useEffect(() => { fetchResources(); fetchStudents(); }, [fetchResources, fetchStudents]);
+
   const knowledgeHistory = [...new Set(resources.flatMap(r => r.knowledge_points || []))];
+  const yearHistory = [...new Set(resources.map(r => r.resource_year).filter((y): y is number => !!y))].sort((a, b) => b - a);
 
   const openCreate = () => { setEditId(null); setForm({ ...blankForm }); setFile(null); setOpen(true); };
   const openEdit = (r: Resource) => {
@@ -73,6 +101,7 @@ export default function ResourcesPage() {
       subject: r.subject || '',
       program_stage: r.program_stage || '',
       resource_type: r.resource_type || '',
+      resource_year: r.resource_year ?? null,
       knowledge_points: r.knowledge_points || [],
       description: r.description || '',
       studentVisible: r.is_student_visible,
@@ -92,6 +121,7 @@ export default function ResourcesPage() {
         subject: form.subject || null,
         program_stage: form.program_stage || null,
         resource_type: form.resource_type || null,
+        resource_year: form.resource_year ?? null,
         knowledge_points: form.knowledge_points,
         is_student_visible: form.studentVisible,
       };
@@ -141,6 +171,40 @@ export default function ResourcesPage() {
     });
   };
 
+  const openLink = (r: Resource) => {
+    setLinkRes(r);
+    setLinkSel(linksByRes[r.id] || []);
+    setLinkOpen(true);
+  };
+
+  const saveLink = async () => {
+    if (!linkRes) return;
+    setLinkSaving(true);
+    try {
+      const before = new Set(linksByRes[linkRes.id] || []);
+      const after = new Set(linkSel);
+      const toAdd = linkSel.filter(id => !before.has(id));
+      const toDel = [...before].filter(id => !after.has(id));
+      if (toAdd.length) {
+        const rows = toAdd.map(sid => ({ resource_id: linkRes.id, student_id: sid }));
+        const { error } = await db.from('resource_student_links').insert(rows);
+        if (error) throw error;
+      }
+      if (toDel.length) {
+        const { error } = await db.from('resource_student_links')
+          .delete().eq('resource_id', linkRes.id).in('student_id', toDel);
+        if (error) throw error;
+      }
+      message.success('关联已更新');
+      setLinkOpen(false);
+      fetchResources();
+    } catch (err: any) {
+      message.error(err.message || '保存失败');
+    } finally {
+      setLinkSaving(false);
+    }
+  };
+
   const filtered = resources.filter(r => {
     const kw = search.trim();
     const matchKw = !kw || r.title.includes(kw) || (r.description || '').includes(kw) ||
@@ -148,7 +212,14 @@ export default function ResourcesPage() {
     const matchStage = !fStage || r.program_stage === fStage;
     const matchSubject = !fSubject || r.subject === fSubject;
     const matchType = !fType || r.resource_type === fType;
-    return matchKw && matchStage && matchSubject && matchType;
+    const matchYear = !fYear || r.resource_year === fYear;
+    return matchKw && matchStage && matchSubject && matchType && matchYear;
+  }).sort((a, b) => {
+    // 复用次数降序，其次按上传时间降序
+    const ca = (linksByRes[a.id] || []).length;
+    const cb = (linksByRes[b.id] || []).length;
+    if (cb !== ca) return cb - ca;
+    return a.created_at < b.created_at ? 1 : -1;
   });
   const PAGE_SIZE = 20;
   const { paged, page, totalPages, setPage, reset: resetPage, total } = usePagination(filtered, PAGE_SIZE);
@@ -163,9 +234,10 @@ export default function ResourcesPage() {
             <IconSearch size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
             <input className="search-bar" style={{ paddingLeft: 30 }} placeholder="搜索标题/描述/知识点…" value={search} onChange={e => { setSearch(e.target.value); resetPage(); }} />
           </div>
-          <Select allowClear placeholder="阶段" style={{ width: 150 }} value={fStage} options={selOpts(PROGRAM_STAGES)} onChange={v => { setFStage(v); resetPage(); }} />
+          <Select allowClear placeholder="阶段" style={{ width: 160 }} value={fStage} options={selOpts(PROGRAM_STAGES)} onChange={v => { setFStage(v); resetPage(); }} />
           <Select allowClear showSearch placeholder="科目" style={{ width: 150 }} value={fSubject} options={selOpts(SUBJECTS)} onChange={v => { setFSubject(v); resetPage(); }} />
           <Select allowClear placeholder="类型" style={{ width: 130 }} value={fType} options={selOpts(RESOURCE_TYPES)} onChange={v => { setFType(v); resetPage(); }} />
+          <Select allowClear placeholder="年份" style={{ width: 110 }} value={fYear} options={yearHistory.map(y => ({ label: `${y}`, value: y }))} onChange={v => { setFYear(v); resetPage(); }} />
         </div>
         <button className="btn btn-primary" onClick={openCreate}>
           <IconDatabase size={16} style={{ marginRight: 6 }} /> 上传资料
@@ -186,12 +258,16 @@ export default function ResourcesPage() {
                   <th style={{ padding: '12px 16px' }}>阶段</th>
                   <th style={{ padding: '12px 16px' }}>科目</th>
                   <th style={{ padding: '12px 16px' }}>类型</th>
+                  <th style={{ padding: '12px 16px' }}>年份</th>
+                  <th style={{ padding: '12px 16px' }}>复用</th>
                   <th style={{ padding: '12px 16px' }}>学生可见</th>
                   <th style={{ padding: '12px 16px' }}>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {paged.map(r => (
+                {paged.map(r => {
+                  const linkCount = (linksByRes[r.id] || []).length;
+                  return (
                   <tr key={r.id} style={{ borderTop: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -210,11 +286,17 @@ export default function ResourcesPage() {
                     <td style={{ padding: '12px 16px' }}>{r.program_stage || '—'}</td>
                     <td style={{ padding: '12px 16px' }}>{r.subject || '—'}</td>
                     <td style={{ padding: '12px 16px' }}>{r.resource_type || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>{r.resource_year || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {linkCount > 0 ? <span className="pill p-blue">{linkCount} 次</span> : <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>}
+                    </td>
                     <td style={{ padding: '12px 16px' }}>
                       <span className={`pill ${r.is_student_visible ? 'p-green' : 'p-gray'}`}>{r.is_student_visible ? '可见' : '隐藏'}</span>
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span className="link" onClick={() => handleView(r)}>查看</span>
+                      {' · '}
+                      <span className="link" onClick={() => openLink(r)}><IconUsers size={12} style={{ verticalAlign: 'middle' }} /> 关联</span>
                       {' · '}
                       <span className="link" onClick={() => openEdit(r)}><IconPencil size={12} style={{ verticalAlign: 'middle' }} /> 编辑</span>
                       {' · '}
@@ -223,7 +305,8 @@ export default function ResourcesPage() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             <div style={{ padding: '0 16px' }}>
@@ -249,9 +332,15 @@ export default function ResourcesPage() {
               <Select allowClear showSearch style={{ width: '100%' }} value={form.subject || undefined} options={selOpts(SUBJECTS)} onChange={v => setForm(f => ({ ...f, subject: v || '' }))} placeholder="选择科目" />
             </div>
           </div>
-          <div>
-            <label className="form-label">资料类型</label>
-            <Select allowClear style={{ width: '100%' }} value={form.resource_type || undefined} options={selOpts(RESOURCE_TYPES)} onChange={v => setForm(f => ({ ...f, resource_type: v || '' }))} placeholder="选择类型" />
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">资料类型</label>
+              <Select allowClear style={{ width: '100%' }} value={form.resource_type || undefined} options={selOpts(RESOURCE_TYPES)} onChange={v => setForm(f => ({ ...f, resource_type: v || '' }))} placeholder="选择类型" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">年份</label>
+              <InputNumber style={{ width: '100%' }} min={2000} max={2100} value={form.resource_year ?? undefined} onChange={v => setForm(f => ({ ...f, resource_year: (v as number) ?? null }))} placeholder="如：2026" />
+            </div>
           </div>
           <div>
             <label className="form-label">知识点（可多选/自由输入）</label>
@@ -283,6 +372,23 @@ export default function ResourcesPage() {
               <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>支持图片 / PDF / 文档，单个 ≤ 20MB</p>
             </Upload.Dragger>
           </div>
+        </div>
+      </Modal>
+
+      <Modal title={`关联学生 · ${linkRes?.title || ''}`} open={linkOpen} onCancel={() => setLinkOpen(false)} onOk={saveLink} okText={linkSaving ? '保存中…' : '保存'} confirmLoading={linkSaving} width={480}>
+        <div style={{ marginTop: 12 }}>
+          <label className="form-label">已关联学生（用过此资料的学生）</label>
+          <Select
+            mode="multiple"
+            showSearch
+            style={{ width: '100%' }}
+            value={linkSel}
+            onChange={setLinkSel}
+            placeholder="搜索并选择学生"
+            optionFilterProp="label"
+            options={students.map(s => ({ label: s.full_name, value: s.id }))}
+          />
+          <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 8 }}>关联次数会计入复用统计，用于判断资料质量。</div>
         </div>
       </Modal>
     </div>

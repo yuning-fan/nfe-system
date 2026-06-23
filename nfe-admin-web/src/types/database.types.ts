@@ -1072,6 +1072,7 @@ export type Database = {
           knowledge_points: string[] | null
           program_stage: string | null
           resource_type: string | null
+          resource_year: number | null
           subject: string | null
           title: string
           uploader_id: string | null
@@ -1085,6 +1086,7 @@ export type Database = {
           knowledge_points?: string[] | null
           program_stage?: string | null
           resource_type?: string | null
+          resource_year?: number | null
           subject?: string | null
           title: string
           uploader_id?: string | null
@@ -1098,6 +1100,7 @@ export type Database = {
           knowledge_points?: string[] | null
           program_stage?: string | null
           resource_type?: string | null
+          resource_year?: number | null
           subject?: string | null
           title?: string
           uploader_id?: string | null

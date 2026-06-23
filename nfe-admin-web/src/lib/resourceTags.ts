@@ -20,7 +20,9 @@ export const SUBJECTS = [
 ] as const;
 
 export const PROGRAM_STAGES = [
-  '预科',
+  '预科-Standard',
+  '预科-Accelerated',
+  '预科-Fast-track',
   '大学阶段（奥大）',
   'Foundation Connect',
   '通用',
