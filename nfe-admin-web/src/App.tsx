@@ -19,8 +19,8 @@ import ResourcesPage from './pages/Resources/ResourcesPage';
 import ReportsPage from './pages/Reports/ReportsPage';
 import Login from './pages/Auth/Login';
 import StaffLayout from './staff/StaffLayout';
-import PatrolHome from './staff/PatrolHome';
-import StaffStub from './staff/StaffStub';
+import StaffHome from './staff/StaffHome';
+import StaffSubPage from './staff/StaffSubPage';
 import RequireAuth from './components/RequireAuth';
 import { useAuthStore } from './store/useAuthStore';
 
@@ -36,14 +36,11 @@ export default function App() {
       {/* 登录页面 */}
       <Route path="/login" element={<Login />} />
 
-      {/* 员工端·巡查工作台（静态壳，先复用同一 app，角色门禁后续再加） */}
-      <Route path="/staff" element={<RequireAuth><StaffLayout /></RequireAuth>}>
-        <Route index element={<PatrolHome />} />
-        <Route path="students" element={<StaffStub title="我的学生" desc="名下学生列表（只读）：课表、出勤、成绩、补课安排" />} />
-        <Route path="rollcall" element={<StaffStub title="晚自习点名" desc="18:00 应到名单，逐人标记 在场/缺席/请假 + 备注" />} />
-        <Route path="homework" element={<StaffStub title="作业核查" desc="作业批改与成绩监控，批阅后存入学生档案" />} />
-        <Route path="violations" element={<StaffStub title="违规记录" desc="违规登记 + 申请三步走警告信" />} />
-        <Route path="library" element={<StaffStub title="资料库" desc="仅可查看被授权可见的资料" />} />
+      {/* 员工端工作台（静态壳，4 角色：patrol/life/tutor/academic；角色门禁后续再加） */}
+      <Route path="/staff" element={<Navigate to="/staff/patrol" replace />} />
+      <Route path="/staff/:role" element={<RequireAuth><StaffLayout /></RequireAuth>}>
+        <Route index element={<StaffHome />} />
+        <Route path=":sub" element={<StaffSubPage />} />
       </Route>
 
       {/* 受保护的后台路由 */}
