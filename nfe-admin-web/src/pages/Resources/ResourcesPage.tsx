@@ -63,9 +63,12 @@ export default function ResourcesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [versionOf, setVersionOf] = useState<Resource | null>(null); // 非空=上传新版本
   const [form, setForm] = useState({ ...blankForm });
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  // 预览
+  const [preview, setPreview] = useState<{ url: string; kind: 'image' | 'pdf'; title: string } | null>(null);
 
   // 关联学生弹窗
   const [linkOpen, setLinkOpen] = useState(false);
@@ -99,7 +102,7 @@ export default function ResourcesPage() {
   const knowledgeHistory = [...new Set(resources.flatMap(r => r.knowledge_points || []))];
   const yearHistory = [...new Set(resources.map(r => r.resource_year).filter((y): y is number => !!y))].sort((a, b) => b - a);
 
-  const openCreate = () => { setEditId(null); setVersionOf(null); setForm({ ...blankForm }); setFile(null); setOpen(true); };
+  const openCreate = () => { setEditId(null); setVersionOf(null); setForm({ ...blankForm }); setFiles([]); setOpen(true); };
   const openNewVersion = (r: Resource) => {
     setEditId(null);
     setVersionOf(r);
@@ -113,7 +116,7 @@ export default function ResourcesPage() {
       description: r.description || '',
       studentVisible: r.is_student_visible,
     });
-    setFile(null);
+    setFiles([]);
     setOpen(true);
   };
   const openEdit = (r: Resource) => {
@@ -129,17 +132,19 @@ export default function ResourcesPage() {
       description: r.description || '',
       studentVisible: r.is_student_visible,
     });
-    setFile(null);
+    setFiles([]);
     setOpen(true);
   };
 
+  const stripExt = (name: string) => name.replace(/\.[^.]+$/, '');
+
   const handleSave = async () => {
-    if (!form.title.trim()) { message.warning('请填写标题'); return; }
-    if (!editId && !file) { message.warning('请选择文件'); return; }
+    const multi = !editId && !versionOf && files.length > 1;
+    if (!multi && !form.title.trim()) { message.warning('请填写标题'); return; }
+    if (!editId && files.length === 0) { message.warning('请选择文件'); return; }
     setSaving(true);
     try {
-      const payload: any = {
-        title: form.title.trim(),
+      const baseTags = {
         description: form.description.trim() || null,
         subject: form.subject || null,
         program_stage: form.program_stage || null,
@@ -148,28 +153,35 @@ export default function ResourcesPage() {
         knowledge_points: form.knowledge_points,
         is_student_visible: form.studentVisible,
       };
-      if (file) {
-        const { key } = await uploadFile('resources', 'lib', file);
-        payload.file_url = key;
-      }
+
       if (versionOf) {
         // 上传新版本：插入新条目（版本号+1），再把旧条目标记为已被取代
-        payload.uploader_id = user?.id || null;
-        payload.version = (versionOf.version || 1) + 1;
+        const { key } = await uploadFile('resources', 'lib', files[0]);
+        const payload = { ...baseTags, title: form.title.trim(), file_url: key, uploader_id: user?.id || null, version: (versionOf.version || 1) + 1 };
         const { data: inserted, error } = await db.from('resources').insert(payload).select('id').single();
         if (error) throw error;
         const { error: e2 } = await db.from('resources').update({ superseded_by_id: inserted.id }).eq('id', versionOf.id);
         if (e2) throw e2;
         message.success(`已更新到 v${payload.version}，旧版本已归档`);
       } else if (editId) {
+        const payload: any = { ...baseTags, title: form.title.trim() };
+        if (files.length > 0) {
+          const { key } = await uploadFile('resources', 'lib', files[0]);
+          payload.file_url = key;
+        }
         const { error } = await db.from('resources').update(payload).eq('id', editId);
         if (error) throw error;
         message.success('资料已更新');
       } else {
-        payload.uploader_id = user?.id || null;
-        const { error } = await db.from('resources').insert(payload);
+        // 新建：多文件时每个文件生成一条资料，标题取文件名；单文件用填写的标题
+        const rows: any[] = [];
+        for (const f of files) {
+          const { key } = await uploadFile('resources', 'lib', f);
+          rows.push({ ...baseTags, title: multi ? stripExt(f.name) : form.title.trim(), file_url: key, uploader_id: user?.id || null });
+        }
+        const { error } = await db.from('resources').insert(rows);
         if (error) throw error;
-        message.success('资料已上传');
+        message.success(multi ? `已上传 ${rows.length} 份资料` : '资料已上传');
       }
       setOpen(false);
       fetchResources();
@@ -183,7 +195,11 @@ export default function ResourcesPage() {
   const handleView = async (r: Resource) => {
     try {
       const url = await getDownloadUrl('resources', r.file_url);
-      window.open(url, '_blank');
+      const ext = (r.file_url.split('?')[0].split('.').pop() || '').toLowerCase();
+      const kind = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext) ? 'image'
+        : ext === 'pdf' ? 'pdf' : 'other';
+      if (kind === 'other') { window.open(url, '_blank'); return; }
+      setPreview({ url, kind, title: r.title });
     } catch (e: any) {
       message.error(e.message || '获取文件失败');
     }
@@ -359,10 +375,12 @@ export default function ResourcesPage() {
 
       <Modal title={versionOf ? `上传新版本（当前 v${versionOf.version}）` : editId ? '编辑资料' : '上传资料'} open={open} onCancel={() => setOpen(false)} onOk={handleSave} okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={560}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
-          <div>
-            <label className="form-label">标题 *</label>
-            <input className="input" style={{ width: '100%' }} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="如：EAP 学术写作范文" />
-          </div>
+          {!(files.length > 1 && !editId && !versionOf) && (
+            <div>
+              <label className="form-label">标题 *</label>
+              <input className="input" style={{ width: '100%' }} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="如：EAP 学术写作范文" />
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label className="form-label">所属阶段</label>
@@ -398,20 +416,26 @@ export default function ResourcesPage() {
           <div>
             <label className="form-label">文件{editId ? '（不选则保留原文件）' : '（≤20MB）'}</label>
             <Upload.Dragger
-              multiple={false}
-              maxCount={1}
-              fileList={file ? [{ uid: '-1', name: file.name, status: 'done' as const }] : []}
+              multiple={!editId && !versionOf}
+              maxCount={editId || versionOf ? 1 : undefined}
+              fileList={files.map((f, i) => ({ uid: `${i}`, name: f.name, status: 'done' as const }))}
               beforeUpload={f => {
-                if (f.size > 20 * 1024 * 1024) { message.warning('文件不能超过 20MB'); return Upload.LIST_IGNORE; }
-                setFile(f);
+                if (f.size > 20 * 1024 * 1024) { message.warning(`「${f.name}」超过 20MB，已跳过`); return Upload.LIST_IGNORE; }
+                if (editId || versionOf) setFiles([f]);            // 编辑/新版本：单文件
+                else setFiles(prev => [...prev, f]);                // 新建：可多文件累加
                 return false; // 阻止自动上传，保存时再传 R2
               }}
-              onRemove={() => { setFile(null); }}
+              onRemove={f => { setFiles(prev => prev.filter((_, i) => `${i}` !== f.uid)); }}
             >
               <p style={{ margin: '8px 0' }}><IconCloudUpload size={28} style={{ color: 'var(--color-primary)' }} /></p>
-              <p style={{ fontSize: 13 }}>点击或拖拽文件到此处</p>
+              <p style={{ fontSize: 13 }}>点击或拖拽文件到此处{!editId && !versionOf && '（可多选）'}</p>
               <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>支持图片 / PDF / 文档，单个 ≤ 20MB</p>
             </Upload.Dragger>
+            {!editId && !versionOf && files.length > 1 && (
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6 }}>
+                已选 {files.length} 个文件，将各生成一条资料、共用上方标签，标题取文件名。
+              </div>
+            )}
           </div>
         </div>
       </Modal>
@@ -431,6 +455,26 @@ export default function ResourcesPage() {
           />
           <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 8 }}>关联次数会计入复用统计，用于判断资料质量。</div>
         </div>
+      </Modal>
+
+      <Modal
+        title={preview?.title}
+        open={!!preview}
+        onCancel={() => setPreview(null)}
+        footer={preview ? [
+          <a key="open" className="btn" href={preview.url} target="_blank" rel="noreferrer" style={{ marginRight: 8 }}>新窗口打开</a>,
+        ] : null}
+        width={900}
+        styles={{ body: { padding: 0, background: 'var(--color-bg-secondary)' } }}
+      >
+        {preview?.kind === 'image' && (
+          <div style={{ textAlign: 'center', maxHeight: '75vh', overflow: 'auto' }}>
+            <img src={preview.url} alt={preview.title} style={{ maxWidth: '100%' }} />
+          </div>
+        )}
+        {preview?.kind === 'pdf' && (
+          <iframe title={preview.title} src={preview.url} style={{ width: '100%', height: '75vh', border: 'none' }} />
+        )}
       </Modal>
     </div>
   );
