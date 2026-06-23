@@ -46,7 +46,7 @@ interface ReportStore {
   reports: ReportRecord[];
   isLoading: boolean;
   fetchReports: () => Promise<void>;
-  generateBiweeklyReports: (periodStart: string, periodEnd: string) => Promise<boolean>;
+  generateBiweeklyReports: (periodStart: string, periodEnd: string, studentIds?: string[]) => Promise<boolean>;
   updateReport: (id: number, patch: Partial<Pick<ReportRecord, 'content' | 'period_start' | 'period_end' | 'title'>>) => Promise<boolean>;
   deleteReport: (id: number) => Promise<boolean>;
   publishReport: (id: number) => Promise<boolean>;
@@ -121,11 +121,12 @@ export const useReportStore = create<ReportStore>((set, get) => ({
     }
   },
 
-  generateBiweeklyReports: async (periodStart, periodEnd) => {
+  generateBiweeklyReports: async (periodStart, periodEnd, studentIds) => {
     try {
       const user = useAuthStore.getState().user;
-      const { data: students, error: sErr } = await db
-        .from('profiles').select('id, full_name').eq('role', 'student');
+      let q = db.from('profiles').select('id, full_name').eq('role', 'student');
+      if (studentIds && studentIds.length) q = q.in('id', studentIds);
+      const { data: students, error: sErr } = await q;
       if (sErr) throw sErr;
       if (!students || students.length === 0) { message.warning('暂无在读学生'); return false; }
 

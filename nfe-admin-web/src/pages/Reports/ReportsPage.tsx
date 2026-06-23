@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useReportStore } from '../../store/useReportStore';
 import type { ReportRecord } from '../../store/useReportStore';
 import { IconReport, IconPencil, IconEye, IconTrash } from '@tabler/icons-react';
-import { Modal, message } from 'antd';
+import { Modal, Select, message } from 'antd';
+import { supabase } from '../../lib/supabase';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import { ReportEditor, ReportPreview } from './ReportEditor';
@@ -25,12 +26,18 @@ export default function ReportsPage() {
   const dp = defaultPeriod();
   const [genStart, setGenStart] = useState(dp.start);
   const [genEnd, setGenEnd] = useState(dp.end);
+  const [genStudent, setGenStudent] = useState<string | undefined>(); // undefined = 全体
+  const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
   const [generating, setGenerating] = useState(false);
 
   const [editing, setEditing] = useState<ReportRecord | null>(null);
   const [previewing, setPreviewing] = useState<ReportRecord | null>(null);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
+  useEffect(() => {
+    (supabase as any).from('profiles').select('id, full_name').eq('role', 'student').order('full_name')
+      .then(({ data }: any) => setStudents(data || []));
+  }, []);
 
   const fmt = (s: string | null) => s ? `${s.slice(5, 7)}-${s.slice(8, 10)}` : '-';
   const period = (r: ReportRecord) => (r.period_start && r.period_end) ? `${fmt(r.period_start)} 至 ${fmt(r.period_end)}` : '—';
@@ -49,7 +56,7 @@ export default function ReportsPage() {
   const doGenerate = async () => {
     if (!genStart || !genEnd) { message.warning('请选择报告周期'); return; }
     setGenerating(true);
-    try { await generateBiweeklyReports(genStart, genEnd); setGenOpen(false); }
+    try { await generateBiweeklyReports(genStart, genEnd, genStudent ? [genStudent] : undefined); setGenOpen(false); }
     finally { setGenerating(false); }
   };
 
@@ -149,12 +156,18 @@ export default function ReportsPage() {
       <Modal title="生成双周报告" open={genOpen} onCancel={() => setGenOpen(false)} onOk={doGenerate}
         okText={generating ? '生成中…' : '生成'} confirmLoading={generating}>
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label className="form-label">学生</label>
+            <Select allowClear showSearch style={{ width: '100%' }} value={genStudent} onChange={setGenStudent}
+              placeholder="默认全体在读学生（可选单个）" optionFilterProp="label"
+              options={students.map(s => ({ label: s.full_name, value: s.id }))} />
+          </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}><label className="form-label">周期开始</label><input type="date" className="input" style={{ width: '100%' }} value={genStart} onChange={e => setGenStart(e.target.value)} /></div>
             <div style={{ flex: 1 }}><label className="form-label">周期结束</label><input type="date" className="input" style={{ width: '100%' }} value={genEnd} onChange={e => setGenEnd(e.target.value)} /></div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-            为全体在读学生生成该周期双周报告草稿，自动预填出勤/成绩/违规等可得数据(其余留空待补)。同周期已生成的学生会跳过。
+            {genStudent ? '为所选学生' : '为全体在读学生'}生成该周期双周报告草稿，自动预填出勤/成绩/违规等可得数据(其余留空待补)。同周期已生成的会跳过。
           </div>
         </div>
       </Modal>
