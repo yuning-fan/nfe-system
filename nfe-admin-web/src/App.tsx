@@ -9,6 +9,7 @@ import DormCheck from './pages/DormCheck/DormCheck';
 import TransportManagement from './pages/Transport/TransportManagement';
 import AcademicTrack from './pages/Academic/AcademicTrack';
 import RiskAlerts from './pages/Risk/RiskAlerts';
+import ViolationLog from './pages/Risk/ViolationLog';
 import Communications from './pages/Communications/Communications';
 import Documents from './pages/Documents/Documents';
 import Finance from './pages/Finance/Finance';
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="transport" element={<TransportManagement />} />
         <Route path="academic" element={<AcademicTrack />} />
         <Route path="risk" element={<RiskAlerts />} />
+        <Route path="violations" element={<ViolationLog />} />
         <Route path="comms" element={<Communications />} />
         <Route path="docs" element={<Documents />} />
         <Route path="finance" element={<Finance />} />

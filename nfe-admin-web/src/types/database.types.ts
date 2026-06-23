@@ -1819,7 +1819,9 @@ export type Database = {
           id: number
           reason: string
           reporter_id: string | null
+          status: string
           student_id: string | null
+          violation_type: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1827,7 +1829,9 @@ export type Database = {
           id?: number
           reason: string
           reporter_id?: string | null
+          status?: string
           student_id?: string | null
+          violation_type?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1835,7 +1839,9 @@ export type Database = {
           id?: number
           reason?: string
           reporter_id?: string | null
+          status?: string
           student_id?: string | null
+          violation_type?: string | null
         }
         Relationships: [
           {

@@ -77,11 +77,12 @@
 
 ## 4. 实现 TodoList（按顺序，目标=跑起来）
 
-### Step 1 · 违规登记（产出违纪/晚归数据，接已有警告信流程）
-- [ ] 迁移：`violation_logs` 加 `violation_type text`、`status text`（pending/archived），登记 migration + 重生成类型。
-- [ ] 新建违规登记页/弹窗：选学生 + 类型（缺席自习/手机使用/晚归/睡觉/其他）+ 原因 + 扣分（按合约预设）+ reporter_id。
-- [ ] 近期违规列表 + 状态流转（待存档→已存档）。
-- [ ] 「申请警告信」按钮接现有三步走（`warning_letters`）。
+### Step 1 · 违规登记（产出违纪/晚归数据，接已有警告信流程）✅ 2026-06-23
+- [x] 迁移：`violation_logs` 加 `violation_type text`、`status text`（pending/archived），登记 migration + 重生成类型。（`20260623220000`）
+- [x] 新建违规登记页/弹窗：选学生 + 类型（缺席自习/手机使用/晚归/睡觉/闲聊/严重违纪/其他）+ 原因 + 扣分（按类型预设默认值）+ reporter_id。（`pages/Risk/ViolationLog.tsx`，路由 `/violations`，侧栏「违规记录」）
+- [x] 近期违规列表 + 状态流转（待存档→已存档）+ 搜索/状态筛选/分页。
+- [x] 「申请警告信」按钮接现有三步走（复用 `WarningLetterModal` + `useRiskStore.issueWarning`）。
+- 备注：违规与警告信的 `warning_letter_violations` 关联表暂未联动写入（可后续补，使风险扣分追溯到具体违规）。
 
 ### Step 2 · 晚自习点名 + 早上出勤（产出缺勤数据）
 - [ ] 通用点名组件，传 `check_type`（night_study / morning）区分。
