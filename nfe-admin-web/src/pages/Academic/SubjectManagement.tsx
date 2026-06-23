@@ -1,12 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAcademicStore } from '../../store/useAcademicStore';
-import { IconBook, IconPlus, IconEdit, IconTrash } from '@tabler/icons-react';
+import { supabase } from '../../lib/supabase';
+import { IconBook, IconPlus, IconEdit, IconTrash, IconDatabase } from '@tabler/icons-react';
 import { Modal, message } from 'antd';
 
 export default function SubjectManagement() {
   const { programSubjects, programs, createProgramSubject, updateProgramSubject, deleteProgramSubject, isLoading } = useAcademicStore();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // 资料库各科目资料数量（联动学业跟进）
+  const [resCount, setResCount] = useState<Record<string, number>>({});
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase as any).from('resources').select('subject');
+      const map: Record<string, number> = {};
+      (data || []).forEach((r: any) => { if (r.subject) map[r.subject] = (map[r.subject] || 0) + 1; });
+      setResCount(map);
+    })();
+  }, []);
   
   const [formData, setFormData] = useState({
     program_id: '',
@@ -111,6 +125,7 @@ export default function SubjectManagement() {
               <th style={{ padding: '12px 8px' }}>类型</th>
               <th style={{ padding: '12px 8px' }}>每周课时</th>
               <th style={{ padding: '12px 8px' }}>每周节数</th>
+              <th style={{ padding: '12px 8px' }}>相关资料</th>
               <th style={{ padding: '12px 8px', textAlign: 'right' }}>操作</th>
             </tr>
           </thead>
@@ -128,6 +143,16 @@ export default function SubjectManagement() {
                   </td>
                   <td style={{ padding: '12px 8px' }}>{subject.hours_per_week}h</td>
                   <td style={{ padding: '12px 8px' }}>{subject.sessions_per_week} 节</td>
+                  <td style={{ padding: '12px 8px' }}>
+                    <span
+                      className="link"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      onClick={() => navigate(`/library?subject=${encodeURIComponent(subject.subject_name)}`)}
+                      title="跳转资料库查看该科目资料"
+                    >
+                      <IconDatabase size={13} /> {resCount[subject.subject_name] || 0} 份
+                    </span>
+                  </td>
                   <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                     <button className="btn" style={{ padding: '4px 8px', minHeight: 0, marginRight: 8 }} onClick={() => handleEdit(subject)}>
                       <IconEdit size={14} />
@@ -141,7 +166,7 @@ export default function SubjectManagement() {
             })}
             {programSubjects.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>
                   暂无科目数据
                 </td>
               </tr>

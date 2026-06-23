@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -48,9 +49,10 @@ export default function ResourcesPage() {
   const [linksByRes, setLinksByRes] = useState<Record<number, string[]>>({});
   const [students, setStudents] = useState<StudentOpt[]>([]);
 
-  // 筛选
-  const [fStage, setFStage] = useState<string | undefined>();
-  const [fSubject, setFSubject] = useState<string | undefined>();
+  // 筛选（支持从 URL 带入，例如学业跟进跳转 /library?subject=物理&stage=预科-Standard）
+  const [params] = useSearchParams();
+  const [fStage, setFStage] = useState<string | undefined>(params.get('stage') || undefined);
+  const [fSubject, setFSubject] = useState<string | undefined>(params.get('subject') || undefined);
   const [fType, setFType] = useState<string | undefined>();
   const [fYear, setFYear] = useState<number | undefined>();
 
