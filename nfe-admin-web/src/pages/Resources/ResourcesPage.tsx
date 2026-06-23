@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
 import { IconDatabase, IconLoader2, IconFileText, IconTrash, IconSearch, IconPencil } from '@tabler/icons-react';
-import { message, Modal, Select } from 'antd';
+import { message, Modal, Select, Upload } from 'antd';
+import { IconCloudUpload } from '@tabler/icons-react';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import { SUBJECTS, PROGRAM_STAGES, RESOURCE_TYPES } from '../../lib/resourceTags';
@@ -266,8 +267,21 @@ export default function ResourcesPage() {
           </label>
           <div>
             <label className="form-label">文件{editId ? '（不选则保留原文件）' : '（≤20MB）'}</label>
-            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
-            {file && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>已选：{file.name}</div>}
+            <Upload.Dragger
+              multiple={false}
+              maxCount={1}
+              fileList={file ? [{ uid: '-1', name: file.name, status: 'done' as const }] : []}
+              beforeUpload={f => {
+                if (f.size > 20 * 1024 * 1024) { message.warning('文件不能超过 20MB'); return Upload.LIST_IGNORE; }
+                setFile(f);
+                return false; // 阻止自动上传，保存时再传 R2
+              }}
+              onRemove={() => { setFile(null); }}
+            >
+              <p style={{ margin: '8px 0' }}><IconCloudUpload size={28} style={{ color: 'var(--color-primary)' }} /></p>
+              <p style={{ fontSize: 13 }}>点击或拖拽文件到此处</p>
+              <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>支持图片 / PDF / 文档，单个 ≤ 20MB</p>
+            </Upload.Dragger>
           </div>
         </div>
       </Modal>
