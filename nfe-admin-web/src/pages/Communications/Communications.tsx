@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { uploadFile, getDownloadUrl } from '../../lib/r2';
+import { useAuthStore } from '../../store/useAuthStore';
+import { Modal, Select, message } from 'antd';
 import {
   IconPlus, IconLoader2, IconMessage2,
-  IconPhone, IconMail, IconBrandWechat, IconNotes, IconUsers
+  IconPhone, IconMail, IconBrandWechat, IconNotes, IconUsers, IconPaperclip
 } from '@tabler/icons-react';
+
+const db = supabase as any;
 
 interface Student {
   student_id: string;
@@ -13,20 +18,20 @@ interface Student {
 interface CommLog {
   id: number;
   student_id: string;
-  contact_party: string;
-  channel: string;
+  contact_type: string;
+  channel: string | null;
   content: string;
+  attachment_url: string | null;
   created_at: string;
-  staff_id: string;
-  profiles?: { full_name: string };
+  staff_id: string | null;
+  profiles?: { full_name: string } | Array<{ full_name: string }>;
 }
 
 const partyConfig: Record<string, { label: string; cls: string }> = {
-  parent:   { label: '家长', cls: 'p-red' },
-  school:   { label: '学校', cls: 'p-blue' },
-  student:  { label: '学生', cls: 'p-gray' },
-  housing:  { label: '住宿方', cls: 'p-amber' },
-  guardian: { label: '监护人', cls: 'p-purple' },
+  parent:        { label: '家长', cls: 'p-red' },
+  school:        { label: '学校', cls: 'p-blue' },
+  student:       { label: '学生', cls: 'p-gray' },
+  accommodation: { label: '住宿方', cls: 'p-amber' },
 };
 
 const channelConfig: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -47,18 +52,10 @@ function formatTime(ts: string) {
   return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
 }
 
-// Mock data since communication_logs is empty
-const MOCK_LOGS: Record<string, CommLog[]> = {
-  '占小诺': [
-    { id: 1, student_id: '', contact_party: 'parent', channel: 'phone', content: '与家长通话，告知学生本学期开学适应情况良好，成绩稳定。家长表示满意。', created_at: new Date(Date.now() - 2 * 3600000).toISOString(), staff_id: '', profiles: { full_name: '王老师' } },
-    { id: 2, student_id: '', contact_party: 'student', channel: 'wechat', content: '微信提醒明天有重要考试，建议提前复习英语词汇。', created_at: new Date(Date.now() - 86400000).toISOString(), staff_id: '', profiles: { full_name: '陈老师' } },
-  ],
-  '吴奕辉': [
-    { id: 3, student_id: '', contact_party: 'school', channel: 'email', content: '收到学校班主任邮件，确认学生本周出勤情况正常，课堂表现积极。', created_at: new Date(Date.now() - 3 * 86400000).toISOString(), staff_id: '', profiles: { full_name: '王老师' } },
-  ],
-};
+const blankForm = { contact_type: 'parent', channel: 'phone', content: '' };
 
 export default function Communications() {
+  const user = useAuthStore(s => s.user);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [logs, setLogs] = useState<CommLog[]>([]);
@@ -66,9 +63,15 @@ export default function Communications() {
   const [filterParty, setFilterParty] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  // 添加记录弹窗
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ ...blankForm });
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     async function fetchStudents() {
-      const { data } = await supabase
+      const { data } = await db
         .from('students_info')
         .select('student_id, profiles(full_name)')
         .order('student_id');
@@ -80,24 +83,17 @@ export default function Communications() {
     fetchStudents();
   }, []);
 
+  const fetchLogs = async (studentId: string) => {
+    const { data } = await db
+      .from('communication_logs')
+      .select('*, profiles!communication_logs_staff_id_fkey(full_name)')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
+    setLogs((data as CommLog[]) || []);
+  };
+
   useEffect(() => {
-    if (!selectedStudent) return;
-    const profile = Array.isArray(selectedStudent.profiles) ? selectedStudent.profiles[0] : selectedStudent.profiles;
-    const name = profile?.full_name || '';
-    // Try fetching from DB first; fall back to mock
-    async function fetchLogs() {
-      const { data } = await supabase
-        .from('communication_logs')
-        .select('*, profiles!communication_logs_staff_id_fkey(full_name)')
-        .eq('student_id', selectedStudent!.student_id)
-        .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        setLogs(data as unknown as CommLog[]);
-      } else {
-        setLogs(MOCK_LOGS[name] || []);
-      }
-    }
-    fetchLogs();
+    if (selectedStudent) fetchLogs(selectedStudent.student_id);
   }, [selectedStudent]);
 
   const getStudentName = (s: Student) => {
@@ -105,14 +101,48 @@ export default function Communications() {
     return p?.full_name || '—';
   };
 
-  const filteredStudents = students.filter((s) =>
-    getStudentName(s).includes(searchText)
-  );
+  const handleSave = async () => {
+    if (!selectedStudent) { message.warning('请先选择学生'); return; }
+    if (!form.content.trim()) { message.warning('请填写沟通内容'); return; }
+    setSaving(true);
+    try {
+      let attachment_url: string | null = null;
+      if (file) {
+        const { key } = await uploadFile('resources', 'comm', file);
+        attachment_url = key;
+      }
+      const { error } = await db.from('communication_logs').insert({
+        student_id: selectedStudent.student_id,
+        staff_id: user?.id || null,
+        contact_type: form.contact_type,
+        channel: form.channel,
+        content: form.content.trim(),
+        attachment_url,
+      });
+      if (error) throw error;
+      message.success('沟通记录已添加');
+      setOpen(false);
+      setForm({ ...blankForm });
+      setFile(null);
+      fetchLogs(selectedStudent.student_id);
+    } catch (e: any) {
+      message.error(e.message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const filteredLogs = filterParty
-    ? logs.filter((l) => l.contact_party === filterParty)
-    : logs;
+  const viewAttachment = async (key: string) => {
+    try {
+      const url = await getDownloadUrl('resources', key);
+      window.open(url, '_blank');
+    } catch (e: any) {
+      message.error(e.message || '获取附件失败');
+    }
+  };
 
+  const filteredStudents = students.filter((s) => getStudentName(s).includes(searchText));
+  const filteredLogs = filterParty ? logs.filter((l) => l.contact_type === filterParty) : logs;
   const selectedName = selectedStudent ? getStudentName(selectedStudent) : '';
 
   if (isLoading) {
@@ -125,7 +155,7 @@ export default function Communications() {
 
   return (
     <div style={{ display: 'flex', gap: 16 }}>
-      {/* Left sidebar: student list */}
+      {/* 左侧学生列表 */}
       <div style={{ width: 220, flexShrink: 0 }}>
         <input
           className="search-bar"
@@ -144,14 +174,12 @@ export default function Communications() {
           <option value="student">学生</option>
           <option value="parent">家长</option>
           <option value="school">学校</option>
-          <option value="housing">住宿方</option>
-          <option value="guardian">监护人</option>
+          <option value="accommodation">住宿方</option>
         </select>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {filteredStudents.map((s) => {
             const name = getStudentName(s);
             const isActive = selectedStudent?.student_id === s.student_id;
-            const mockLogs = MOCK_LOGS[name] || [];
             return (
               <div
                 key={s.student_id}
@@ -159,23 +187,20 @@ export default function Communications() {
                 onClick={() => setSelectedStudent(s)}
               >
                 <div style={{ fontWeight: 500, color: isActive ? 'var(--color-text-info)' : undefined }}>{name}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                  {mockLogs.length > 0 ? formatTime(mockLogs[0].created_at) : '暂无记录'}
-                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Right: timeline */}
+      {/* 右侧时间线 */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 15, fontWeight: 500 }}>
             <IconMessage2 size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
             {selectedName} — 沟通记录
           </div>
-          <button className="btn btn-primary">
+          <button className="btn btn-primary" onClick={() => { setForm({ ...blankForm }); setFile(null); setOpen(true); }}>
             <IconPlus size={14} style={{ marginRight: 4 }} />添加记录
           </button>
         </div>
@@ -191,8 +216,8 @@ export default function Communications() {
         ) : (
           <div className="card">
             {filteredLogs.map((log, idx) => {
-              const party = partyConfig[log.contact_party] || { label: log.contact_party, cls: 'p-gray' };
-              const channel = channelConfig[log.channel] || { label: log.channel, icon: null };
+              const party = partyConfig[log.contact_type] || { label: log.contact_type, cls: 'p-gray' };
+              const channel = log.channel ? (channelConfig[log.channel] || { label: log.channel, icon: null }) : null;
               const staffName = Array.isArray(log.profiles)
                 ? (log.profiles as any[])[0]?.full_name
                 : log.profiles?.full_name;
@@ -208,13 +233,20 @@ export default function Communications() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                       <span className={`pill ${party.cls}`}>{party.label}</span>
-                      <span style={{ fontWeight: 500, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {channel.icon}{channel.label}
-                      </span>
+                      {channel && (
+                        <span style={{ fontWeight: 500, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {channel.icon}{channel.label}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12 }}>{log.content}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                      操作人：{staffName || '—'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>操作人：{staffName || '—'}</span>
+                      {log.attachment_url && (
+                        <span className="link" style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 2 }} onClick={() => viewAttachment(log.attachment_url!)}>
+                          <IconPaperclip size={12} /> 附件
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -223,6 +255,51 @@ export default function Communications() {
           </div>
         )}
       </div>
+
+      <Modal title={`添加沟通记录 · ${selectedName}`} open={open} onCancel={() => setOpen(false)} onOk={handleSave} okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={480}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">沟通对象</label>
+              <Select
+                style={{ width: '100%' }}
+                value={form.contact_type}
+                onChange={v => setForm(f => ({ ...f, contact_type: v }))}
+                options={[
+                  { label: '家长', value: 'parent' },
+                  { label: '学生', value: 'student' },
+                  { label: '学校', value: 'school' },
+                  { label: '住宿方', value: 'accommodation' },
+                ]}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">沟通方式</label>
+              <Select
+                style={{ width: '100%' }}
+                value={form.channel}
+                onChange={v => setForm(f => ({ ...f, channel: v }))}
+                options={[
+                  { label: '电话沟通', value: 'phone' },
+                  { label: '微信沟通', value: 'wechat' },
+                  { label: '邮件', value: 'email' },
+                  { label: '面谈', value: 'meeting' },
+                  { label: '备注', value: 'note' },
+                ]}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">沟通内容 *</label>
+            <textarea className="input" rows={4} style={{ width: '100%' }} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="记录沟通要点…" />
+          </div>
+          <div>
+            <label className="form-label">附件（截图等，可选）</label>
+            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
+            {file && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>已选：{file.name}</div>}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -101,6 +101,7 @@ export type Database = {
       communication_logs: {
         Row: {
           attachment_url: string | null
+          channel: string | null
           contact_type: Database["public"]["Enums"]["contact_type"]
           content: string
           created_at: string | null
@@ -110,6 +111,7 @@ export type Database = {
         }
         Insert: {
           attachment_url?: string | null
+          channel?: string | null
           contact_type: Database["public"]["Enums"]["contact_type"]
           content: string
           created_at?: string | null
@@ -119,6 +121,7 @@ export type Database = {
         }
         Update: {
           attachment_url?: string | null
+          channel?: string | null
           contact_type?: Database["public"]["Enums"]["contact_type"]
           content?: string
           created_at?: string | null
