@@ -973,40 +973,52 @@ export type Database = {
       }
       reports: {
         Row: {
+          content: Json
           generated_at: string | null
           generated_by: string | null
           id: number
           pdf_url: string | null
+          period_end: string | null
+          period_start: string | null
           report_type: Database["public"]["Enums"]["report_type"]
           reviewed_at: string | null
           reviewer_id: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["report_status"] | null
           student_id: string | null
+          title: string | null
         }
         Insert: {
+          content?: Json
           generated_at?: string | null
           generated_by?: string | null
           id?: number
           pdf_url?: string | null
+          period_end?: string | null
+          period_start?: string | null
           report_type: Database["public"]["Enums"]["report_type"]
           reviewed_at?: string | null
           reviewer_id?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["report_status"] | null
           student_id?: string | null
+          title?: string | null
         }
         Update: {
+          content?: Json
           generated_at?: string | null
           generated_by?: string | null
           id?: number
           pdf_url?: string | null
+          period_end?: string | null
+          period_start?: string | null
           report_type?: Database["public"]["Enums"]["report_type"]
           reviewed_at?: string | null
           reviewer_id?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["report_status"] | null
           student_id?: string | null
+          title?: string | null
         }
         Relationships: [
           {
