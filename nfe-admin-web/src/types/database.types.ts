@@ -1074,8 +1074,10 @@ export type Database = {
           resource_type: string | null
           resource_year: number | null
           subject: string | null
+          superseded_by_id: number | null
           title: string
           uploader_id: string | null
+          version: number
         }
         Insert: {
           created_at?: string | null
@@ -1088,8 +1090,10 @@ export type Database = {
           resource_type?: string | null
           resource_year?: number | null
           subject?: string | null
+          superseded_by_id?: number | null
           title: string
           uploader_id?: string | null
+          version?: number
         }
         Update: {
           created_at?: string | null
@@ -1102,10 +1106,19 @@ export type Database = {
           resource_type?: string | null
           resource_year?: number | null
           subject?: string | null
+          superseded_by_id?: number | null
           title?: string
           uploader_id?: string | null
+          version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "resources_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "resources_uploader_id_fkey"
             columns: ["uploader_id"]

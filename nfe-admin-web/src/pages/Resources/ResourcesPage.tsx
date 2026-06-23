@@ -23,6 +23,8 @@ interface Resource {
   knowledge_points: string[] | null;
   uploader_id: string | null;
   is_student_visible: boolean;
+  version: number;
+  superseded_by_id: number | null;
   created_at: string;
 }
 
@@ -56,12 +58,14 @@ export default function ResourcesPage() {
   const [fType, setFType] = useState<string | undefined>();
   const [fYear, setFYear] = useState<number | undefined>();
 
-  // 上传/编辑弹窗
+  // 上传/编辑/新版本弹窗
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [versionOf, setVersionOf] = useState<Resource | null>(null); // 非空=上传新版本
   const [form, setForm] = useState({ ...blankForm });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // 关联学生弹窗
   const [linkOpen, setLinkOpen] = useState(false);
@@ -95,9 +99,26 @@ export default function ResourcesPage() {
   const knowledgeHistory = [...new Set(resources.flatMap(r => r.knowledge_points || []))];
   const yearHistory = [...new Set(resources.map(r => r.resource_year).filter((y): y is number => !!y))].sort((a, b) => b - a);
 
-  const openCreate = () => { setEditId(null); setForm({ ...blankForm }); setFile(null); setOpen(true); };
+  const openCreate = () => { setEditId(null); setVersionOf(null); setForm({ ...blankForm }); setFile(null); setOpen(true); };
+  const openNewVersion = (r: Resource) => {
+    setEditId(null);
+    setVersionOf(r);
+    setForm({
+      title: r.title,
+      subject: r.subject || '',
+      program_stage: r.program_stage || '',
+      resource_type: r.resource_type || '',
+      resource_year: r.resource_year ?? null,
+      knowledge_points: r.knowledge_points || [],
+      description: r.description || '',
+      studentVisible: r.is_student_visible,
+    });
+    setFile(null);
+    setOpen(true);
+  };
   const openEdit = (r: Resource) => {
     setEditId(r.id);
+    setVersionOf(null);
     setForm({
       title: r.title,
       subject: r.subject || '',
@@ -131,7 +152,16 @@ export default function ResourcesPage() {
         const { key } = await uploadFile('resources', 'lib', file);
         payload.file_url = key;
       }
-      if (editId) {
+      if (versionOf) {
+        // 上传新版本：插入新条目（版本号+1），再把旧条目标记为已被取代
+        payload.uploader_id = user?.id || null;
+        payload.version = (versionOf.version || 1) + 1;
+        const { data: inserted, error } = await db.from('resources').insert(payload).select('id').single();
+        if (error) throw error;
+        const { error: e2 } = await db.from('resources').update({ superseded_by_id: inserted.id }).eq('id', versionOf.id);
+        if (e2) throw e2;
+        message.success(`已更新到 v${payload.version}，旧版本已归档`);
+      } else if (editId) {
         const { error } = await db.from('resources').update(payload).eq('id', editId);
         if (error) throw error;
         message.success('资料已更新');
@@ -215,7 +245,8 @@ export default function ResourcesPage() {
     const matchSubject = !fSubject || r.subject === fSubject;
     const matchType = !fType || r.resource_type === fType;
     const matchYear = !fYear || r.resource_year === fYear;
-    return matchKw && matchStage && matchSubject && matchType && matchYear;
+    const matchHistory = showHistory || !r.superseded_by_id; // 默认隐藏已被取代的旧版本
+    return matchKw && matchStage && matchSubject && matchType && matchYear && matchHistory;
   }).sort((a, b) => {
     // 复用次数降序，其次按上传时间降序
     const ca = (linksByRes[a.id] || []).length;
@@ -240,6 +271,9 @@ export default function ResourcesPage() {
           <Select allowClear showSearch placeholder="科目" style={{ width: 150 }} value={fSubject} options={selOpts(SUBJECTS)} onChange={v => { setFSubject(v); resetPage(); }} />
           <Select allowClear placeholder="类型" style={{ width: 130 }} value={fType} options={selOpts(RESOURCE_TYPES)} onChange={v => { setFType(v); resetPage(); }} />
           <Select allowClear placeholder="年份" style={{ width: 110 }} value={fYear} options={yearHistory.map(y => ({ label: `${y}`, value: y }))} onChange={v => { setFYear(v); resetPage(); }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            <input type="checkbox" checked={showHistory} onChange={e => { setShowHistory(e.target.checked); resetPage(); }} /> 显示历史版本
+          </label>
         </div>
         <button className="btn btn-primary" onClick={openCreate}>
           <IconDatabase size={16} style={{ marginRight: 6 }} /> 上传资料
@@ -275,7 +309,11 @@ export default function ResourcesPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)' }} />
                         <div>
-                          <div style={{ fontWeight: 500 }}>{r.title}</div>
+                          <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {r.title}
+                            {r.version > 1 && <span className="pill p-gray" style={{ fontSize: 10 }}>v{r.version}</span>}
+                            {r.superseded_by_id && <span className="pill p-gray" style={{ fontSize: 10 }}>已有更新版本</span>}
+                          </div>
                           {r.description && <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{r.description}</div>}
                           {r.knowledge_points && r.knowledge_points.length > 0 && (
                             <div style={{ marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -301,6 +339,7 @@ export default function ResourcesPage() {
                       <span className="link" onClick={() => openLink(r)}><IconUsers size={12} style={{ verticalAlign: 'middle' }} /> 关联</span>
                       {' · '}
                       <span className="link" onClick={() => openEdit(r)}><IconPencil size={12} style={{ verticalAlign: 'middle' }} /> 编辑</span>
+                      {!r.superseded_by_id && <>{' · '}<span className="link" onClick={() => openNewVersion(r)}>新版本</span></>}
                       {' · '}
                       <span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(r)}>
                         <IconTrash size={12} style={{ verticalAlign: 'middle' }} /> 删除
@@ -318,7 +357,7 @@ export default function ResourcesPage() {
         )}
       </div>
 
-      <Modal title={editId ? '编辑资料' : '上传资料'} open={open} onCancel={() => setOpen(false)} onOk={handleSave} okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={560}>
+      <Modal title={versionOf ? `上传新版本（当前 v${versionOf.version}）` : editId ? '编辑资料' : '上传资料'} open={open} onCancel={() => setOpen(false)} onOk={handleSave} okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={560}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
           <div>
             <label className="form-label">标题 *</label>
