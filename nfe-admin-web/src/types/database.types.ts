@@ -2040,6 +2040,9 @@ export type Database = {
         | "completed"
         | "rescheduling"
         | "pending_approval"
+        | "absent"
+        | "leave"
+        | "cancelled"
       score_type: "daily" | "midterm" | "final"
       selection_status: "pending_confirm" | "confirmed" | "dropped"
       send_channel: "in_app" | "wechat" | "email"
@@ -2249,6 +2252,9 @@ export const Constants = {
         "completed",
         "rescheduling",
         "pending_approval",
+        "absent",
+        "leave",
+        "cancelled",
       ],
       score_type: ["daily", "midterm", "final"],
       selection_status: ["pending_confirm", "confirmed", "dropped"],

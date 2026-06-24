@@ -9,7 +9,7 @@ import FileUploadButton from '../../components/common/FileUploadButton';
 
 
 export default function TutorScheduleManagement() {
-  const { pendingSchedules, schedules, tutors, fetchPendingSchedules, fetchSchedules, fetchTutors, createSchedule, approveSchedule, rejectSchedule, attachMaterial, isLoading } = useScheduleStore();
+  const { pendingSchedules, schedules, tutors, pendingReschedules, fetchPendingSchedules, fetchSchedules, fetchTutors, fetchPendingReschedules, createSchedule, approveSchedule, rejectSchedule, approveReschedule, rejectReschedule, attachMaterial, isLoading } = useScheduleStore();
 
   const openMaterial = async (key: string | null) => {
     if (!key) return;
@@ -24,7 +24,7 @@ export default function TutorScheduleManagement() {
   const { courses, fetchCourses, courseAssets, fetchCourseAssets } = useAcademicStore();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'reschedule' | 'all'>('pending');
   // Week navigation: offset in weeks from today (0 = this week)
   const [weekOffset, setWeekOffset] = useState(0);
   const [formData, setFormData] = useState({
@@ -45,7 +45,21 @@ export default function TutorScheduleManagement() {
     fetchStudents();
     fetchCourses();
     fetchCourseAssets();
-  }, [fetchPendingSchedules, fetchSchedules, fetchTutors, fetchStudents, fetchCourses, fetchCourseAssets]);
+    fetchPendingReschedules();
+  }, [fetchPendingSchedules, fetchSchedules, fetchTutors, fetchStudents, fetchCourses, fetchCourseAssets, fetchPendingReschedules]);
+
+  const handleApproveResch = (changeId: number) => {
+    Modal.confirm({
+      title: '通过调课申请', content: '确认通过该调课？课表时间将更新为申请的新时间。',
+      onOk: async () => { (await approveReschedule(changeId)) ? message.success('调课已通过') : message.error('操作失败'); },
+    });
+  };
+  const handleRejectResch = (changeId: number) => {
+    Modal.confirm({
+      title: '驳回调课申请', content: '确认驳回？该课将恢复为原时间。', okButtonProps: { danger: true },
+      onOk: async () => { (await rejectReschedule(changeId)) ? message.success('已驳回') : message.error('操作失败'); },
+    });
+  };
 
   // Auto-fill subject_label from selected course
   useEffect(() => {
@@ -195,8 +209,60 @@ export default function TutorScheduleManagement() {
         <div className={`tab ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>
           待审批 {pendingSchedules.length > 0 && <span style={{ background: 'var(--color-danger)', color: '#fff', borderRadius: 99, padding: '1px 6px', fontSize: 11, marginLeft: 6 }}>{pendingSchedules.length}</span>}
         </div>
+        <div className={`tab ${activeTab === 'reschedule' ? 'active' : ''}`} onClick={() => setActiveTab('reschedule')}>
+          调课审批 {pendingReschedules.length > 0 && <span style={{ background: 'var(--color-danger)', color: '#fff', borderRadius: 99, padding: '1px 6px', fontSize: 11, marginLeft: 6 }}>{pendingReschedules.length}</span>}
+        </div>
         <div className={`tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>已审批课表</div>
       </div>
+
+      {/* 调课审批列表 */}
+      {activeTab === 'reschedule' && (
+        <div>
+          {pendingReschedules.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-tertiary)' }}>
+              <IconCheck size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
+              <div>暂无待审批调课申请</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {pendingReschedules.map((c: any) => {
+                const reasonText = (c.reason || '').split('|end:')[0];
+                return (
+                  <div key={c.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px' }}>
+                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 2 }}>学生 / 老师</div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{c.schedule?.student?.full_name || '—'}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{c.schedule?.tutor?.full_name || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 2 }}>原时间</div>
+                        <div style={{ fontSize: 14 }}>{c.schedule ? formatTime(c.schedule.start_time) : '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 2 }}>申请新时间</div>
+                        <div style={{ fontSize: 14, color: 'var(--color-primary)' }}>{c.new_start_time ? formatTime(c.new_start_time) : '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 2 }}>原因</div>
+                        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{reasonText || '—'}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-primary" style={{ padding: '6px 16px', minHeight: 0 }} onClick={() => handleApproveResch(c.id)}>
+                        <IconCheck size={14} style={{ marginRight: 4 }} /> 通过
+                      </button>
+                      <button className="btn" style={{ padding: '6px 14px', minHeight: 0, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }} onClick={() => handleRejectResch(c.id)}>
+                        <IconX size={14} style={{ marginRight: 4 }} /> 驳回
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pending approval list */}
       {activeTab === 'pending' && (
