@@ -112,7 +112,8 @@
 - [x] 历史点名记录（近 30 天，按日期汇总 应到/在场/缺席/请假）。
 - [x] store 通用方法 `useDailyCheckStore.submitDailyChecks(checkType, records)`，`submitDormChecks` 改为委托它。
 - [x] **巡查 · 晚自习点名**已接真功能（`staff/pages/patrol.tsx` PatrolRollcall → `<RollCall checkType="night_study">`，应到=全体在读）。
-- [ ] 生活 · 早上出勤（morning，应到=今日有课学生）——待接，可直接复用 RollCall。
+- [x] **生活 · 早上出勤**已接真功能（`staff/pages/life.tsx` LifeMorning → `<RollCall checkType="morning" scope="today_school">`，应到=今日有课学生，按 `school_timetable` day_of_week 1=周一..7=周日 + 生效区间取名单）。2026-06-24
+- [x] RollCall 加 `scope`('all' | 'today_school') 名单范围开关；点名记录支持当天覆盖、历史展开改状态/删单条/删当天，改删均即时重算。
 - [ ] 辅导 · 上课记录缺勤（tutoring）——待接。
 
 ### Step 3 · 风险自动算分引擎（核心）✅ 引擎已建 2026-06-24

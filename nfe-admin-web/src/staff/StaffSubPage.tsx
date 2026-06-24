@@ -4,6 +4,7 @@ import { STAFF_ROLES } from './staffConfig';
 import StaffStub from './StaffStub';
 import { PatrolStudents, PatrolRollcall, PatrolHomework, PatrolViolations } from './pages/patrol';
 import { TutorStudents, TutorSchedule, TutorRecords } from './pages/tutor';
+import { LifeMorning } from './pages/life';
 import { StaffLibrary } from './pages/common';
 // 学管：复用 admin 已有的功能页（真功能）
 import StudentList from '../pages/Students/StudentList';
@@ -27,6 +28,9 @@ const REGISTRY: Record<string, ReactNode> = {
   'tutor/schedule': <TutorSchedule />,
   'tutor/records': <TutorRecords />,
   'tutor/library': <StaffLibrary />,
+  // 生活（早上出勤已接真功能）
+  'life/morning': <LifeMorning />,
+  'life/library': <StaffLibrary />,
   // 学管（真功能：复用 admin 功能页）
   'academic/students': <StudentList />,
   'academic/academic': <AcademicTrack />,

@@ -18,7 +18,8 @@ interface HistRow { date: string; present: number; absent: number; leave: number
 const ST_LABEL: Record<St, string> = { present: '在场', absent: '缺席', leave: '请假' };
 const ST_CLS: Record<St, string> = { present: 'p-green', absent: 'p-red', leave: 'p-amber' };
 
-export default function RollCall({ checkType, title, hint }: { checkType: string; title: string; hint?: string }) {
+// scope: 'all' = 全体在读（晚自习）；'today_school' = 今日有课的学生（早上出勤，按 school_timetable）
+export default function RollCall({ checkType, title, hint, scope = 'all' }: { checkType: string; title: string; hint?: string; scope?: 'all' | 'today_school' }) {
   const submit = useDailyCheckStore(s => s.submitDailyChecks);
   const saving = useDailyCheckStore(s => s.isLoading);
 
@@ -32,14 +33,33 @@ export default function RollCall({ checkType, title, hint }: { checkType: string
 
   const loadStudents = useCallback(async () => {
     setLoading(true);
-    const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
-    const list: Stu[] = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
+    let list: Stu[] = [];
+    if (scope === 'today_school') {
+      // 今日有课的学生：school_timetable 中 day_of_week=今天(1=周一..7=周日) 且在生效区间内
+      const jsDay = new Date().getDay();           // 0=周日..6=周六
+      const dow = jsDay === 0 ? 7 : jsDay;          // 转成 1..7
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: tt } = await db
+        .from('school_timetable')
+        .select('student_id')
+        .eq('day_of_week', dow)
+        .lte('effective_from', today)
+        .gte('effective_until', today);
+      const ids = Array.from(new Set(((tt || []) as any[]).map(r => r.student_id).filter(Boolean)));
+      if (ids.length) {
+        const { data } = await db.from('profiles').select('id, full_name').in('id', ids).order('full_name');
+        list = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
+      }
+    } else {
+      const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
+      list = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
+    }
     setStudents(list);
     const init: Record<string, { status: St; notes: string }> = {};
     list.forEach(s => { init[s.id] = { status: 'present', notes: '' }; });
     setState(init);
     setLoading(false);
-  }, []);
+  }, [scope]);
 
   const loadHistory = useCallback(async () => {
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -196,7 +216,9 @@ export default function RollCall({ checkType, title, hint }: { checkType: string
           只需标出<b>缺席</b>和<b>请假</b>的人,其余默认在场。点错再点一次可取消。
         </div>
         {students.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>暂无在读学生</div>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>
+            {scope === 'today_school' ? '今日无排课学生（周末或课表为空）' : '暂无在读学生'}
+          </div>
         ) : (
           <table className="tbl" style={{ width: '100%', textAlign: 'left' }}>
             <thead>
