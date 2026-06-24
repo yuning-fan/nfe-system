@@ -37,6 +37,8 @@ interface DailyCheckStore {
   updatePassengerStatus: (passengerId: number, newStatus: string) => Promise<boolean>;
   loadDormStudents: () => Promise<void>;
   submitDormChecks: (records: { student_id: string; status: string; notes?: string }[]) => Promise<boolean>;
+  // 通用点名提交：晚自习(night_study) / 早上出勤(morning) / 辅导课(tutoring) / 查寝(dorm_check)
+  submitDailyChecks: (checkType: string, records: { student_id: string; status: string; notes?: string }[]) => Promise<boolean>;
 }
 
 export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
@@ -112,16 +114,28 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
     }
   },
 
-  submitDormChecks: async (records) => {
+  submitDailyChecks: async (checkType, records) => {
     set({ isLoading: true, error: null });
     try {
       const user = useAuthStore.getState().user;
       if (!user) throw new Error('Not authenticated');
 
+      // 当天同类型重复提交 = 覆盖：先删掉今天这些学生的旧记录，再插入（点错重点即可纠正）
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const ids = Array.from(new Set(records.map(r => r.student_id)));
+      await (supabase as any)
+        .from('daily_checks')
+        .delete()
+        .eq('check_type', checkType)
+        .in('student_id', ids)
+        .gte('created_at', dayStart.toISOString())
+        .lt('created_at', dayEnd.toISOString());
+
       const inserts = records.map(r => ({
         student_id: r.student_id,
         staff_id: user.id,
-        check_type: 'dorm_check',
+        check_type: checkType,
         status: r.status,
         notes: r.notes || null
       }));
@@ -142,5 +156,7 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
       set({ error: err.message, isLoading: false });
       return false;
     }
-  }
+  },
+
+  submitDormChecks: async (records) => get().submitDailyChecks('dorm_check', records),
 }));

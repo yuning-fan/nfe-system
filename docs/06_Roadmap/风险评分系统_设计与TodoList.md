@@ -107,10 +107,13 @@
 - 备注：违规与警告信的 `warning_letter_violations` 关联表暂未联动写入（可后续补，使风险扣分追溯到具体违规）。
 
 ### Step 2 · 晚自习点名 + 早上出勤（产出缺勤数据）
-- [ ] 通用点名组件，传 `check_type`（night_study / morning）区分。
-- [ ] 拉应到名单（晚自习=全体在读；早上=今日有课学生），逐人三态（在场/缺席/请假）+ 备注，批量 insert `daily_checks`。
-- [ ] 历史点名记录（按日期汇总 应到/在场/缺席）。
-- [ ] 复用 DormCheck 写法。
+- [x] 通用点名组件 `src/staff/components/RollCall.tsx`，传 `check_type`（night_study / morning / tutoring）复用。2026-06-24
+- [x] 逐人三态（在场/缺席/请假）+ 备注，批量 insert `daily_checks`；提交后对涉及学生即时 `recomputeRisk`。
+- [x] 历史点名记录（近 30 天，按日期汇总 应到/在场/缺席/请假）。
+- [x] store 通用方法 `useDailyCheckStore.submitDailyChecks(checkType, records)`，`submitDormChecks` 改为委托它。
+- [x] **巡查 · 晚自习点名**已接真功能（`staff/pages/patrol.tsx` PatrolRollcall → `<RollCall checkType="night_study">`，应到=全体在读）。
+- [ ] 生活 · 早上出勤（morning，应到=今日有课学生）——待接，可直接复用 RollCall。
+- [ ] 辅导 · 上课记录缺勤（tutoring）——待接。
 
 ### Step 3 · 风险自动算分引擎（核心）✅ 引擎已建 2026-06-24
 - [x] 算分引擎 `src/lib/riskEngine.ts`（前端、录入即时触发）：按 §2 口径，15 天窗口统计 `daily_checks`(absent，分 night_study/morning/tutoring/dorm_check) / `violation_logs`(扣分汇总) / 警告信累计 / 证件临期 / 欠费 / 成绩低于阈值 → 算 `total_risk_score` → 映射等级（≥85 绿 / 60-84 黄 / <60 红）→ 硬触发（连续缺勤≥3天 / 第3封警告 / 证件≤7天）直接红。

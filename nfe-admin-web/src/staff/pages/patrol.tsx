@@ -1,5 +1,6 @@
-// 巡查老师 · 详情页（静态壳，照 staff 原型）
+// 巡查老师 · 详情页（晚自习点名已接真功能，其余仍为静态壳）
 import { Section, Table, riskPill, pill, primaryBtn, previewNote } from '../ui';
+import RollCall from '../components/RollCall';
 
 export function PatrolStudents() {
   return (
@@ -19,38 +20,8 @@ export function PatrolStudents() {
 }
 
 export function PatrolRollcall() {
-  return (
-    <>
-      <Section title="晚自习点名" hint="2026-06-05 · 18:00 · 应到 24 人" action={primaryBtn('提交记录')}>
-        <div style={{ display: 'flex', gap: 24, marginBottom: 14 }}>
-          {[['应到', '24'], ['已标记', '20'], ['缺席', '2'], ['请假', '2']].map(([l, n]) => (
-            <div key={l} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>{n}</div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{l}</div>
-            </div>
-          ))}
-        </div>
-        <Table
-          cols={['姓名', '状态', '备注']}
-          rows={[
-            ['张晓明', pill('p-red', '缺席'), '已推送王老师'],
-            ['林思远', pill('p-amber', '请假'), '病假已批准'],
-            ['王明宇', pill('p-green', '在场'), '—'],
-            ['李雨晴', pill('p-green', '在场'), '—'],
-            ['孙欢', pill('p-green', '在场'), '—'],
-            ['周欣怡', pill('p-red', '缺席'), '待确认'],
-          ]}
-        />
-        {previewNote()}
-      </Section>
-      <Section title="历史点名记录">
-        <Table
-          cols={['日期', '应到', '在场', '缺席']}
-          rows={[['06-04 周四', '24', '23', '1'], ['06-03 周三', '24', '22', '2'], ['06-02 周二', '24', '24', '0']]}
-        />
-      </Section>
-    </>
-  );
+  // 晚自习点名：应到=全体在读，缺席写 daily_checks(night_study)，自动扣分
+  return <RollCall checkType="night_study" title="晚自习点名" hint="18:00 全体点名 · 应到=全体在读学生" />;
 }
 
 export function PatrolHomework() {
