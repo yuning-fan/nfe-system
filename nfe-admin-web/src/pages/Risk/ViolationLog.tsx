@@ -7,6 +7,7 @@ import { IconAlertOctagon, IconLoader2, IconPlus, IconSearch, IconArchive, IconS
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import WarningLetterModal from './WarningLetterModal';
+import { recomputeRisk } from '../../lib/riskEngine';
 
 const db = supabase as any;
 
@@ -94,7 +95,9 @@ export default function ViolationLog() {
         status: 'pending',
       });
       if (error) throw error;
-      message.success('违规已登记');
+      // 录入即时重算该学生风险分
+      const r = await recomputeRisk(form.student_id, user?.id || null);
+      message.success(r ? `违规已登记，风险分已更新为 ${r.score}（${r.level === 'red' ? '红' : r.level === 'yellow' ? '黄' : '绿'}）` : '违规已登记');
       setOpen(false);
       setForm({ ...blankForm });
       fetchRows();
@@ -108,6 +111,7 @@ export default function ViolationLog() {
   const archive = async (v: Violation) => {
     const { error } = await db.from('violation_logs').update({ status: 'archived' }).eq('id', v.id);
     if (error) { message.error('存档失败'); return; }
+    await recomputeRisk(v.student_id, user?.id || null);
     message.success('已存档');
     fetchRows();
   };

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+import { recomputeRisk } from '../lib/riskEngine';
 
 interface Passenger {
   id: number;
@@ -130,17 +131,10 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
         .insert(inserts as any);
 
       if (error) throw error;
-      
-      // If any absent, we should ideally trigger a warning/yellow risk_level.
-      // Doing this here for MVP
-      const absentStudents = records.filter(r => r.status === 'absent').map(r => r.student_id);
-      if (absentStudents.length > 0) {
-        await supabase
-          .from('students_info')
-          .update({ risk_level: 'yellow' })
-          .in('student_id', absentStudents)
-          .eq('risk_level', 'green'); // Only upgrade green to yellow
-      }
+
+      // 录入即时重算：对本次涉及的所有学生按口径重算风险分（不只缺席，出勤恢复也要回升）
+      const affected = Array.from(new Set(records.map(r => r.student_id)));
+      await Promise.all(affected.map(id => recomputeRisk(id, user.id)));
 
       set({ isLoading: false });
       return true;

@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
   IconAlertCircle, IconAlertTriangle, IconChartLine,
-  IconLoader2, IconShieldX, IconUser, IconCheck, IconX
+  IconLoader2, IconShieldX, IconUser, IconCheck, IconX, IconRefresh
 } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
 import type { StudentInfo } from '../../types/database';
 import { useRiskStore } from '../../store/useRiskStore';
+import { recomputeAll } from '../../lib/riskEngine';
 import WarningLetterModal from './WarningLetterModal';
 
 type RiskStudent = StudentInfo & {
@@ -47,6 +48,26 @@ export default function RiskAlerts() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<{ id: string; name: string; score: number } | null>(null);
+  const [recomputing, setRecomputing] = useState(false);
+
+  const handleRecomputeAll = () => {
+    Modal.confirm({
+      title: '重算全体学生风险分',
+      content: '将按当前所有违规 / 出勤 / 警告信 / 证件 / 欠费 / 成绩数据，重新计算每名学生的风险分与等级。用于首次初始化或口径调整后刷新。',
+      onOk: async () => {
+        setRecomputing(true);
+        try {
+          await recomputeAll();
+          message.success('全体风险分已重算完成');
+          await fetchDashboardData();
+        } catch (e: any) {
+          message.error(e.message || '重算失败');
+        } finally {
+          setRecomputing(false);
+        }
+      },
+    });
+  };
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -172,6 +193,15 @@ export default function RiskAlerts() {
 
   return (
     <>
+      {/* 顶部操作条：一键重算 */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="btn" onClick={handleRecomputeAll} disabled={recomputing}>
+          {recomputing
+            ? <><IconLoader2 size={16} className="spinner" style={{ marginRight: 6 }} /> 重算中…</>
+            : <><IconRefresh size={16} style={{ marginRight: 6 }} /> 一键重算全员风险分</>}
+        </button>
+      </div>
+
       {/* 待审批警告信区域 */}
       {pendingWarnings.length > 0 && (
         <div className="card" style={{ marginBottom: 16, border: '1px solid #EF9F27' }}>

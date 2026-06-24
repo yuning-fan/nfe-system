@@ -1985,7 +1985,7 @@ export type Database = {
     Enums: {
       approval_status: "pending" | "approved" | "rejected"
       check_status: "present" | "absent" | "leave"
-      check_type: "morning" | "night_study" | "dorm_check"
+      check_type: "morning" | "night_study" | "dorm_check" | "tutoring"
       contact_type: "student" | "parent" | "school" | "accommodation"
       course_type: "one_on_one" | "group_class"
       dcg_stage:
@@ -2190,7 +2190,7 @@ export const Constants = {
     Enums: {
       approval_status: ["pending", "approved", "rejected"],
       check_status: ["present", "absent", "leave"],
-      check_type: ["morning", "night_study", "dorm_check"],
+      check_type: ["morning", "night_study", "dorm_check", "tutoring"],
       contact_type: ["student", "parent", "school", "accommodation"],
       course_type: ["one_on_one", "group_class"],
       dcg_stage: [

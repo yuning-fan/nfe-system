@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+import { recomputeRisk } from '../lib/riskEngine';
 
 interface WarningLetter {
   id: number;
@@ -108,53 +109,23 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
     }
   },
 
-  approveWarning: async (warningId: number, studentId: string, newLevel: string, scoreDeduction: number) => {
+  // 注：newLevel/scoreDeduction 参数已弃用（保留签名兼容旧调用）。
+  // 批准后只把警告信置为 issued，风险分交给算分引擎按"警告信累计"口径统一重算。
+  approveWarning: async (warningId: number, studentId: string, _newLevel: string, _scoreDeduction: number) => {
     set({ isLoading: true, error: null });
     try {
       const user = useAuthStore.getState().user;
       if (!user) throw new Error('Not authenticated');
 
-      // 1. Update warning letter status
+      // 1. 警告信置为已下发
       const { error: wError } = await supabase
         .from('warning_letters')
         .update({ status: 'issued' })
         .eq('id', warningId);
       if (wError) throw wError;
 
-      // 2. Fetch current student risk score
-      const { data: student, error: sError } = await supabase
-        .from('students_info')
-        .select('risk_level, total_risk_score')
-        .eq('student_id', studentId)
-        .single();
-      if (sError) throw sError;
-      if (!student) throw new Error('Student not found');
-
-      const oldLevel: string = student.risk_level || 'low';
-      const newScore: number = Math.max(0, (student.total_risk_score || 0) - scoreDeduction);
-
-      // 3. Update student risk level and score
-      const { error: uError } = await supabase
-        .from('students_info')
-        .update({
-          risk_level: newLevel as any,
-          total_risk_score: newScore
-        })
-        .eq('student_id', studentId);
-      if (uError) throw uError;
-
-      // 4. Log the risk change
-      const { error: lError } = await supabase
-        .from('log_risk_changes')
-        .insert({
-          student_id: studentId,
-          old_level: oldLevel as any,
-          new_level: newLevel as any,
-          trigger_type: 'manual_override',
-          operator_id: user.id,
-          reason: `Approved warning letter #${warningId}`
-        });
-      if (lError) throw lError;
+      // 2. 交给引擎重算（会把第 N 封警告计入扣分 / 第 3 封硬触发红，并记 log_risk_changes）
+      await recomputeRisk(studentId, user.id);
 
       await get().fetchPendingWarnings();
       return true;
