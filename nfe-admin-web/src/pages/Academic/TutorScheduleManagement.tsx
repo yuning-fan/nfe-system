@@ -9,7 +9,15 @@ import FileUploadButton from '../../components/common/FileUploadButton';
 
 
 export default function TutorScheduleManagement() {
-  const { pendingSchedules, schedules, tutors, pendingReschedules, fetchPendingSchedules, fetchSchedules, fetchTutors, fetchPendingReschedules, createSchedule, approveSchedule, rejectSchedule, approveReschedule, rejectReschedule, attachMaterial, isLoading } = useScheduleStore();
+  const { pendingSchedules, schedules, tutors, pendingReschedules, fetchPendingSchedules, fetchSchedules, fetchTutors, fetchPendingReschedules, createSchedule, approveSchedule, rejectSchedule, deleteSchedule, approveReschedule, rejectReschedule, attachMaterial, isLoading } = useScheduleStore();
+
+  const handleDeleteSchedule = (id: number, name: string) => {
+    Modal.confirm({
+      title: '删除该排课', content: `确定删除「${name}」这节课吗？批错了的课可在此删除（已销课扣的课时不会自动退回）。`,
+      okButtonProps: { danger: true },
+      onOk: async () => { (await deleteSchedule(id)) ? message.success('已删除') : message.error('删除失败'); },
+    });
+  };
 
   const openMaterial = async (key: string | null) => {
     if (!key) return;
@@ -21,7 +29,7 @@ export default function TutorScheduleManagement() {
     }
   };
   const { students, fetchStudents } = useStudentStore();
-  const { courses, fetchCourses, courseAssets, fetchCourseAssets } = useAcademicStore();
+  const { courses, fetchCourses, hourPools, fetchHourPools } = useAcademicStore();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'pending' | 'reschedule' | 'all'>('pending');
@@ -44,9 +52,9 @@ export default function TutorScheduleManagement() {
     fetchTutors();
     fetchStudents();
     fetchCourses();
-    fetchCourseAssets();
+    fetchHourPools();
     fetchPendingReschedules();
-  }, [fetchPendingSchedules, fetchSchedules, fetchTutors, fetchStudents, fetchCourses, fetchCourseAssets, fetchPendingReschedules]);
+  }, [fetchPendingSchedules, fetchSchedules, fetchTutors, fetchStudents, fetchCourses, fetchHourPools, fetchPendingReschedules]);
 
   const handleApproveResch = (changeId: number) => {
     Modal.confirm({
@@ -69,14 +77,14 @@ export default function TutorScheduleManagement() {
     }
   }, [formData.course_id, courses]);
 
-  // Get remaining hours for selected student + course combo
+  // 剩余课时：按所选课程的课型，从该生对应课型的课时池取
   const remainingHours = (() => {
     if (!formData.student_id || !formData.course_id) return null;
-    const asset = courseAssets.find(
-      a => a.student_id === formData.student_id && a.course_id === parseInt(formData.course_id)
-    );
-    if (!asset) return null;
-    return Number(asset.total_hours) - Number(asset.used_hours);
+    const course = courses.find(c => c.id === parseInt(formData.course_id));
+    if (!course) return null;
+    const pool = hourPools.find(p => p.student_id === formData.student_id && p.course_type === (course as any).type);
+    if (!pool) return null;
+    return Number(pool.total_hours);
   })();
 
   const handleCreate = async () => {
@@ -375,7 +383,11 @@ export default function TutorScheduleManagement() {
                         marginBottom: 6,
                         fontSize: 11,
                       }}>
-                        <div style={{ fontWeight: 600, marginBottom: 2 }}>{(s.student as any)?.full_name}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <span style={{ fontWeight: 600, marginBottom: 2 }}>{(s.student as any)?.full_name}</span>
+                          <span title="删除该课" style={{ cursor: 'pointer', color: 'var(--color-danger)', fontSize: 12, lineHeight: 1 }}
+                            onClick={() => handleDeleteSchedule(s.id, (s.student as any)?.full_name || '该课')}>✕</span>
+                        </div>
                         <div style={{ color: 'var(--color-text-secondary)' }}>{s.subject_label || (s.course as any)?.name}</div>
                         <div style={{ color: 'var(--color-text-tertiary)', marginTop: 2 }}>
                           {formatHour(s.start_time)} – {formatHour(s.end_time)}

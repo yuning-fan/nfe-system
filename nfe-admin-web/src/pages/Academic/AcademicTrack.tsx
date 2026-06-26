@@ -52,8 +52,7 @@ export default function AcademicTrack() {
       <div className="tab-bar">
         <div className={`tab ${activeTab === 'enrollment' ? 'active' : ''}`} onClick={() => setActiveTab('enrollment')}>选课与建档</div>
         <div className={`tab ${activeTab === 'subjects' ? 'active' : ''}`} onClick={() => setActiveTab('subjects')}>科目底表管理</div>
-        <div className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>辅导课表排期</div>
-        <div className={`tab ${activeTab === 'approval' ? 'active' : ''}`} onClick={() => setActiveTab('approval')}>排课审批 (3)</div>
+        <div className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>辅导排课</div>
         <div className={`tab ${activeTab === 'hours' ? 'active' : ''}`} onClick={() => setActiveTab('hours')}>课时管理</div>
         <div className={`tab ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => setActiveTab('grades')}>成绩单</div>
         <div className={`tab ${activeTab === 'milestones' ? 'active' : ''}`} onClick={() => setActiveTab('milestones')}>学业里程碑</div>
@@ -191,7 +190,7 @@ export default function AcademicTrack() {
       {activeTab === 'milestones' && <MilestoneManagement />}
       {activeTab === 'hours' && <CourseHoursManagement />}
       {activeTab === 'grades' && <GradeRecordsManagement />}
-      {(activeTab === 'schedule' || activeTab === 'approval') && <TutorScheduleManagement />}
+      {activeTab === 'schedule' && <TutorScheduleManagement />}
 
       <EnrollmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </>

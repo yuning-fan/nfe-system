@@ -33,7 +33,6 @@ const pageTitles: Record<string, { title: string; sub: string }> = {
   '/dorm-check': { title: '查寝管理', sub: '夜间住宿清点' },
   '/transport': { title: '接送管理', sub: '今日 · 3条路线' },
   '/academic': { title: '学业跟进', sub: '课表 · 排课 · 成绩' },
-  '/courses': { title: '课程管理', sub: '辅导课目录 · 1对1 / 班科' },
   '/risk': { title: '风险预警', sub: '风险评分 · 三步走警告信' },
   '/violations': { title: '违规记录', sub: '违规登记 · 警告信申请' },
 };
@@ -81,9 +80,6 @@ export default function MainLayout() {
           </NavLink>
           <NavLink to="/academic" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <IconBook stroke={1.5} />学业跟进
-          </NavLink>
-          <NavLink to="/courses" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <IconBook stroke={1.5} />课程管理
           </NavLink>
           
           <NavLink to="/uni-app" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>

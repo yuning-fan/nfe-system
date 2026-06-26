@@ -124,6 +124,10 @@ interface AcademicStore {
   courseAssets: CourseAsset[];
   fetchCourseAssets: () => Promise<void>;
   topUpHours: (studentId: string, courseId: number, hours: number) => Promise<boolean>;
+  // 课时池（按课型 1对1/班科）
+  hourPools: { id: number; student_id: string; course_type: string; total_hours: number; full_name?: string }[];
+  fetchHourPools: () => Promise<void>;
+  topUpPool: (studentId: string, courseType: string, hours: number) => Promise<boolean>;
 
   // Grade Records Management
   gradeRecords: GradeRecord[];
@@ -140,6 +144,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   milestones: [],
   courses: [],
   courseAssets: [],
+  hourPools: [],
   gradeRecords: [],
   isLoading: false,
   error: null,
@@ -492,6 +497,46 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       }
       
       await get().fetchCourseAssets();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  fetchHourPools: async () => {
+    try {
+      const db = supabase as any;
+      const { data } = await db
+        .from('student_hour_pools')
+        .select('*, profiles(full_name)');
+      const formatted = (data || []).map((p: any) => ({
+        ...p,
+        full_name: Array.isArray(p.profiles) ? p.profiles[0]?.full_name : p.profiles?.full_name,
+      }));
+      set({ hourPools: formatted });
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  topUpPool: async (studentId, courseType, hours) => {
+    set({ isLoading: true });
+    try {
+      const db = supabase as any;
+      const { data: existing } = await db.from('student_hour_pools').select('*')
+        .eq('student_id', studentId).eq('course_type', courseType).single();
+      if (existing) {
+        const { error } = await db.from('student_hour_pools')
+          .update({ total_hours: Number(existing.total_hours) + Number(hours) }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await db.from('student_hour_pools')
+          .insert({ student_id: studentId, course_type: courseType, total_hours: Number(hours) });
+        if (error) throw error;
+      }
+      await get().fetchHourPools();
+      set({ isLoading: false });
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });

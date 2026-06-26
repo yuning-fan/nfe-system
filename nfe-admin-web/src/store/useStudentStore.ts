@@ -58,10 +58,10 @@ export const useStudentStore = create<StudentStore>((set) => ({
         .select('student_id, doc_type, expiry_date, status')
         .order('expiry_date', { ascending: false });
 
-      // Step 4: Get course hours from course_assets
-      const { data: assetsData } = await supabase
-        .from('course_assets')
-        .select('student_id, total_hours, used_hours');
+      // Step 4: 课时（按课型两个池，剩余=total_hours）
+      const { data: assetsData } = await (supabase as any)
+        .from('student_hour_pools')
+        .select('student_id, total_hours');
 
       // Step 5: Get dorm assignments and school timetable for checklist
       const { data: dormsData } = await supabase
@@ -127,8 +127,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
       }
       const hoursMap: Record<string, number> = {};
       for (const asset of (assetsData as any[] || [])) {
-        const remaining = (asset.total_hours || 0) - (asset.used_hours || 0);
-        hoursMap[asset.student_id] = (hoursMap[asset.student_id] || 0) + remaining;
+        hoursMap[asset.student_id] = (hoursMap[asset.student_id] || 0) + (Number(asset.total_hours) || 0);
       }
       const dormsSet = new Set((dormsData || []).map((d: any) => d.student_id));
       const timetableSet = new Set((timetableData || []).map((t: any) => t.student_id));
@@ -198,7 +197,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
         supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('id', { ascending: false }),
         supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
         supabase.from('student_documents').select('*').eq('student_id', id).order('expiry_date', { ascending: true }),
-        supabase.from('course_assets').select('*, courses(*)').eq('student_id', id),
+        (supabase as any).from('student_hour_pools').select('*').eq('student_id', id),
         supabase.from('student_credentials').select('*').eq('student_id', id),
       ]);
 
@@ -211,7 +210,7 @@ export const useStudentStore = create<StudentStore>((set) => ({
         warning_letters: warningRes.data || [],
         school_timetable: timetableRes.data || [],
         student_documents: docsRes.data || [],
-        course_assets: assetsRes.data || [],
+        hour_pools: assetsRes.data || [],
         student_credentials: credsRes.data || [],
       };
 

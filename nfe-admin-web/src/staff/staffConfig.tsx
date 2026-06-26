@@ -63,6 +63,7 @@ export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
     nav: [
       HOME, STUDENTS,
       { to: 'academic', label: '学业跟进', icon: I(IconBook), desc: '出勤核算、成绩录入、补课安排、学术节点看板' },
+      { to: 'courses', label: '课程管理', icon: I(IconBook), desc: '辅导课目录维护（1对1 / 班科），排课时从这里选课程' },
       { to: 'docs', label: '签证/保险/文件', icon: I(IconCertificate), desc: '学生文件上传与查看' },
       { to: 'comms', label: '家校沟通', icon: I(IconMessage2), desc: '学业类沟通记录' },
       { to: 'risk', label: '风险预警', icon: I(IconAlertTriangle), desc: '全体学生风险评分（只读）' },

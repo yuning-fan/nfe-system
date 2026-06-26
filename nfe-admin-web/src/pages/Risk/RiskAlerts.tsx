@@ -5,10 +5,10 @@ import {
   IconAlertCircle, IconAlertTriangle, IconChartLine,
   IconLoader2, IconShieldX, IconUser, IconCheck, IconX, IconRefresh
 } from '@tabler/icons-react';
-import { message, Modal } from 'antd';
+import { message, Modal, Select } from 'antd';
 import type { StudentInfo } from '../../types/database';
 import { useRiskStore } from '../../store/useRiskStore';
-import { recomputeAll } from '../../lib/riskEngine';
+import { recomputeAll, computeRisk, type RiskBreakdownItem, type RiskLevel } from '../../lib/riskEngine';
 import WarningLetterModal from './WarningLetterModal';
 
 type RiskStudent = StudentInfo & {
@@ -41,7 +41,7 @@ export default function RiskAlerts() {
   const {
     pendingWarnings, issuedWarnings,
     fetchPendingWarnings, fetchIssuedWarnings,
-    issueWarning, approveWarning, rejectWarning, markWarningSigned,
+    issueWarning, approveWarning, rejectWarning, markWarningSigned, revokeWarning,
     isLoading: isStoreLoading,
   } = useRiskStore();
 
@@ -49,6 +49,24 @@ export default function RiskAlerts() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<{ id: string; name: string; score: number } | null>(null);
   const [recomputing, setRecomputing] = useState(false);
+
+  // 扣分明细查询
+  const [allStudents, setAllStudents] = useState<{ id: string; name: string }[]>([]);
+  const [bdStudent, setBdStudent] = useState<string | undefined>();
+  const [bd, setBd] = useState<{ score: number; level: RiskLevel; breakdown: RiskBreakdownItem[]; hardTriggers: string[] } | null>(null);
+  const [bdLoading, setBdLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
+      setAllStudents(((data as any[]) || []).map(p => ({ id: p.id, name: p.full_name })));
+    })();
+  }, []);
+
+  const loadBreakdown = async (studentId: string) => {
+    setBdStudent(studentId); setBdLoading(true); setBd(null);
+    try { setBd(await computeRisk(studentId)); } finally { setBdLoading(false); }
+  };
 
   const handleRecomputeAll = () => {
     Modal.confirm({
@@ -169,6 +187,21 @@ export default function RiskAlerts() {
     });
   };
 
+  const handleRevoke = (warning: any) => {
+    Modal.confirm({
+      title: '撤销该警告信',
+      content: `确定撤销发给 ${warning.students_info?.profiles?.full_name} 的警告信吗？撤销后该信不再计入风险，学生风险分会相应回升。`,
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        const success = await revokeWarning(warning.id, warning.student_id);
+        if (success) {
+          message.success('已撤销，风险分已重算');
+          await fetchDashboardData();
+        } else message.error('操作失败，请重试。');
+      },
+    });
+  };
+
   const handleMarkSigned = (warning: any) => {
     Modal.confirm({
       title: '确认已线下签字',
@@ -200,6 +233,62 @@ export default function RiskAlerts() {
             ? <><IconLoader2 size={16} className="spinner" style={{ marginRight: 6 }} /> 重算中…</>
             : <><IconRefresh size={16} style={{ marginRight: 6 }} /> 一键重算全员风险分</>}
         </button>
+      </div>
+
+      {/* 扣分明细查询（任意学生，含绿色） */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title" style={{ marginBottom: 10 }}>扣分明细查询</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Select
+            showSearch optionFilterProp="label" style={{ width: 240 }} placeholder="选择学生查看当前扣分明细"
+            value={bdStudent} onChange={loadBreakdown}
+            options={allStudents.map(s => ({ label: s.name, value: s.id }))}
+          />
+          {bdLoading && <IconLoader2 size={16} className="spinner" style={{ color: 'var(--color-primary)' }} />}
+          {bd && !bdLoading && (
+            <span style={{ fontSize: 13 }}>
+              当前 <b>{bd.score}</b> 分 ·{' '}
+              <span className={`pill ${bd.level === 'red' ? 'p-red' : bd.level === 'yellow' ? 'p-amber' : 'p-green'}`}>
+                {bd.level === 'red' ? '红' : bd.level === 'yellow' ? '黄' : '绿'}
+              </span>
+            </span>
+          )}
+        </div>
+        {bd && !bdLoading && (
+          <div style={{ marginTop: 12 }}>
+            {bd.hardTriggers.length > 0 && (
+              <div style={{ marginBottom: 8, fontSize: 13, color: 'var(--color-danger)' }}>
+                ⚠️ 硬触发直接红：{bd.hardTriggers.join('、')}
+              </div>
+            )}
+            {bd.breakdown.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>近 15 天无扣分项，满分 100。</div>
+            ) : (
+              <table className="tbl" style={{ width: '100%', maxWidth: 520, textAlign: 'left' }}>
+                <thead><tr>
+                  <th style={{ padding: '8px 12px' }}>扣分项</th>
+                  <th style={{ padding: '8px 12px' }}>明细</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right' }}>扣分</th>
+                </tr></thead>
+                <tbody>
+                  {bd.breakdown.map((b, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--color-border-tertiary)' }}>
+                      <td style={{ padding: '8px 12px' }}>{b.label}</td>
+                      <td style={{ padding: '8px 12px', color: 'var(--color-text-tertiary)', fontSize: 12 }}>{b.detail || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--color-danger)', fontWeight: 600 }}>−{b.points}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '2px solid var(--color-border-tertiary)' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }} colSpan={2}>合计扣分</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--color-danger)' }}>
+                      −{bd.breakdown.reduce((s, b) => s + b.points, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 待审批警告信区域 */}
@@ -262,6 +351,9 @@ export default function RiskAlerts() {
                         <IconCheck size={16} style={{ marginRight: 4 }} /> 标记已签字
                       </button>
                     )}
+                    <button className="btn" onClick={() => handleRevoke(w)} disabled={isStoreLoading} style={{ color: 'var(--color-danger)' }}>
+                      <IconX size={16} style={{ marginRight: 4 }} /> 撤销
+                    </button>
                     <span className="link" onClick={() => navigate(`/students/${w.student_id}`)} style={{ alignSelf: 'center' }}>查看档案</span>
                   </div>
                 </div>

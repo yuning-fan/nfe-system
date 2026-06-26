@@ -26,6 +26,8 @@ interface RiskStore {
   approveWarning: (warningId: number, studentId: string, newLevel: string, scoreDeduction: number) => Promise<boolean>;
   rejectWarning: (warningId: number) => Promise<boolean>;
   markWarningSigned: (warningId: number) => Promise<boolean>;
+  // 撤销/作废已下发警告信：不再计入风险，并重算
+  revokeWarning: (warningId: number, studentId: string) => Promise<boolean>;
 }
 
 // 把 warning_letters 查询结果统一成渲染层期望的别名结构
@@ -144,6 +146,26 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
         .eq('id', warningId);
       if (error) throw error;
       await get().fetchPendingWarnings();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  revokeWarning: async (warningId: number, studentId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = useAuthStore.getState().user;
+      const { error } = await supabase
+        .from('warning_letters')
+        .update({ status: 'rejected' })
+        .eq('id', warningId);
+      if (error) throw error;
+      // 重算：警告信累计减少，风险分回升
+      await recomputeRisk(studentId, user?.id ?? null);
+      await Promise.all([get().fetchIssuedWarnings(), get().fetchPendingWarnings()]);
+      set({ isLoading: false });
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });

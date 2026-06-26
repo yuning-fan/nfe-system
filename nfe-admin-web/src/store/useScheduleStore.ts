@@ -31,23 +31,37 @@ export interface Schedule {
 
 export type CompleteOutcome = 'present' | 'absent' | 'leave';
 
-// 内部：按课时长从 course_assets 扣课时
-async function deductHours(schedule: { student_id: string; course_id: number | null; start_time: string; end_time: string }) {
-  if (!schedule.course_id) return;
-  const durationHours = (new Date(schedule.end_time).getTime() - new Date(schedule.start_time).getTime()) / 3600000;
-  const { data: asset } = await db.from('course_assets').select('*')
-    .eq('student_id', schedule.student_id).eq('course_id', schedule.course_id).single();
-  if (asset) {
-    const remaining = Math.max(0, Number(asset.total_hours) - durationHours);
-    await db.from('course_assets').update({ total_hours: remaining }).eq('id', asset.id);
-  }
+const hours = (s: { start_time: string; end_time: string }) =>
+  (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 3600000;
+
+// 取该课对应的课型（one_on_one / group_class）
+async function courseTypeOf(courseId: number | null): Promise<string | null> {
+  if (!courseId) return null;
+  const { data } = await db.from('courses').select('type').eq('id', courseId).single();
+  return data?.type ?? null;
 }
 
-// 内部：把缺勤/请假写进 daily_checks(tutoring) 留痕（缺勤会被风险引擎计分，请假被忽略）
-async function writeTutoringCheck(studentId: string, staffId: string | null, status: 'absent' | 'leave', notes?: string) {
-  await db.from('daily_checks').insert({
-    student_id: studentId, staff_id: staffId, check_type: 'tutoring', status, notes: notes || null,
-  });
+// 内部：按课时长从「对应课型的课时池」扣（销课用）
+async function deductHours(schedule: { student_id: string; course_id: number | null; start_time: string; end_time: string }) {
+  const type = await courseTypeOf(schedule.course_id);
+  if (!type) return;
+  const { data: pool } = await db.from('student_hour_pools').select('*')
+    .eq('student_id', schedule.student_id).eq('course_type', type).single();
+  const cur = pool ? Number(pool.total_hours) : 0;
+  const next = Math.max(0, cur - hours(schedule));
+  if (pool) await db.from('student_hour_pools').update({ total_hours: next }).eq('id', pool.id);
+  else await db.from('student_hour_pools').insert({ student_id: schedule.student_id, course_type: type, total_hours: 0 });
+}
+
+// 内部：把课时退回对应课型的池（撤销销课用，deductHours 的逆操作）
+async function refundHours(schedule: { student_id: string; course_id: number | null; start_time: string; end_time: string }) {
+  const type = await courseTypeOf(schedule.course_id);
+  if (!type) return;
+  const { data: pool } = await db.from('student_hour_pools').select('*')
+    .eq('student_id', schedule.student_id).eq('course_type', type).single();
+  const cur = pool ? Number(pool.total_hours) : 0;
+  if (pool) await db.from('student_hour_pools').update({ total_hours: cur + hours(schedule) }).eq('id', pool.id);
+  else await db.from('student_hour_pools').insert({ student_id: schedule.student_id, course_type: type, total_hours: hours(schedule) });
 }
 
 export interface Tutor {
@@ -80,6 +94,7 @@ interface ScheduleStore {
   }) => Promise<boolean>;
   approveSchedule: (scheduleId: number) => Promise<boolean>;
   rejectSchedule: (scheduleId: number) => Promise<boolean>;
+  deleteSchedule: (scheduleId: number) => Promise<boolean>;
   // 销课：出席/缺勤/请假 + 反馈
   completeSchedule: (scheduleId: number, payload: {
     outcome: CompleteOutcome;
@@ -88,6 +103,8 @@ interface ScheduleStore {
     homework_content?: string;
   }) => Promise<boolean>;
   cancelSchedule: (scheduleId: number, reason?: string) => Promise<boolean>;
+  // 撤销销课：把已完成/缺勤/请假的课退回"待上课"，退回已扣课时并重算风险
+  revertSchedule: (scheduleId: number) => Promise<boolean>;
   // 调课：申请 → 审批/驳回
   requestReschedule: (scheduleId: number, newStart: string, newEnd: string, reason: string) => Promise<boolean>;
   approveReschedule: (changeId: number) => Promise<boolean>;
@@ -244,6 +261,20 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     }
   },
 
+  deleteSchedule: async (scheduleId) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await db.from('schedules').delete().eq('id', scheduleId);
+      if (error) throw error;
+      await Promise.all([get().fetchSchedules(), get().fetchPendingSchedules()]);
+      set({ isLoading: false });
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
   fetchMySchedules: async (tutorId) => {
     set({ isLoading: true });
     try {
@@ -309,14 +340,11 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
       if (payload.outcome === 'present') {
         await deductHours(sch);
       } else if (payload.outcome === 'absent') {
-        // 无故缺勤：照扣课时 + 写 daily_checks + 重算风险
+        // 无故缺勤：照扣课时 + 重算风险（缺勤由 schedules.status='absent' 计分）
         await deductHours(sch);
-        await writeTutoringCheck(sch.student_id, user?.id ?? null, 'absent', payload.feedback_internal);
         await recomputeRisk(sch.student_id, user?.id ?? null);
-      } else {
-        // 请假：不扣课时、不扣风险，仅留痕
-        await writeTutoringCheck(sch.student_id, user?.id ?? null, 'leave', payload.feedback_internal);
       }
+      // 请假：不扣课时、不扣风险，仅状态置 leave
 
       await get().fetchMySchedules(sch.tutor_id);
       set({ isLoading: false });
@@ -339,6 +367,29 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         reason: reason || '取消该课', status: 'approved', approver_id: user?.id ?? null,
       });
       if (sch?.tutor_id) await get().fetchMySchedules(sch.tutor_id);
+      set({ isLoading: false });
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  revertSchedule: async (scheduleId) => {
+    set({ isLoading: true });
+    try {
+      const user = useAuthStore.getState().user;
+      const { data: sch, error: fErr } = await db.from('schedules').select('*').eq('id', scheduleId).single();
+      if (fErr) throw fErr;
+      // 出席/缺勤都扣过课时 → 退回
+      if (sch.status === 'completed' || sch.status === 'absent') {
+        await refundHours(sch);
+      }
+      const { error } = await db.from('schedules').update({ status: 'scheduled' }).eq('id', scheduleId);
+      if (error) throw error;
+      // 缺勤撤销后，schedules 不再是 absent → 重算把那 8 分加回来
+      await recomputeRisk(sch.student_id, user?.id ?? null);
+      await get().fetchMySchedules(sch.tutor_id);
       set({ isLoading: false });
       return true;
     } catch (err: any) {

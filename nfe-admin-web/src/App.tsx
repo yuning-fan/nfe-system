@@ -8,7 +8,6 @@ import HousingManagement from './pages/Housing/HousingManagement';
 import DormCheck from './pages/DormCheck/DormCheck';
 import TransportManagement from './pages/Transport/TransportManagement';
 import AcademicTrack from './pages/Academic/AcademicTrack';
-import CourseManagement from './pages/Academic/CourseManagement';
 import RiskAlerts from './pages/Risk/RiskAlerts';
 import ViolationLog from './pages/Risk/ViolationLog';
 import Communications from './pages/Communications/Communications';
@@ -56,7 +55,6 @@ export default function App() {
         <Route path="dorm-check" element={<DormCheck />} />
         <Route path="transport" element={<TransportManagement />} />
         <Route path="academic" element={<AcademicTrack />} />
-        <Route path="courses" element={<CourseManagement />} />
         <Route path="risk" element={<RiskAlerts />} />
         <Route path="violations" element={<ViolationLog />} />
         <Route path="comms" element={<Communications />} />

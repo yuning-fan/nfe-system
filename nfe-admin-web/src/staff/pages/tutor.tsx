@@ -71,7 +71,7 @@ const toLocalInput = (iso: string) => {
 
 export function TutorRecords() {
   const tutorId = useAuthStore(s => s.user?.id ?? null);
-  const { mySchedules, fetchMySchedules, completeSchedule, requestReschedule, isLoading } = useScheduleStore();
+  const { mySchedules, fetchMySchedules, completeSchedule, requestReschedule, revertSchedule, isLoading } = useScheduleStore();
 
   // 销课弹窗
   const [settle, setSettle] = useState<Schedule | null>(null);
@@ -113,6 +113,15 @@ export function TutorRecords() {
   const openResch = (s: Schedule) => {
     setResch(s); setNewStart(toLocalInput(s.start_time)); setNewEnd(toLocalInput(s.end_time)); setReason('');
   };
+  const doRevert = (s: Schedule) => {
+    Modal.confirm({
+      title: '撤销销课',
+      content: `确定撤销「${s.student?.full_name}」这节课的销课吗？将退回"待上课"，已扣的课时退回，缺勤扣的风险分也会撤销。`,
+      okButtonProps: { danger: true },
+      onOk: async () => { (await revertSchedule(s.id)) ? message.success('已撤销，可重新销课') : message.error('撤销失败'); },
+    });
+  };
+
   const doResch = async () => {
     if (!resch) return;
     if (!reason.trim()) { message.warning('请填写调课原因'); return; }
@@ -172,6 +181,7 @@ export function TutorRecords() {
               <th style={{ padding: '10px 12px' }}>学生</th><th style={{ padding: '10px 12px' }}>科目</th>
               <th style={{ padding: '10px 12px' }}>时间</th><th style={{ padding: '10px 12px' }}>结果</th>
               <th style={{ padding: '10px 12px' }}>公开反馈</th>
+              <th style={{ padding: '10px 12px' }}>操作</th>
             </tr></thead>
             <tbody>
               {done.map(s => (
@@ -181,6 +191,11 @@ export function TutorRecords() {
                   <td style={{ padding: '10px 12px' }}>{fmt(s.start_time)}</td>
                   <td style={{ padding: '10px 12px' }}>{pill(STATUS_PILL[s.status]?.[0] || 'p-gray', STATUS_PILL[s.status]?.[1] || s.status)}</td>
                   <td style={{ padding: '10px 12px', maxWidth: 260, color: 'var(--color-text-secondary)' }}>{s.feedback_public || '—'}</td>
+                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    {s.status !== 'cancelled' && (
+                      <span className="link" onClick={() => doRevert(s)}>撤销重销</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

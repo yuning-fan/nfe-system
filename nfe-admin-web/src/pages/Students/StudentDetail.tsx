@@ -188,9 +188,9 @@ export default function StudentDetail() {
   const offerDoc = docs.find((d: any) => d.doc_type === 'offer_letter');
   const guardianshipDoc = docs.find((d: any) => d.doc_type === 'guardianship');
 
-  // Course assets helpers
-  const courseAssets = student.course_assets || [];
-  const totalAvailableHours = courseAssets.reduce((sum: number, a: any) => sum + ((a.total_hours || 0) - (a.used_hours || 0)), 0);
+  // 课时（按课型两个池，剩余=total_hours 之和）
+  const hourPools = (student as any).hour_pools || [];
+  const totalAvailableHours = hourPools.reduce((sum: number, a: any) => sum + (Number(a.total_hours) || 0), 0);
 
   // Credentials
   const credentials = student.student_credentials || [];

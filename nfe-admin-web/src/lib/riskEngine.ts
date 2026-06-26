@@ -64,6 +64,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   const absentByType: Record<string, number> = {};
   const morningAbsentDates: string[] = [];
   for (const c of (checks || []) as any[]) {
+    if (c.check_type === 'tutoring') continue; // 辅导课缺勤改由 schedules 状态统计（见下），避免双写
     absentByType[c.check_type] = (absentByType[c.check_type] || 0) + 1;
     if (c.check_type === 'morning' && c.created_at) {
       morningAbsentDates.push(c.created_at.slice(0, 10));
@@ -76,6 +77,18 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   // 硬触发：连续缺勤（学校上课）≥ 3 天
   if (maxConsecutiveDays(morningAbsentDates) >= 3) {
     hardTriggers.push('连续缺勤 ≥ 3 天');
+  }
+
+  // 1b) 辅导课缺勤：直接读 schedules.status='absent'（销课时记的，撤销即消失）
+  const { data: tutAbsent } = await db
+    .from('schedules')
+    .select('id')
+    .eq('student_id', studentId)
+    .eq('status', 'absent')
+    .gte('start_time', since);
+  const tutCount = (tutAbsent || []).length;
+  if (tutCount > 0) {
+    breakdown.push({ label: ATTEND_LABEL.tutoring, points: tutCount * DEDUCT.attendanceAbsent, detail: `${tutCount} 次 × ${DEDUCT.attendanceAbsent}` });
   }
 
   // 2) 违规（violation_logs，未存档计入）

@@ -1,6 +1,27 @@
-import { useState } from 'react';
-import { IconX, IconAlertTriangle, IconLoader2 } from '@tabler/icons-react';
+import { useState, useEffect, useCallback } from 'react';
+import { IconX, IconAlertTriangle, IconLoader2, IconRefresh } from '@tabler/icons-react';
 import { message } from 'antd';
+import { supabase } from '../../lib/supabase';
+
+const db = supabase as any;
+
+// 拉该生近 15 天违规 + 缺勤，拼成佐证文本
+async function buildEvidence(studentId: string): Promise<string> {
+  const since = new Date(Date.now() - 15 * 86400000).toISOString();
+  const lines: string[] = [];
+  const { data: vios } = await db.from('violation_logs')
+    .select('violation_type, reason, created_at').eq('student_id', studentId).neq('status', 'archived').gte('created_at', since).order('created_at', { ascending: false });
+  for (const v of (vios || []) as any[]) {
+    lines.push(`· ${(v.created_at || '').slice(5, 10)} ${v.violation_type || '违规'}${v.reason ? '：' + v.reason : ''}`);
+  }
+  const { data: checks } = await db.from('daily_checks')
+    .select('check_type, status, created_at').eq('student_id', studentId).eq('status', 'absent').gte('created_at', since);
+  const label: Record<string, string> = { night_study: '晚自习缺勤', morning: '学校上课缺勤', tutoring: '辅导课缺勤', dorm_check: '查寝异常' };
+  const cnt: Record<string, number> = {};
+  for (const c of (checks || []) as any[]) cnt[c.check_type] = (cnt[c.check_type] || 0) + 1;
+  for (const [t, n] of Object.entries(cnt)) lines.push(`· 近15天${label[t] || t} ${n} 次`);
+  return lines.length ? `近期记录（自动汇总，可修改）：\n${lines.join('\n')}` : '';
+}
 
 interface WarningLetterModalProps {
   isOpen: boolean;
@@ -14,7 +35,7 @@ interface WarningLetterModalProps {
 export default function WarningLetterModal({
   isOpen,
   onClose,
-  studentId: _studentId,
+  studentId,
   studentName,
   currentScore,
   onSubmit
@@ -22,6 +43,21 @@ export default function WarningLetterModal({
   const [level, setLevel] = useState<number>(1);
   const [evidence, setEvidence] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [autoLoading, setAutoLoading] = useState(false);
+
+  const regenerate = useCallback(async () => {
+    if (!studentId) return;
+    setAutoLoading(true);
+    try { setEvidence(await buildEvidence(studentId)); } finally { setAutoLoading(false); }
+  }, [studentId]);
+
+  // 打开时自动带出佐证
+  useEffect(() => {
+    if (isOpen && studentId) {
+      setAutoLoading(true);
+      buildEvidence(studentId).then(txt => setEvidence(txt)).finally(() => setAutoLoading(false));
+    }
+  }, [isOpen, studentId]);
 
   if (!isOpen) return null;
 
@@ -97,13 +133,18 @@ export default function WarningLetterModal({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <span className="field-k">违规事项及佐证 <span style={{ color: 'var(--color-danger)' }}>*</span></span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="field-k">违规事项及佐证 <span style={{ color: 'var(--color-danger)' }}>*</span></span>
+              <span className="link" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={regenerate}>
+                {autoLoading ? <IconLoader2 size={12} className="spinner" /> : <IconRefresh size={12} />} 重新生成佐证
+              </span>
+            </div>
             <textarea
               className="input"
               value={evidence}
               onChange={(e) => setEvidence(e.target.value)}
-              placeholder="例如：多次无故缺勤，且宿舍发现违禁品。请附上具体时间及照片链接等佐证..."
-              style={{ height: 100 }}
+              placeholder={autoLoading ? '正在汇总近期记录…' : '自动汇总该生近 15 天违规/缺勤，可手动修改补充…'}
+              style={{ height: 120 }}
             />
           </div>
         </div>
