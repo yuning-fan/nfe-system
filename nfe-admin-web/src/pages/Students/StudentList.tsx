@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Input } from 'antd';
+import { Table, Input, Modal, Select, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { IconPlus, IconLoader2, IconAlertTriangle, IconSearch } from '@tabler/icons-react';
 import { useStudentStore } from '../../store/useStudentStore';
@@ -61,7 +61,25 @@ const pill = (label: string, cls: string) => <span className={`pill ${cls}`}>{la
 
 export default function StudentList() {
   const navigate = useNavigate();
-  const { students, programs, isLoading, error, fetchStudents, fetchPrograms } = useStudentStore();
+  const { students, programs, isLoading, error, fetchStudents, fetchPrograms, createStudent } = useStudentStore();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ full_name: '', english_name: '', gender: '', phone: '', school_name: '', source_school: '' });
+
+  const handleCreate = async () => {
+    if (!form.full_name.trim()) { message.warning('请填写学生姓名'); return; }
+    setSaving(true);
+    const res = await createStudent({ ...form, full_name: form.full_name.trim() });
+    setSaving(false);
+    if (res.ok) {
+      message.success('学生档案已创建');
+      setCreateOpen(false);
+      setForm({ full_name: '', english_name: '', gender: '', phone: '', school_name: '', source_school: '' });
+    } else {
+      message.error(res.error || '创建失败');
+    }
+  };
   const [search, setSearch] = useState('');
 
   useEffect(() => { fetchStudents(); fetchPrograms(); }, [fetchStudents, fetchPrograms]);
@@ -205,8 +223,46 @@ export default function StudentList() {
           onChange={e => setSearch(e.target.value)}
           style={{ width: 280 }}
         />
-        <button className="btn btn-primary"><IconPlus stroke={1.5} size={16} />新建学生档案</button>
+        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}><IconPlus stroke={1.5} size={16} />新建学生档案</button>
       </div>
+
+      <Modal title="新建学生档案" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={handleCreate}
+        okText={saving ? '创建中…' : '创建'} confirmLoading={saving} width={460}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">姓名 *</label>
+              <Input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="中文姓名" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">英文名</label>
+              <Input value={form.english_name} onChange={e => setForm(f => ({ ...f, english_name: e.target.value }))} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ width: 120 }}>
+              <label className="form-label">性别</label>
+              <Select style={{ width: '100%' }} value={form.gender || undefined} onChange={v => setForm(f => ({ ...f, gender: v }))}
+                placeholder="选择" options={[{ label: '男', value: 'male' }, { label: '女', value: 'female' }]} allowClear />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="form-label">电话</label>
+              <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">就读学校</label>
+            <Input value={form.school_name} onChange={e => setForm(f => ({ ...f, school_name: e.target.value }))} placeholder="如 Avondale College / MAGS" />
+          </div>
+          <div>
+            <label className="form-label">来源学校 / 渠道</label>
+            <Input value={form.source_school} onChange={e => setForm(f => ({ ...f, source_school: e.target.value }))} />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+            创建后该学生即可在「选课与建档」里配置项目与课程。学生暂不登录，无需邮箱密码。
+          </div>
+        </div>
+      </Modal>
 
       <Table
         rowKey="student_id"

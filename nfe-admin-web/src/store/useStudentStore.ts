@@ -16,6 +16,7 @@ interface StudentStore {
   isLoading: boolean;
   error: string | null;
   fetchStudents: () => Promise<void>;
+  createStudent: (p: { full_name: string; english_name?: string; gender?: string; phone?: string; school_name?: string; source_school?: string }) => Promise<{ ok: boolean; error?: string }>;
   fetchStudentById: (id: string) => Promise<void>;
   updateStudent: (id: string, payload: Record<string, any>) => Promise<boolean>;
   fetchPrograms: () => Promise<void>;
@@ -23,7 +24,7 @@ interface StudentStore {
   clearCurrentStudent: () => void;
 }
 
-export const useStudentStore = create<StudentStore>((set) => ({
+export const useStudentStore = create<StudentStore>((set, get) => ({
   students: [],
   currentStudent: null,
   programs: [],
@@ -160,6 +161,18 @@ export const useStudentStore = create<StudentStore>((set) => ({
 
   clearCurrentStudent: () => {
     set({ currentStudent: null, error: null });
+  },
+
+  createStudent: async (p) => {
+    const { data, error } = await supabase.functions.invoke('staff-admin', { body: { action: 'create_student', ...p } });
+    if (error) {
+      let msg = error.message;
+      try { const ctx = (error as any).context; if (ctx) { const j = await ctx.json(); if (j?.error) msg = j.error; } } catch { /* ignore */ }
+      return { ok: false, error: msg };
+    }
+    if ((data as any)?.error) return { ok: false, error: (data as any).error };
+    await get().fetchStudents();
+    return { ok: true };
   },
 
   fetchStudentById: async (id: string) => {

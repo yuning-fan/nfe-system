@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   IconBook, IconPlus, IconX, IconLoader2 
 } from '@tabler/icons-react';
-import { message, Modal } from 'antd';
+import { message, Modal, Input, Select } from 'antd';
 import { useAcademicStore } from '../../store/useAcademicStore';
 import EnrollmentModal from './EnrollmentModal';
 import SubjectManagement from './SubjectManagement';
@@ -15,6 +15,8 @@ export default function AcademicTrack() {
   const [activeTab, setActiveTab] = useState('enrollment');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [eSearch, setESearch] = useState('');
+  const [eProgram, setEProgram] = useState<string | undefined>();
 
   const { 
     enrollments, selections, timetable, programSubjects, isLoading,
@@ -27,6 +29,41 @@ export default function AcademicTrack() {
     fetchEnrollments();
     fetchTimetable();
   }, [fetchProgramsAndSubjects, fetchEnrollments, fetchTimetable]);
+
+  // 本页管学校课表 → 每个学生只显示「当前/最近未来」那个阶段（与学生列表口径一致），
+  // 不把以后才开学的阶段（如已升的奥大）也列出来。
+  const currentEnrollments = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const byStart = (a: any, b: any) => (a.start_date || '').localeCompare(b.start_date || '');
+    const byStudent: Record<string, any[]> = {};
+    for (const e of enrollments) {
+      if (!e.student_id) continue;
+      (byStudent[e.student_id] ||= []).push(e);
+    }
+    return Object.values(byStudent).map(list => {
+      const pool = list.filter(e => e.status !== 'withdrawn');
+      const usable = pool.length ? pool : list;
+      const inRange = usable.filter(e => e.status !== 'completed' && (!e.start_date || e.start_date <= today) && (!e.end_date || today <= e.end_date));
+      const upcoming = usable.filter(e => e.status !== 'completed' && e.start_date && e.start_date > today);
+      return inRange.length ? inRange.slice().sort(byStart).reverse()[0]
+        : upcoming.length ? upcoming.slice().sort(byStart)[0]
+        : usable.slice().sort(byStart).reverse()[0];
+    });
+  }, [enrollments]);
+
+  const programOptions = useMemo(
+    () => [...new Set(currentEnrollments.map((e: any) => e.programs?.name).filter(Boolean))].sort(),
+    [currentEnrollments]
+  );
+
+  const filteredEnrollments = useMemo(() => {
+    const kw = eSearch.trim();
+    return currentEnrollments.filter((e: any) => {
+      const matchKw = !kw || (e.profiles?.full_name || '').includes(kw);
+      const matchProg = !eProgram || e.programs?.name === eProgram;
+      return matchKw && matchProg;
+    });
+  }, [currentEnrollments, eSearch, eProgram]);
 
   const handleAddElective = async (enrollmentId: number) => {
     if (!selectedSubject) return;
@@ -70,11 +107,21 @@ export default function AcademicTrack() {
             </button>
           </div>
 
+          {/* 搜索 + 阶段筛选 */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Input allowClear placeholder="搜索学生姓名" value={eSearch} onChange={e => setESearch(e.target.value)} style={{ width: 220 }} />
+            <Select allowClear placeholder="按阶段筛选" value={eProgram} onChange={v => setEProgram(v)} style={{ width: 200 }}
+              options={programOptions.map(p => ({ label: p, value: p }))} />
+            <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>共 {filteredEnrollments.length} 人</span>
+          </div>
+
           {isLoading && enrollments.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center' }}><IconLoader2 className="spinner" size={24} /></div>
+          ) : filteredEnrollments.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>未找到匹配的学生</div>
           ) : (
             <div className="g1">
-              {enrollments.map(enrollment => {
+              {filteredEnrollments.map(enrollment => {
                 const enrollmentSelections = selections.filter(s => s.enrollment_id === enrollment.id);
                 const coreSubjects = enrollmentSelections.filter(s => s.selection_type === 'core');
                 const electiveSubjects = enrollmentSelections.filter(s => s.selection_type === 'elective');

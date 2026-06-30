@@ -44,16 +44,16 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authErr } = await caller.auth.getUser();
   if (authErr || !user) return json({ error: "登录态无效" }, 401);
 
-  // 2. 校验调用方必须是 admin
-  const { data: callerProfile } = await caller.from("profiles").select("role").eq("id", user.id).single();
-  if (!callerProfile || callerProfile.role !== "admin") {
-    return json({ error: "仅管理员可管理员工账号" }, 403);
-  }
-
-  // 3. 解析参数
+  // 2. 解析参数
   let p: any;
   try { p = await req.json(); } catch { return json({ error: "请求体非法" }, 400); }
   const action = p.action;
+
+  // 3. 权限：建学生(create_student)允许任意已登录员工；其余员工账号管理动作仅 admin
+  const { data: callerProfile } = await caller.from("profiles").select("role").eq("id", user.id).single();
+  if (action !== "create_student" && (!callerProfile || callerProfile.role !== "admin")) {
+    return json({ error: "仅管理员可管理员工账号" }, 403);
+  }
 
   // service_role 客户端（拥有 auth admin 权限）
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -83,6 +83,39 @@ Deno.serve(async (req) => {
         return json({ error: "档案写入失败：" + pErr.message }, 400);
       }
       return json({ ok: true, id: created.user.id });
+    }
+
+    if (action === "create_student") {
+      const { full_name, english_name, gender, phone, school_name, source_school } = p;
+      if (!full_name) return json({ error: "姓名为必填" }, 400);
+
+      // 学生暂不登录：自动生成占位邮箱/密码，仅为满足 auth 用户 + profiles 外键
+      const email = `stu-${crypto.randomUUID()}@nfe.local`;
+      const password = crypto.randomUUID();
+      const { data: created, error: cErr } = await admin.auth.admin.createUser({
+        email, password, email_confirm: true, user_metadata: { full_name },
+      });
+      if (cErr || !created.user) return json({ error: cErr?.message || "创建学生账号失败" }, 400);
+      const id = created.user.id;
+
+      // profiles（role=student）。可能有触发器自动建 students_info，故用 upsert。
+      const { error: pErr } = await admin.from("profiles").upsert({
+        id, full_name, role: "student", phone: phone || null, status: 1,
+      }, { onConflict: "id" });
+      if (pErr) {
+        await admin.auth.admin.deleteUser(id);
+        return json({ error: "档案写入失败：" + pErr.message }, 400);
+      }
+
+      // students_info（基础档案，触发器可能已建空行 → upsert 补字段）
+      const { error: sErr } = await admin.from("students_info").upsert({
+        student_id: id, english_name: english_name || null, gender: gender || null,
+        school_name: school_name || null, source_school: source_school || null,
+        risk_level: "green", total_risk_score: 100,
+      }, { onConflict: "student_id" });
+      if (sErr) return json({ error: "学生信息写入失败：" + sErr.message }, 400);
+
+      return json({ ok: true, id });
     }
 
     if (action === "update_role") {
