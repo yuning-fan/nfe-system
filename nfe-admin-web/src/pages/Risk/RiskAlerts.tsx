@@ -53,7 +53,7 @@ export default function RiskAlerts() {
   // 扣分明细查询
   const [allStudents, setAllStudents] = useState<{ id: string; name: string }[]>([]);
   const [bdStudent, setBdStudent] = useState<string | undefined>();
-  const [bd, setBd] = useState<{ score: number; level: RiskLevel; breakdown: RiskBreakdownItem[]; hardTriggers: string[] } | null>(null);
+  const [bd, setBd] = useState<{ score: number; level: RiskLevel; breakdown: RiskBreakdownItem[]; hardTriggers: string[]; notes: string[] } | null>(null);
   const [bdLoading, setBdLoading] = useState(false);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function RiskAlerts() {
 
     const { data: logs } = await supabase
       .from('log_risk_changes')
-      .select('*, profiles!log_risk_changes_operator_id_fkey(full_name)')
+      .select('*, student:profiles!log_risk_changes_student_id_fkey(full_name), operator:profiles!log_risk_changes_operator_id_fkey(full_name)')
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -259,6 +259,11 @@ export default function RiskAlerts() {
             {bd.hardTriggers.length > 0 && (
               <div style={{ marginBottom: 8, fontSize: 13, color: 'var(--color-danger)' }}>
                 ⚠️ 硬触发直接红：{bd.hardTriggers.join('、')}
+              </div>
+            )}
+            {bd.notes && bd.notes.length > 0 && (
+              <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                📌 {bd.notes.join('；')}
               </div>
             )}
             {bd.breakdown.length === 0 ? (
@@ -491,16 +496,18 @@ export default function RiskAlerts() {
               <div style={{ marginTop: 6, fontSize: 11 }}>当学生风险等级发生变化时，记录会显示在这里</div>
             </div>
           ) : changeLogs.map((log, idx) => {
-            const profile = Array.isArray(log.profiles) ? (log.profiles as any[])[0] : log.profiles;
+            const studentName = (Array.isArray((log as any).student) ? (log as any).student[0] : (log as any).student)?.full_name;
+            const operatorName = (Array.isArray((log as any).operator) ? (log as any).operator[0] : (log as any).operator)?.full_name;
             return (
               <div key={log.id} className="risk-row" style={{ borderBottom: idx < changeLogs.length - 1 ? undefined : 'none' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                    <span style={{ fontWeight: 500 }}>{profile?.full_name || '未知学生'}</span>
+                    <span style={{ fontWeight: 500 }}>{studentName || '未知学生'}</span>
                     {getRiskPill(log.old_level, log.new_level)}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
                     {log.reason || (log.operator_id ? '手动覆盖' : '系统自动')}
+                    {operatorName ? ` · 操作人 ${operatorName}` : ''}
                   </div>
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{formatTime(log.created_at)}</span>

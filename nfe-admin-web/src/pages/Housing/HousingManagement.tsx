@@ -46,6 +46,7 @@ export default function HousingManagement() {
   const [assignments, setAssignments] = useState<DormAssignment[]>([]);
   const [guardians, setGuardians] = useState<Record<string, string | null>>({}); // building → staff_id
   const [staffList, setStaffList] = useState<{ id: string; full_name: string }[]>([]);
+  const [intake, setIntake] = useState<{ label: string; count: number; names: string[] }>({ label: 'Intake', count: 0, names: [] });
   const [isLoading, setIsLoading] = useState(true);
 
   const changeGuardian = async (building: string, staffId: string) => {
@@ -120,6 +121,31 @@ export default function HousingManagement() {
     for (const g of (guardianData as any[]) || []) gmap[g.building_name] = g.guardian_staff_id;
     setGuardians(gmap);
     setStaffList((staffData as any) || []);
+
+    // 最近一批 Intake：未来入学的报名按月份分组，取最早的那个月
+    const { data: enrData } = await (supabase as any)
+      .from('student_enrollments')
+      .select('student_id, start_date, profiles(full_name)')
+      .not('start_date', 'is', null);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const future = ((enrData as any[]) || []).filter(e => e.start_date && new Date(e.start_date) >= today);
+    if (future.length) {
+      const byMonth: Record<string, any[]> = {};
+      for (const e of future) { const k = String(e.start_date).slice(0, 7); (byMonth[k] ||= []).push(e); }
+      const nextKey = Object.keys(byMonth).sort()[0];
+      const group = byMonth[nextKey];
+      // 同一学生去重取名
+      const seen = new Set<string>(); const names: string[] = [];
+      for (const e of group) {
+        if (seen.has(e.student_id)) continue;
+        seen.add(e.student_id);
+        const nm = Array.isArray(e.profiles) ? e.profiles[0]?.full_name : e.profiles?.full_name;
+        if (nm) names.push(nm);
+      }
+      setIntake({ label: `${Number(nextKey.slice(5, 7))}月 Intake`, count: seen.size, names });
+    } else {
+      setIntake({ label: 'Intake', count: 0, names: [] });
+    }
     setIsLoading(false);
   };
 
@@ -380,9 +406,13 @@ export default function HousingManagement() {
           <div className="stat-sub">可安排入住</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">9月 Intake</div>
-          <div className="stat-val" style={{ color: '#185FA5' }}>3</div>
-          <div className="stat-sub">葛书妍·高一菲·+1</div>
+          <div className="stat-label">{intake.label}</div>
+          <div className="stat-val" style={{ color: '#185FA5' }}>{intake.count}</div>
+          <div className="stat-sub">
+            {intake.count === 0
+              ? '暂无新生入学'
+              : intake.names.slice(0, 2).join('·') + (intake.count > 2 ? `·+${intake.count - 2}` : '')}
+          </div>
         </div>
       </div>
 

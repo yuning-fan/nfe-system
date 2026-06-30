@@ -9,7 +9,6 @@ import {
   IconCertificate, 
   IconMessage2, 
   IconAlertTriangle,
-  IconAlertOctagon,
   IconCurrencyDollar,
   IconReport, 
   IconSpeakerphone, 
@@ -34,7 +33,6 @@ const pageTitles: Record<string, { title: string; sub: string }> = {
   '/transport': { title: '接送管理', sub: '今日 · 3条路线' },
   '/academic': { title: '学业跟进', sub: '课表 · 排课 · 成绩' },
   '/risk': { title: '风险预警', sub: '风险评分 · 三步走警告信' },
-  '/violations': { title: '违规记录', sub: '违规登记 · 警告信申请' },
 };
 
 export default function MainLayout() {
@@ -93,9 +91,6 @@ export default function MainLayout() {
           </NavLink>
           <NavLink to="/risk" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <IconAlertTriangle stroke={1.5} />风险预警
-          </NavLink>
-          <NavLink to="/violations" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <IconAlertOctagon stroke={1.5} />违规记录
           </NavLink>
           <NavLink to="/finance" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <IconCurrencyDollar stroke={1.5} />财务/付款

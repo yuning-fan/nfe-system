@@ -40,6 +40,7 @@ export interface RiskResult {
   level: RiskLevel;
   breakdown: RiskBreakdownItem[];
   hardTriggers: string[]; // 命中的硬触发（直接红）
+  notes: string[];        // 信息性提示（屡教不改/劝说次数等，不扣分）
 }
 
 const windowStartISO = () =>
@@ -49,10 +50,41 @@ const daysUntil = (dateStr: string) =>
   Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
 
 // 计算某学生当前风险（不写库）
+// 读取系统配置（risk_config 表）→ key→value；读不到回落默认
+async function loadConfig(): Promise<(key: string, fallback: number) => number> {
+  let map: Record<string, number> = {};
+  try {
+    const { data } = await db.from('risk_config').select('key, value');
+    for (const r of (data || []) as any[]) map[r.key] = Number(r.value);
+  } catch { /* 回落默认 */ }
+  return (key: string, fallback: number) => (map[key] != null ? map[key] : fallback);
+}
+
 export async function computeRisk(studentId: string): Promise<RiskResult> {
   const since = windowStartISO();
   const breakdown: RiskBreakdownItem[] = [];
   const hardTriggers: string[] = [];
+
+  const cfg = await loadConfig();
+  const C = {
+    absent: cfg('deduct_attendance_absent', DEDUCT.attendanceAbsent),
+    gradeBelow: cfg('deduct_grade_below', DEDUCT.gradeBelow),
+    fee: cfg('deduct_fee_unpaid', DEDUCT.feeUnpaid),
+    doc30: cfg('deduct_doc_30', DEDUCT.docExpiry30),
+    doc14: cfg('deduct_doc_14', DEDUCT.docExpiry14),
+    doc7: cfg('deduct_doc_7', DEDUCT.docExpiry7),
+    w1: cfg('deduct_warning1', DEDUCT.warning1),
+    w2: cfg('deduct_warning2', DEDUCT.warning2),
+    gradeTh: cfg('grade_threshold', GRADE_THRESHOLD),
+    greenMin: cfg('level_green_min', 85),
+    redBelow: cfg('level_red_below', 60),
+    contractLine: cfg('attend_contract_line', 95),
+    yellowLine: cfg('attend_yellow_line', 97),
+    schoolRedCnt: cfg('school_warning_red_count', 3),
+    internalRedCnt: cfg('internal_warning_red_count', 3),
+    consecDays: cfg('consec_absent_red_days', 3),
+    docRedDays: cfg('doc_expiry_red_days', 7),
+  };
 
   // 1) 出勤缺勤（daily_checks，按 check_type 分类）
   const { data: checks } = await db
@@ -71,12 +103,11 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     }
   }
   for (const [type, count] of Object.entries(absentByType)) {
-    const pts = count * DEDUCT.attendanceAbsent;
-    breakdown.push({ label: ATTEND_LABEL[type] || type, points: pts, detail: `${count} 次 × ${DEDUCT.attendanceAbsent}` });
+    breakdown.push({ label: ATTEND_LABEL[type] || type, points: count * C.absent, detail: `${count} 次 × ${C.absent}` });
   }
-  // 硬触发：连续缺勤（学校上课）≥ 3 天
-  if (maxConsecutiveDays(morningAbsentDates) >= 3) {
-    hardTriggers.push('连续缺勤 ≥ 3 天');
+  // 硬触发：连续缺勤（学校上课）≥ N 天
+  if (maxConsecutiveDays(morningAbsentDates) >= C.consecDays) {
+    hardTriggers.push(`连续缺勤 ≥ ${C.consecDays} 天`);
   }
 
   // 1b) 辅导课缺勤：直接读 schedules.status='absent'（销课时记的，撤销即消失）
@@ -88,7 +119,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     .gte('start_time', since);
   const tutCount = (tutAbsent || []).length;
   if (tutCount > 0) {
-    breakdown.push({ label: ATTEND_LABEL.tutoring, points: tutCount * DEDUCT.attendanceAbsent, detail: `${tutCount} 次 × ${DEDUCT.attendanceAbsent}` });
+    breakdown.push({ label: ATTEND_LABEL.tutoring, points: tutCount * C.absent, detail: `${tutCount} 次 × ${C.absent}` });
   }
 
   // 2) 违规（violation_logs，未存档计入）
@@ -103,19 +134,23 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     breakdown.push({ label: '违规登记', points: vSum, detail: `${(violations || []).length} 条` });
   }
 
-  // 3) 警告信累计（issued / signed_onsite）
-  const { data: letters } = await db
+  // 3) 警告信：区分内部三步走 与 学校信
+  const { data: allLetters } = await db
     .from('warning_letters')
-    .select('warning_level, status')
-    .eq('student_id', studentId)
-    .in('status', ['issued', 'signed_onsite']);
-  const letterCount = (letters || []).length;
-  if (letterCount >= 3) {
-    hardTriggers.push('警告信累计 ≥ 3 封（严重违约）');
-  } else if (letterCount === 2) {
-    breakdown.push({ label: '警告信累计', points: DEDUCT.warning1 + DEDUCT.warning2, detail: '2 封' });
-  } else if (letterCount === 1) {
-    breakdown.push({ label: '警告信累计', points: DEDUCT.warning1, detail: '1 封' });
+    .select('warning_level, status, source')
+    .eq('student_id', studentId);
+  const internalCount = ((allLetters || []) as any[]).filter(l => l.source !== 'school' && ['issued', 'signed_onsite'].includes(l.status)).length;
+  const schoolCount = ((allLetters || []) as any[]).filter(l => l.source === 'school' && l.status !== 'rejected').length;
+  if (internalCount >= C.internalRedCnt) {
+    hardTriggers.push(`内部警告信累计 ≥ ${C.internalRedCnt} 封（严重违约）`);
+  } else if (internalCount === 2) {
+    breakdown.push({ label: '内部警告信累计', points: C.w1 + C.w2, detail: '2 封' });
+  } else if (internalCount === 1) {
+    breakdown.push({ label: '内部警告信累计', points: C.w1, detail: '1 封' });
+  }
+  // 学校警告信 ≥ N 封 → 达劝退评估（亮红）
+  if (schoolCount >= C.schoolRedCnt) {
+    hardTriggers.push(`学校警告信 ${schoolCount} 封（达劝退评估，请人工复核）`);
   }
 
   // 4) 证件临期（取最紧迫一项）
@@ -128,13 +163,13 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   for (const d of (docs || []) as any[]) {
     if (d.expiry_date) minDays = Math.min(minDays, daysUntil(d.expiry_date));
   }
-  if (minDays <= 7) {
-    hardTriggers.push('证件 7 天内到期');
-    breakdown.push({ label: '证件临期', points: DEDUCT.docExpiry7, detail: `最近 ${minDays} 天到期` });
+  if (minDays <= C.docRedDays) {
+    hardTriggers.push(`证件 ${C.docRedDays} 天内到期`);
+    breakdown.push({ label: '证件临期', points: C.doc7, detail: `最近 ${minDays} 天到期` });
   } else if (minDays <= 14) {
-    breakdown.push({ label: '证件临期', points: DEDUCT.docExpiry14, detail: `${minDays} 天到期` });
+    breakdown.push({ label: '证件临期', points: C.doc14, detail: `${minDays} 天到期` });
   } else if (minDays <= 30) {
-    breakdown.push({ label: '证件临期', points: DEDUCT.docExpiry30, detail: `${minDays} 天到期` });
+    breakdown.push({ label: '证件临期', points: C.doc30, detail: `${minDays} 天到期` });
   }
 
   // 5) 欠费（存在未缴即扣）
@@ -144,7 +179,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     .eq('student_id', studentId)
     .eq('is_paid', false);
   if ((fees || []).length > 0) {
-    breakdown.push({ label: '欠费', points: DEDUCT.feeUnpaid, detail: `${(fees || []).length} 笔未缴` });
+    breakdown.push({ label: '欠费', points: C.fee, detail: `${(fees || []).length} 笔未缴` });
   }
 
   // 6) 成绩低于阈值（窗口内）
@@ -152,18 +187,50 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     .from('grade_records')
     .select('score, recorded_at')
     .eq('student_id', studentId)
-    .lt('score', GRADE_THRESHOLD)
+    .lt('score', C.gradeTh)
     .gte('recorded_at', since);
   if ((grades || []).length > 0) {
-    breakdown.push({ label: '成绩低于阈值', points: (grades || []).length * DEDUCT.gradeBelow, detail: `${(grades || []).length} 科 < ${GRADE_THRESHOLD}` });
+    breakdown.push({ label: '成绩低于阈值', points: (grades || []).length * C.gradeBelow, detail: `${(grades || []).length} 科 < ${C.gradeTh}` });
+  }
+
+  // 7) 官方出勤率（巡查周一录入）—— 双红线：合约 95% / 学校 93%
+  let attendanceYellow = false;
+  const { data: info } = await db
+    .from('students_info')
+    .select('school_attendance_rate')
+    .eq('student_id', studentId)
+    .single();
+  const rate = info?.school_attendance_rate;
+  if (rate != null) {
+    if (rate < C.contractLine) hardTriggers.push(`官方出勤率 ${rate}% < ${C.contractLine}%（违反合约出勤要求）`);
+    else if (rate < C.yellowLine) attendanceYellow = true; // 逼近合约线，至少黄
+  }
+
+  // 8) 屡教不改：出勤反复跌破合约线次数 + 劝说次数（信息性，不扣分）
+  const notes: string[] = [];
+  const { data: persuasions } = await db
+    .from('attendance_persuasions')
+    .select('rate, note, created_at')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false });
+  const plist = (persuasions || []) as any[];
+  const dipCount = plist.filter(p => p.rate != null && Number(p.rate) < C.contractLine).length;
+  const adviceCount = plist.filter(p => p.note && String(p.note).trim()).length;
+  if (dipCount >= 2) notes.push(`出勤率反复跌破 ${C.contractLine}%：${dipCount} 次（屡教不改）`);
+  else if (dipCount === 1) notes.push(`出勤率曾跌破 ${C.contractLine}%：1 次`);
+  if (adviceCount > 0) {
+    const last = plist.find(p => p.note && String(p.note).trim());
+    notes.push(`已劝说 ${adviceCount} 次${last ? `（最近：${String(last.note).trim()}）` : ''}`);
   }
 
   // 汇总
   const totalDeduct = breakdown.reduce((s, b) => s + b.points, 0);
   const score = Math.max(0, 100 - totalDeduct);
-  const level: RiskLevel = hardTriggers.length > 0 || score < 60 ? 'red' : score < 85 ? 'yellow' : 'green';
+  const level: RiskLevel = hardTriggers.length > 0 || score < C.redBelow
+    ? 'red'
+    : (score < C.greenMin || attendanceYellow) ? 'yellow' : 'green';
 
-  return { score, level, breakdown, hardTriggers };
+  return { score, level, breakdown, hardTriggers, notes };
 }
 
 // 计算并写回 students_info；如等级变化则记 log_risk_changes(trigger_type=auto)

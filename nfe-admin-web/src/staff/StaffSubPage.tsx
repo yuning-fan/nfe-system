@@ -3,8 +3,11 @@ import type { ReactNode } from 'react';
 import { STAFF_ROLES } from './staffConfig';
 import StaffStub from './StaffStub';
 import { PatrolStudents, PatrolRollcall, PatrolHomework, PatrolViolations } from './pages/patrol';
+import { AttendanceRateEntry } from './pages/attendanceRate';
 import { TutorStudents, TutorSchedule, TutorRecords } from './pages/tutor';
 import { LifeMorning } from './pages/life';
+import { SchoolWarnings } from './pages/schoolWarnings';
+import { WarningLetterGen } from './pages/warningLetterGen';
 import { StaffLibrary } from './pages/common';
 // 学管：复用 admin 已有的功能页（真功能）
 import StudentList from '../pages/Students/StudentList';
@@ -12,6 +15,7 @@ import AcademicTrack from '../pages/Academic/AcademicTrack';
 import CourseManagement from '../pages/Academic/CourseManagement';
 import Documents from '../pages/Documents/Documents';
 import Communications from '../pages/Communications/Communications';
+import ViolationLog from '../pages/Risk/ViolationLog';
 import RiskAlerts from '../pages/Risk/RiskAlerts';
 import ReportsPage from '../pages/Reports/ReportsPage';
 import ResourcesPage from '../pages/Resources/ResourcesPage';
@@ -21,6 +25,7 @@ const REGISTRY: Record<string, ReactNode> = {
   // 巡查（静态壳）
   'patrol/students': <PatrolStudents />,
   'patrol/rollcall': <PatrolRollcall />,
+  'patrol/attendance-rate': <AttendanceRateEntry />,
   'patrol/homework': <PatrolHomework />,
   'patrol/violations': <PatrolViolations />,
   'patrol/library': <StaffLibrary />,
@@ -38,7 +43,10 @@ const REGISTRY: Record<string, ReactNode> = {
   'academic/courses': <CourseManagement />,
   'academic/docs': <Documents />,
   'academic/comms': <Communications />,
+  'academic/violations': <ViolationLog />,
   'academic/risk': <RiskAlerts />,
+  'academic/school-warnings': <SchoolWarnings />,
+  'academic/warning-gen': <WarningLetterGen />,
   'academic/reports': <ReportsPage />,
   'academic/library': <ResourcesPage />,
 };

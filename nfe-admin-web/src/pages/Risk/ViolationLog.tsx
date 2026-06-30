@@ -8,6 +8,8 @@ import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import WarningLetterModal from './WarningLetterModal';
 import { recomputeRisk } from '../../lib/riskEngine';
+import FileUploadButton from '../../components/common/FileUploadButton';
+import { getDownloadUrl } from '../../lib/r2';
 
 const db = supabase as any;
 
@@ -19,6 +21,7 @@ const VIOLATION_TYPES: { label: string; value: string; deduction: number }[] = [
   { label: '睡觉', value: '睡觉', deduction: 5 },
   { label: '闲聊', value: '闲聊', deduction: 5 },
   { label: '严重违纪', value: '严重违纪', deduction: 10 },
+  { label: '学术不端', value: '学术不端', deduction: 10 },
   { label: '其他', value: '其他', deduction: 0 },
 ];
 
@@ -37,7 +40,7 @@ interface Violation {
 
 interface StudentOpt { id: string; full_name: string; }
 
-const blankForm = { student_id: '', violation_type: '缺席自习', reason: '', deduction_points: 8 };
+const blankForm = { student_id: '', violation_type: '缺席自习', reason: '', deduction_points: 8, attachment_url: '' };
 
 export default function ViolationLog() {
   const user = useAuthStore(s => s.user);
@@ -92,6 +95,7 @@ export default function ViolationLog() {
         violation_type: form.violation_type,
         reason: form.reason.trim(),
         deduction_points: form.deduction_points,
+        attachment_url: form.attachment_url || null,
         status: 'pending',
       });
       if (error) throw error;
@@ -217,6 +221,14 @@ export default function ViolationLog() {
             <label className="form-label">违规说明 *</label>
             <textarea className="input" rows={3} style={{ width: '100%' }} value={form.reason}
               onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="时间、地点、经过、是否已通知等…" />
+          </div>
+          <div>
+            <label className="form-label">证明附件{form.violation_type === '学术不端' ? '（学术不端建议上传）' : '（可选）'}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <FileUploadButton bucket="materials" prefix="violations" label="上传附件"
+                onUploaded={({ key }) => setForm(f => ({ ...f, attachment_url: key }))} />
+              {form.attachment_url && <span className="link" onClick={async () => { try { window.open(await getDownloadUrl('materials', form.attachment_url), '_blank'); } catch { message.error('打开失败'); } }}>已上传 · 查看</span>}
+            </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>扣分将计入风险评分（15 天滚动窗口）。</div>
         </div>

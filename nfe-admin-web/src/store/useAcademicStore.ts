@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+import { recomputeRisk } from '../lib/riskEngine';
 
 interface Program {
   id: number;
@@ -59,17 +60,6 @@ export interface AcademicMilestone {
   program_subjects?: { subject_name: string };
 }
 
-export interface CourseAsset {
-  id: number;
-  student_id: string;
-  course_id: number;
-  total_hours: number;
-  used_hours: number;
-  valid_until?: string;
-  courses?: { name: string; type: string };
-  profiles?: { full_name: string };
-}
-
 export interface Course {
   id: number;
   name: string;
@@ -121,9 +111,6 @@ interface AcademicStore {
   // Course Assets Management
   courses: Course[];
   fetchCourses: () => Promise<void>;
-  courseAssets: CourseAsset[];
-  fetchCourseAssets: () => Promise<void>;
-  topUpHours: (studentId: string, courseId: number, hours: number) => Promise<boolean>;
   // 课时池（按课型 1对1/班科）
   hourPools: { id: number; student_id: string; course_type: string; total_hours: number; full_name?: string }[];
   fetchHourPools: () => Promise<void>;
@@ -143,7 +130,6 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   timetable: [],
   milestones: [],
   courses: [],
-  courseAssets: [],
   hourPools: [],
   gradeRecords: [],
   isLoading: false,
@@ -169,13 +155,14 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   fetchEnrollments: async () => {
     set({ isLoading: true });
     try {
-      const { data: enrollments } = await supabase
+      const { data: enrollments, error: enrErr } = await supabase
         .from('student_enrollments')
         .select(`
           *,
-          profiles!inner(full_name),
+          profiles:profiles!student_enrollments_student_id_fkey(full_name),
           programs!inner(name)
         `);
+      if (enrErr) throw enrErr;
       
       const { data: selections } = await supabase
         .from('student_subject_selections')
@@ -449,61 +436,6 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     }
   },
 
-  fetchCourseAssets: async () => {
-    set({ isLoading: true });
-    try {
-      const { data, error } = await supabase
-        .from('course_assets')
-        .select(`*, courses(name, type), profiles(full_name)`);
-      if (error) throw error;
-      
-      const formatted = (data || []).map((a: any) => ({
-        ...a,
-        courses: Array.isArray(a.courses) ? a.courses[0] : a.courses,
-        profiles: Array.isArray(a.profiles) ? a.profiles[0] : a.profiles
-      }));
-      set({ courseAssets: formatted as any, isLoading: false });
-    } catch (err: any) {
-      set({ error: err.message, isLoading: false });
-    }
-  },
-
-  topUpHours: async (studentId, courseId, hours) => {
-    set({ isLoading: true });
-    try {
-      // check if asset exists
-      const { data: existing } = await supabase
-        .from('course_assets')
-        .select('*')
-        .eq('student_id', studentId)
-        .eq('course_id', courseId)
-        .single() as { data: any };
-
-      if (existing) {
-        // update
-        const { error } = await supabase
-          .from('course_assets')
-          .update({ total_hours: Number(existing.total_hours) + Number(hours) })
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        // insert
-        const { error } = await supabase.from('course_assets').insert({
-          student_id: studentId,
-          course_id: courseId,
-          total_hours: Number(hours),
-        });
-        if (error) throw error;
-      }
-      
-      await get().fetchCourseAssets();
-      return true;
-    } catch (err: any) {
-      set({ error: err.message, isLoading: false });
-      return false;
-    }
-  },
-
   fetchHourPools: async () => {
     try {
       const db = supabase as any;
@@ -575,6 +507,8 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
         recorded_by: user?.id
       } as any);
       if (error) throw error;
+      // 成绩录入后即时重算该生风险（成绩低于阈值会扣分）
+      if (payload.student_id) await recomputeRisk(payload.student_id as string, user?.id ?? null);
       await get().fetchGradeRecords();
       return true;
     } catch (err: any) {
