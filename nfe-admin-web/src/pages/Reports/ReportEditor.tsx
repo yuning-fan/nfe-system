@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Modal, InputNumber, message } from 'antd';
-import { IconPlus, IconTrash } from '@tabler/icons-react';
+import { Modal, InputNumber } from 'antd';
+import { IconPlus, IconTrash, IconFileDownload } from '@tabler/icons-react';
 import type { ReportRecord, ReportContent } from '../../store/useReportStore';
 import { emptyContent } from '../../store/useReportStore';
+import { exportReportDoc } from '../../lib/reportExport';
 
 // 双周学术报告编辑器
 export function ReportEditor({ report, onCancel, onSave }: {
@@ -23,10 +24,16 @@ export function ReportEditor({ report, onCancel, onSave }: {
 
   const setAtt = (k: keyof ReportContent['attendance'], v: number | null) =>
     setC(p => ({ ...p, attendance: { ...p.attendance, [k]: v as any } }));
+  const isAcademic = report.report_type === 'monthly';
 
   return (
     <Modal title={`编辑报告 · ${report.student?.full_name || ''}`} open onCancel={onCancel} onOk={save}
-      okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={680}>
+      okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={680}
+      footer={[
+        <button key="x" className="btn" onClick={() => exportReportDoc({ ...report, content: c })}><IconFileDownload size={14} style={{ marginRight: 4 }} />导出 Word</button>,
+        <button key="c" className="btn" onClick={onCancel}>取消</button>,
+        <button key="s" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存'}</button>,
+      ]}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12, maxHeight: '68vh', overflowY: 'auto' }}>
         {/* 周期 */}
         <div style={{ display: 'flex', gap: 12 }}>
@@ -40,15 +47,45 @@ export function ReportEditor({ report, onCancel, onSave }: {
           </div>
         </div>
 
+        {/* 预警提示区（自动，只读） */}
+        <Block title="📌 预警提示（自动）">
+          {c.alerts && c.alerts.length
+            ? <div style={{ border: '1px solid var(--color-danger)', background: 'rgba(226,75,74,0.06)', padding: '8px 10px', borderRadius: 6, fontSize: 13 }}>{c.alerts.join('；')}</div>
+            : <div style={{ fontSize: 13, color: 'var(--color-success)' }}>本期表现正常。</div>}
+        </Block>
+
+        {isAcademic ? (
+          <>
+            {/* 学术：各科加权总评（只读汇总） */}
+            <Block title="各科总评（自动汇总）">
+              {(c.subjects && c.subjects.length) ? c.subjects.map((s, i) => (
+                <div key={i} style={{ borderTop: i ? '1px solid var(--color-border-tertiary)' : 'none', padding: '6px 0' }}>
+                  <div style={{ fontWeight: 600 }}>{s.name}　总评 {s.total != null ? s.total : '进行中'} / 过线 {s.passMark}　{s.pass == null ? '' : s.pass ? '✅ 已过线' : '❌ 未过线'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{s.nodes.map(n => `${n.title}(${n.weight}%):${n.score == null ? '待录' : n.score}`).join('　')}</div>
+                </div>
+              )) : <Empty />}
+            </Block>
+            {/* 学术：辅导反馈（只读） */}
+            <Block title="辅导课反馈（本期）">
+              {(c.tutoring_feedback && c.tutoring_feedback.length) ? c.tutoring_feedback.map((f, i) => (
+                <div key={i} style={{ fontSize: 13, padding: '3px 0' }}>{f.date} {f.subject}：{f.feedback}</div>
+              )) : <Empty />}
+            </Block>
+          </>
+        ) : (
+          <>
         {/* 出勤 */}
         <Block title="出勤情况">
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <Field label="出勤率(%)"><InputNumber min={0} max={100} style={{ width: 100 }} value={c.attendance.rate ?? undefined} onChange={v => setAtt('rate', (v as number) ?? null)} /></Field>
+            <Field label="官方出勤率(%)"><InputNumber min={0} max={100} style={{ width: 110 }} value={c.attendance.official_rate ?? undefined} onChange={v => setAtt('official_rate', (v as number) ?? null)} /></Field>
+            <Field label="内部出勤率(%)"><InputNumber min={0} max={100} style={{ width: 110 }} value={c.attendance.rate ?? undefined} onChange={v => setAtt('rate', (v as number) ?? null)} /></Field>
             <Field label="在场"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.present} onChange={v => setAtt('present', (v as number) ?? 0)} /></Field>
             <Field label="缺席"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.absent} onChange={v => setAtt('absent', (v as number) ?? 0)} /></Field>
             <Field label="请假"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.leave} onChange={v => setAtt('leave', (v as number) ?? 0)} /></Field>
           </div>
         </Block>
+          </>
+        )}
 
         {/* 成绩 */}
         <Block title="成绩" action={<AddBtn onClick={() => setC(p => ({ ...p, grades: [...p.grades, { subject: '', score: '', note: '' }] }))} />}>
@@ -96,32 +133,49 @@ export function ReportEditor({ report, onCancel, onSave }: {
 // 报告预览（格式化只读，可打印导出）
 export function ReportPreview({ report, onClose }: { report: ReportRecord; onClose: () => void }) {
   const c = { ...emptyContent(), ...report.content };
+  const isAcademic = report.report_type === 'monthly';
   const period = report.period_start && report.period_end ? `${report.period_start} 至 ${report.period_end}` : '—';
-  const print = () => { message.info('使用浏览器打印/另存为 PDF'); window.print(); };
   return (
     <Modal title="报告预览" open onCancel={onClose} width={680}
-      footer={[<button key="p" className="btn" onClick={print}>打印 / 导出PDF</button>, <button key="c" className="btn btn-primary" onClick={onClose}>关闭</button>]}>
+      footer={[
+        <button key="d" className="btn" onClick={() => exportReportDoc(report)}><IconFileDownload size={14} style={{ marginRight: 4 }} />导出 Word</button>,
+        <button key="c" className="btn btn-primary" onClick={onClose}>关闭</button>,
+      ]}>
       <div style={{ padding: '8px 4px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: 4 }}>{report.title || '双周学术报告'}</h2>
+        <h2 style={{ textAlign: 'center', marginBottom: 4 }}>{report.title || (isAcademic ? '学术月报' : '出勤双周报')}</h2>
         <div style={{ textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13, marginBottom: 16 }}>
           {report.student?.full_name} · 报告周期 {period}
         </div>
-        <PvSection title="出勤情况">
-          出勤率 {c.attendance.rate != null ? `${c.attendance.rate}%` : '—'}　|　在场 {c.attendance.present}　缺席 {c.attendance.absent}　请假 {c.attendance.leave}
+        <PvSection title="📌 预警提示">
+          {c.alerts && c.alerts.length
+            ? <span style={{ color: 'var(--color-danger)' }}>{c.alerts.join('；')}</span>
+            : <span style={{ color: 'var(--color-success)' }}>本期表现正常</span>}
         </PvSection>
-        <PvSection title="成绩">
-          {c.grades.length ? (
-            <table className="tbl" style={{ width: '100%' }}><tbody>
-              {c.grades.map((g, i) => <tr key={i}><td style={{ padding: '4px 8px' }}>{g.subject || '—'}</td><td style={{ padding: '4px 8px', fontWeight: 600 }}>{g.score || '—'}</td><td style={{ padding: '4px 8px', color: 'var(--color-text-tertiary)' }}>{g.note}</td></tr>)}
-            </tbody></table>
-          ) : '本周期暂无成绩记录'}
-        </PvSection>
-        <PvSection title="辅导课情况">
-          课次 {c.tutoring.sessions}　课时 {c.tutoring.hours}h{c.tutoring.note ? `　·　${c.tutoring.note}` : ''}
-        </PvSection>
-        <PvSection title="违规情况">
-          {c.violations.length ? c.violations.map((v, i) => <div key={i}>{v.date} {v.type} {v.note}</div>) : '本周期无违规记录'}
-        </PvSection>
+
+        {isAcademic ? (
+          <>
+            <PvSection title="各科总评">
+              {c.subjects && c.subjects.length ? c.subjects.map((s, i) => (
+                <div key={i} style={{ marginBottom: 6 }}>
+                  <b>{s.name}</b>：总评 {s.total != null ? s.total : '进行中'} / 过线 {s.passMark} {s.pass == null ? '' : s.pass ? '（已过线）' : '（未过线）'}
+                  <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{s.nodes.map(n => `${n.title}(${n.weight}%):${n.score == null ? '待录' : n.score}`).join('　')}</div>
+                </div>
+              )) : '本期暂无成绩'}
+            </PvSection>
+            <PvSection title="辅导课反馈">
+              {c.tutoring_feedback && c.tutoring_feedback.length ? c.tutoring_feedback.map((f, i) => <div key={i}>{f.date} {f.subject}：{f.feedback}</div>) : '本期暂无辅导反馈'}
+            </PvSection>
+          </>
+        ) : (
+          <>
+            <PvSection title="出勤情况">
+              官方出勤率 {c.attendance.official_rate != null ? `${c.attendance.official_rate}%` : '—'}（要求 ≥95%）　|　内部 {c.attendance.rate != null ? `${c.attendance.rate}%` : '—'}　|　在场 {c.attendance.present}　缺席 {c.attendance.absent}　请假 {c.attendance.leave}
+            </PvSection>
+            <PvSection title="违规情况">
+              {c.violations.length ? c.violations.map((v, i) => <div key={i}>{v.date} {v.type} {v.note}</div>) : '本周期无违规记录'}
+            </PvSection>
+          </>
+        )}
         <PvSection title="老师综合评价">
           {c.comment || '—'}
         </PvSection>

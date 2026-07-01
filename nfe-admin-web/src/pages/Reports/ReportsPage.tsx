@@ -1,29 +1,32 @@
 import { useEffect, useState } from 'react';
 import { useReportStore } from '../../store/useReportStore';
 import type { ReportRecord } from '../../store/useReportStore';
-import { IconReport, IconPencil, IconEye, IconTrash } from '@tabler/icons-react';
+import { IconReport, IconPencil, IconEye, IconTrash, IconFileDownload } from '@tabler/icons-react';
 import { Modal, Select, message } from 'antd';
 import { supabase } from '../../lib/supabase';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import { ReportEditor, ReportPreview } from './ReportEditor';
+import { exportReportDoc } from '../../lib/reportExport';
 
-// 默认双周周期：今天往前 14 天
-function defaultPeriod() {
+// 默认周期：出勤=近14天，学术=近30天
+function defaultPeriod(days: number) {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 13);
+  start.setDate(start.getDate() - (days - 1));
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return { start: fmt(start), end: fmt(end) };
 }
+const typeLabel = (t: string) => (t === 'monthly' ? '学术月报' : t === 'biweekly' ? '出勤双周报' : t);
 
 export default function ReportsPage() {
-  const { reports, fetchReports, generateBiweeklyReports, updateReport, deleteReport, publishReport, isLoading } = useReportStore();
+  const { reports, fetchReports, generateReports, updateReport, deleteReport, publishReport, isLoading } = useReportStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const [genOpen, setGenOpen] = useState(false);
-  const dp = defaultPeriod();
+  const [genType, setGenType] = useState<'biweekly' | 'monthly'>('biweekly');
+  const dp = defaultPeriod(14);
   const [genStart, setGenStart] = useState(dp.start);
   const [genEnd, setGenEnd] = useState(dp.end);
   const [genStudent, setGenStudent] = useState<string | undefined>(); // undefined = 全体
@@ -53,10 +56,16 @@ export default function ReportsPage() {
   const draftsPage = usePagination(drafts, PAGE_SIZE);
   const archivesPage = usePagination(archives, PAGE_SIZE);
 
+  const onPickType = (t: 'biweekly' | 'monthly') => {
+    setGenType(t);
+    const d = defaultPeriod(t === 'monthly' ? 30 : 14);
+    setGenStart(d.start); setGenEnd(d.end);
+  };
+
   const doGenerate = async () => {
     if (!genStart || !genEnd) { message.warning('请选择报告周期'); return; }
     setGenerating(true);
-    try { await generateBiweeklyReports(genStart, genEnd, genStudent ? [genStudent] : undefined); setGenOpen(false); }
+    try { await generateReports(genType, genStart, genEnd, genStudent ? [genStudent] : undefined); setGenOpen(false); }
     finally { setGenerating(false); }
   };
 
@@ -77,7 +86,7 @@ export default function ReportsPage() {
           </select>
         </div>
         <button className="btn btn-primary" onClick={() => setGenOpen(true)} disabled={isLoading}>
-          <IconReport size={16} style={{ marginRight: 6 }} /> 生成双周报告
+          <IconReport size={16} style={{ marginRight: 6 }} /> 生成报告
         </button>
       </div>
 
@@ -100,13 +109,16 @@ export default function ReportsPage() {
                 <tr key={r.id} style={{ borderBottom: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="avatar-xs av-pink">{r.student?.full_name?.charAt(0) || 'U'}</div>{r.student?.full_name || '-'}
+                      <div className="avatar-xs av-pink">{r.student?.full_name?.charAt(0) || 'U'}</div>
+                      <span>{r.student?.full_name || '-'}</span>
+                      <span className={`pill ${r.report_type === 'monthly' ? 'p-blue' : 'p-amber'}`} style={{ fontSize: 10 }}>{typeLabel(r.report_type)}</span>
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px' }}>{period(r)}</td>
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <span className="link" onClick={() => setEditing(r)}><IconPencil size={12} style={{ verticalAlign: 'middle' }} /> 编辑</span>
                     {' · '}<span className="link" onClick={() => setPreviewing(r)}><IconEye size={12} style={{ verticalAlign: 'middle' }} /> 预览</span>
+                    {' · '}<span className="link" onClick={() => exportReportDoc(r)}><IconFileDownload size={12} style={{ verticalAlign: 'middle' }} /> Word</span>
                     {' · '}<span className="link" onClick={() => publishReport(r.id)}>审核发布</span>
                     {' · '}<span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => confirmDelete(r)}><IconTrash size={12} style={{ verticalAlign: 'middle' }} /> 删除</span>
                   </td>
@@ -140,8 +152,9 @@ export default function ReportsPage() {
                   </td>
                   <td style={{ padding: '12px 16px' }}>{period(r)}</td>
                   <td style={{ padding: '12px 16px' }}>{fmt(r.sent_at?.slice(0, 10) || r.reviewed_at?.slice(0, 10) || null)}</td>
-                  <td style={{ padding: '12px 16px' }}>
+                  <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <span className="link" style={{ fontSize: 12 }} onClick={() => setPreviewing(r)}><IconEye size={12} style={{ verticalAlign: 'middle' }} /> 预览</span>
+                    {' · '}<span className="link" style={{ fontSize: 12 }} onClick={() => exportReportDoc(r)}><IconFileDownload size={12} style={{ verticalAlign: 'middle' }} /> Word</span>
                   </td>
                 </tr>
               ))}
@@ -153,9 +166,14 @@ export default function ReportsPage() {
       </div>
 
       {/* 生成弹窗 */}
-      <Modal title="生成双周报告" open={genOpen} onCancel={() => setGenOpen(false)} onOk={doGenerate}
+      <Modal title="生成报告" open={genOpen} onCancel={() => setGenOpen(false)} onOk={doGenerate}
         okText={generating ? '生成中…' : '生成'} confirmLoading={generating}>
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label className="form-label">报告类型</label>
+            <Select style={{ width: '100%' }} value={genType} onChange={onPickType}
+              options={[{ label: '出勤报告（两周）', value: 'biweekly' }, { label: '学术报告（月）', value: 'monthly' }]} />
+          </div>
           <div>
             <label className="form-label">学生</label>
             <Select allowClear showSearch style={{ width: '100%' }} value={genStudent} onChange={setGenStudent}
@@ -167,7 +185,7 @@ export default function ReportsPage() {
             <div style={{ flex: 1 }}><label className="form-label">周期结束</label><input type="date" className="input" style={{ width: '100%' }} value={genEnd} onChange={e => setGenEnd(e.target.value)} /></div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-            {genStudent ? '为所选学生' : '为全体在读学生'}生成该周期双周报告草稿，自动预填出勤/成绩/违规等可得数据(其余留空待补)。同周期已生成的会跳过。
+            {genStudent ? '为所选学生' : '为全体在读学生'}生成{genType === 'monthly' ? '学术月报（各科加权总评/节点/辅导反馈）' : '出勤双周报（官方+内部出勤率/违规）'}草稿，自动预填可得数据 + 预警提示，其余待补。同周期已生成的会跳过。
           </div>
         </div>
       </Modal>
