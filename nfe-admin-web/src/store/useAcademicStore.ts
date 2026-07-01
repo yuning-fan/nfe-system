@@ -18,6 +18,7 @@ interface ProgramSubject {
   hours_per_week: number;
   sessions_per_week: number;
   max_students?: number;
+  pass_mark?: number;
   default_schedule?: { day_of_week: number; start_time: string; end_time: string; room: string }[];
 }
 
@@ -57,6 +58,13 @@ export interface AcademicMilestone {
   title: string;
   due_date: string;
   is_grade_recorded: boolean;
+  // 考核节点扩展
+  weight_percent?: number | null;   // 顶层=占该科总评% / 子项=占父节点%
+  parent_id?: number | null;        // 子项指向父 Project
+  term_no?: number | null;
+  week_no?: number | null;
+  mode?: string | null;             // secure / non_secure / hybrid
+  is_major?: boolean | null;
   program_subjects?: { subject_name: string };
 }
 
@@ -75,6 +83,8 @@ export interface GradeRecord {
   score: number;
   score_type: string;
   recorded_at: string;
+  status?: string;          // graded / missed / makeup
+  note?: string | null;
   profiles?: { full_name: string };
   courses?: { name: string };
   program_subjects?: { subject_name: string };
@@ -101,6 +111,7 @@ interface AcademicStore {
   milestones: AcademicMilestone[];
   fetchMilestones: () => Promise<void>;
   createMilestone: (payload: Partial<AcademicMilestone>) => Promise<boolean>;
+  updateMilestone: (id: number, payload: Partial<AcademicMilestone>) => Promise<boolean>;
   deleteMilestone: (id: number) => Promise<boolean>;
   
   // Program Subjects Management
@@ -120,6 +131,8 @@ interface AcademicStore {
   gradeRecords: GradeRecord[];
   fetchGradeRecords: () => Promise<void>;
   addGradeRecord: (payload: Partial<GradeRecord>) => Promise<boolean>;
+  updateGradeRecord: (id: number, payload: Partial<GradeRecord>) => Promise<boolean>;
+  deleteGradeRecord: (id: number, studentId: string) => Promise<boolean>;
 }
 
 export const useAcademicStore = create<AcademicStore>((set, get) => ({
@@ -374,6 +387,18 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       return false;
     }
   },
+  updateMilestone: async (id, payload) => {
+    set({ isLoading: true });
+    try {
+      const { error } = await (supabase as any).from('academic_milestones').update(payload).eq('id', id);
+      if (error) throw error;
+      await get().fetchMilestones();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
 
   deleteMilestone: async (id) => {
     set({ isLoading: true });
@@ -509,6 +534,36 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       if (error) throw error;
       // 成绩录入后即时重算该生风险（成绩低于阈值会扣分）
       if (payload.student_id) await recomputeRisk(payload.student_id as string, user?.id ?? null);
+      await get().fetchGradeRecords();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  updateGradeRecord: async (id, payload) => {
+    set({ isLoading: true });
+    try {
+      const user = useAuthStore.getState().user;
+      const { error } = await (supabase as any).from('grade_records').update(payload).eq('id', id);
+      if (error) throw error;
+      if (payload.student_id) await recomputeRisk(payload.student_id as string, user?.id ?? null);
+      await get().fetchGradeRecords();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  deleteGradeRecord: async (id, studentId) => {
+    set({ isLoading: true });
+    try {
+      const user = useAuthStore.getState().user;
+      const { error } = await (supabase as any).from('grade_records').delete().eq('id', id);
+      if (error) throw error;
+      if (studentId) await recomputeRisk(studentId, user?.id ?? null);
       await get().fetchGradeRecords();
       return true;
     } catch (err: any) {

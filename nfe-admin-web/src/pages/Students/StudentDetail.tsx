@@ -4,6 +4,7 @@ import { useStudentStore } from '../../store/useStudentStore';
 import { useRiskStore } from '../../store/useRiskStore';
 import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
+import GradebookCard from './GradebookCard';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import DcgPanel from './DcgPanel';
@@ -703,6 +704,8 @@ export default function StudentDetail() {
                   <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', padding: '20px 0', textAlign: 'center' }}>暂无排课记录</div>
                 )}
               </div>
+
+              <GradebookCard student={student} />
             </div>
           </div>
         )}

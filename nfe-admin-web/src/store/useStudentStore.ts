@@ -205,13 +205,16 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .maybeSingle();
 
       // Step 3: Get extra aggregates
-      const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes] = await Promise.all([
+      const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes] = await Promise.all([
         supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
         supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('id', { ascending: false }),
         supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
         supabase.from('student_documents').select('*').eq('student_id', id).order('expiry_date', { ascending: true }),
         (supabase as any).from('student_hour_pools').select('*').eq('student_id', id),
         supabase.from('student_credentials').select('*').eq('student_id', id),
+        (supabase as any).from('grade_records').select('*').eq('student_id', id),
+        (supabase as any).from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, term_no, week_no, milestone_type'),
+        (supabase as any).from('program_subjects').select('id, subject_name, pass_mark'),
       ]);
 
       const merged = {
@@ -225,6 +228,9 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         student_documents: docsRes.data || [],
         hour_pools: assetsRes.data || [],
         student_credentials: credsRes.data || [],
+        grade_records: gradesRes.data || [],
+        assessment_nodes: nodesRes.data || [],
+        program_subjects_meta: subjectsRes.data || [],
       };
 
       set({ currentStudent: merged as any, isLoading: false });
