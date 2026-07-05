@@ -2,8 +2,10 @@ import { useParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { STAFF_ROLES } from './staffConfig';
 import StaffStub from './StaffStub';
-import { PatrolStudents, PatrolRollcall, PatrolHomework, PatrolViolations } from './pages/patrol';
+import { PatrolStudents, PatrolRollcall } from './pages/patrol';
 import { AttendanceRateEntry } from './pages/attendanceRate';
+import { StudyFollowUps } from './pages/followUps';
+import { TutorFeedbackView } from './pages/tutorFeedback';
 import { TutorStudents, TutorSchedule, TutorRecords } from './pages/tutor';
 import { LifeMorning } from './pages/life';
 import { SchoolWarnings } from './pages/schoolWarnings';
@@ -26,14 +28,16 @@ const REGISTRY: Record<string, ReactNode> = {
   'patrol/students': <PatrolStudents />,
   'patrol/rollcall': <PatrolRollcall />,
   'patrol/attendance-rate': <AttendanceRateEntry />,
-  'patrol/homework': <PatrolHomework />,
-  'patrol/violations': <PatrolViolations />,
-  'patrol/library': <StaffLibrary />,
+  'patrol/follow-ups': <StudyFollowUps />,
+  'patrol/tutor-feedback': <TutorFeedbackView />,
+  'patrol/violations': <ViolationLog />,
+  'patrol/library': <ResourcesPage />,
   // 辅导（静态壳）
   'tutor/students': <TutorStudents />,
   'tutor/schedule': <TutorSchedule />,
   'tutor/records': <TutorRecords />,
-  'tutor/library': <StaffLibrary />,
+  'tutor/follow-ups': <StudyFollowUps />,
+  'tutor/library': <ResourcesPage />,
   // 生活（早上出勤已接真功能）
   'life/morning': <LifeMorning />,
   'life/library': <StaffLibrary />,

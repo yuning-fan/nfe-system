@@ -5,6 +5,7 @@ import { useRiskStore } from '../../store/useRiskStore';
 import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
 import GradebookCard from './GradebookCard';
+import FollowUpTimelineCard from './FollowUpTimelineCard';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import DcgPanel from './DcgPanel';
@@ -706,6 +707,8 @@ export default function StudentDetail() {
               </div>
 
               <GradebookCard student={student} />
+
+              <FollowUpTimelineCard studentId={student.student_id} />
             </div>
           </div>
         )}

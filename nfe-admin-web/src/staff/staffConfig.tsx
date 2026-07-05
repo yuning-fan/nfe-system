@@ -22,7 +22,7 @@ const I = (C: any) => <C stroke={1.5} />;
 
 const HOME: StaffNavItem = { to: '', label: '我的工作台', icon: I(IconLayoutDashboard) };
 const STUDENTS: StaffNavItem = { to: 'students', label: '我的学生', icon: I(IconUsers), desc: '名下学生列表（只读）：课表、出勤、成绩、补课安排' };
-const LIBRARY: StaffNavItem = { to: 'library', label: '资料库', icon: I(IconDatabase), desc: '仅可查看被授权可见的资料' };
+const LIBRARY: StaffNavItem = { to: 'library', label: '资料库', icon: I(IconDatabase), desc: '收集各科学习资料并上传，查看课件/练习/模考' };
 
 export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
   patrol: {
@@ -31,7 +31,8 @@ export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
       HOME, STUDENTS,
       { to: 'rollcall', label: '晚自习点名', icon: I(IconClipboardCheck), desc: '18:00 应到名单，逐人标记 在场/缺席/请假 + 备注' },
       { to: 'attendance-rate', label: '出勤率录入', icon: I(IconSun), desc: '每周一录入官方出勤率（核对 life 早上出勤）' },
-      { to: 'homework', label: '作业核查', icon: I(IconNotebook), desc: '作业批改与成绩监控，批阅后存入学生档案' },
+      { to: 'follow-ups', label: '学习跟进', icon: I(IconNotebook), desc: '作业核查 / 晚自习跟进 / 带背考察 / 个辅记录 / 重难点梳理' },
+      { to: 'tutor-feedback', label: '辅导反馈', icon: I(IconClipboardList), desc: '辅导老师课后反馈与作业安排（只读），据此督促学生' },
       { to: 'violations', label: '违规记录', icon: I(IconAlertOctagon), desc: '违规登记 + 申请三步走警告信' },
       LIBRARY,
     ],
@@ -56,6 +57,7 @@ export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
       HOME, STUDENTS,
       { to: 'schedule', label: '我的课表', icon: I(IconCalendar), desc: '我的课表与排课、申请调课' },
       { to: 'records', label: '上课记录', icon: I(IconClipboardList), desc: '填写上课记录（公开反馈 + 内部备注）' },
+      { to: 'follow-ups', label: '学习跟进', icon: I(IconNotebook), desc: '个辅记录 / 作业核查 / 带背考察（不进排课、不扣课时）' },
       LIBRARY,
     ],
   },
