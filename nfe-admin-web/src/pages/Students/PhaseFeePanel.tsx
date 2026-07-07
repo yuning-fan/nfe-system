@@ -113,6 +113,25 @@ export default function PhaseFeePanel({ studentId, legacyNote }: { studentId: st
     if (!ok) message.error('添加失败');
   };
 
+  const deletePhase = (ph: Phase) => {
+    const feeCount = feesOf(ph.id).length;
+    Modal.confirm({
+      title: '删除阶段',
+      okType: 'danger',
+      okText: '删除',
+      content: `确认删除「${ph.programs?.name || '该阶段'}」吗？${feeCount ? `该阶段下 ${feeCount} 条服务费用也会一并删除。` : ''}此操作不可恢复。`,
+      onOk: async () => {
+        // 先删该阶段的服务费用，再删阶段本身，避免外键约束
+        await (supabase as any).from('student_fees').delete().eq('enrollment_id', ph.id);
+        const { error } = await (supabase as any).from('student_enrollments').delete().eq('id', ph.id);
+        if (error) { message.error('删除失败：' + error.message); return; }
+        message.success('阶段已删除');
+        fetchPhases();
+        fetchFees(studentId);
+      },
+    });
+  };
+
   return (
     <div className="card" style={{ marginTop: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -148,7 +167,10 @@ export default function PhaseFeePanel({ studentId, legacyNote }: { studentId: st
                     {ph.source && <span className="pill p-gray">{ph.source === 'green_channel' ? '绿通' : '散客'}</span>}
                     <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{ph.start_date || '—'} 至 {ph.end_date || '—'}</span>
                   </div>
-                  <button className="btn" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openEdit(ph)}><IconPencil size={12} style={{ marginRight: 2 }} />编辑</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openEdit(ph)}><IconPencil size={12} style={{ marginRight: 2 }} />编辑</button>
+                    <button className="btn" style={{ padding: '2px 8px', fontSize: 11, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }} onClick={() => deletePhase(ph)}><IconTrash size={12} style={{ marginRight: 2 }} />删除</button>
+                  </div>
                 </div>
 
                 {/* 该阶段的服务费用 */}
