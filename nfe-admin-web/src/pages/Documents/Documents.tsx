@@ -19,6 +19,7 @@ interface DocRow {
   id: number;
   student_id: string;
   doc_type: string;
+  title: string | null;
   file_url: string | null; // R2 桶内 key
   issue_date: string | null;
   expiry_date: string | null;
@@ -35,6 +36,8 @@ const DOC_TYPES: { value: string; label: string; cls: string }[] = [
   { value: 'transcript', label: '成绩单', cls: 'p-amber' },
   { value: 'guardianship', label: '监护协议', cls: 'p-gray' },
   { value: 'contract', label: '机构合同', cls: 'p-teal' },
+  { value: 'payment_receipt', label: '缴费凭证', cls: 'p-amber' },
+  { value: 'other', label: '其他', cls: 'p-gray' },
 ];
 const docLabel = (t: string) => DOC_TYPES.find(d => d.value === t)?.label || t;
 const docCls = (t: string) => DOC_TYPES.find(d => d.value === t)?.cls || 'p-gray';
@@ -65,6 +68,7 @@ export default function Documents() {
   // 上传弹窗
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadType, setUploadType] = useState('passport');
+  const [uploadTitle, setUploadTitle] = useState('');
   const [uploadExpiry, setUploadExpiry] = useState('');
   const [uploadFileObj, setUploadFileObj] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -72,6 +76,7 @@ export default function Documents() {
   // 编辑弹窗（改类型/到期日，可选替换文件）
   const [editDoc, setEditDoc] = useState<DocRow | null>(null);
   const [editType, setEditType] = useState('passport');
+  const [editTitle, setEditTitle] = useState('');
   const [editExpiry, setEditExpiry] = useState('');
   const [editFileObj, setEditFileObj] = useState<File | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -79,6 +84,7 @@ export default function Documents() {
   const openEdit = (doc: DocRow) => {
     setEditDoc(doc);
     setEditType(doc.doc_type);
+    setEditTitle(doc.title || '');
     setEditExpiry(doc.expiry_date || '');
     setEditFileObj(null);
     setSavingEdit(false);
@@ -90,6 +96,7 @@ export default function Documents() {
     try {
       const patch: Record<string, any> = {
         doc_type: editType,
+        title: editTitle.trim() || null,
         expiry_date: editExpiry || null,
         status: editExpiry ? (daysUntil(editExpiry) < 0 ? 'expired' : daysUntil(editExpiry) <= 30 ? 'expiring_soon' : 'valid') : 'valid',
       };
@@ -167,6 +174,7 @@ export default function Documents() {
       const { error } = await db.from('student_documents').insert({
         student_id: selected.student_id,
         doc_type: uploadType,
+        title: uploadTitle.trim() || null,
         file_url: key,
         expiry_date: uploadExpiry || null,
         status,
@@ -177,6 +185,7 @@ export default function Documents() {
       setUploadOpen(false);
       setUploadFileObj(null);
       setUploadExpiry('');
+      setUploadTitle('');
       fetchDocs(selected.student_id);
     } catch (err: any) {
       console.error(err);
@@ -303,7 +312,7 @@ export default function Documents() {
               <thead>
                 <tr>
                   <th>文件类型</th>
-                  <th>文件名</th>
+                  <th>标题 / 文件</th>
                   <th>到期日</th>
                   <th>状态</th>
                   <th>操作</th>
@@ -315,9 +324,14 @@ export default function Documents() {
                   return (
                     <tr key={doc.id}>
                       <td><span className={`pill ${docCls(doc.doc_type)}`}>{docLabel(doc.doc_type)}</span></td>
-                      <td style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-                        {fileName(doc.file_url)}
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+                          <div>
+                            <div>{doc.title || fileName(doc.file_url)}</div>
+                            {doc.title && <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{fileName(doc.file_url)}</div>}
+                          </div>
+                        </div>
                       </td>
                       <td style={{ color: 'var(--color-text-secondary)' }}>{doc.expiry_date || '—'}</td>
                       <td><span className={`pill ${st.cls}`}>{st.label}</span></td>
@@ -356,6 +370,10 @@ export default function Documents() {
             </select>
           </div>
           <div>
+            <label className="form-label">文件标题</label>
+            <input className="input" style={{ width: '100%' }} value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} placeholder="如：2026 秋季学费缴费凭证" />
+          </div>
+          <div>
             <label className="form-label">到期日（签证/保险建议填，用于预警）</label>
             <input className="input" type="date" style={{ width: '100%' }} value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)} />
           </div>
@@ -386,6 +404,10 @@ export default function Documents() {
             <select className="input" style={{ width: '100%' }} value={editType} onChange={e => setEditType(e.target.value)}>
               {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="form-label">文件标题</label>
+            <input className="input" style={{ width: '100%' }} value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="如：2026 秋季学费缴费凭证" />
           </div>
           <div>
             <label className="form-label">到期日（签证/保险建议填，用于预警）</label>

@@ -111,8 +111,8 @@ export default function RiskAlerts() {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    setRedStudents((red as RiskStudent[]) || []);
-    setYellowStudents((yellow as RiskStudent[]) || []);
+    setRedStudents((red as unknown as RiskStudent[]) || []);
+    setYellowStudents((yellow as unknown as RiskStudent[]) || []);
     setGreenCount(greenCnt || 0);
     setChangeLogs((logs as RiskChangeLog[]) || []);
     setIsLoading(false);

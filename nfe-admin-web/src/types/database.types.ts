@@ -20,30 +20,48 @@ export type Database = {
           due_date: string
           id: number
           is_grade_recorded: boolean | null
+          is_major: boolean
           milestone_type: Database["public"]["Enums"]["milestone_type"]
+          mode: string | null
+          parent_id: number | null
           program_subject_id: number | null
           student_id: string | null
+          term_no: number | null
           title: string
+          week_no: number | null
+          weight_percent: number | null
         }
         Insert: {
           course_id?: number | null
           due_date: string
           id?: number
           is_grade_recorded?: boolean | null
+          is_major?: boolean
           milestone_type: Database["public"]["Enums"]["milestone_type"]
+          mode?: string | null
+          parent_id?: number | null
           program_subject_id?: number | null
           student_id?: string | null
+          term_no?: number | null
           title: string
+          week_no?: number | null
+          weight_percent?: number | null
         }
         Update: {
           course_id?: number | null
           due_date?: string
           id?: number
           is_grade_recorded?: boolean | null
+          is_major?: boolean
           milestone_type?: Database["public"]["Enums"]["milestone_type"]
+          mode?: string | null
+          parent_id?: number | null
           program_subject_id?: number | null
           student_id?: string | null
+          term_no?: number | null
           title?: string
+          week_no?: number | null
+          weight_percent?: number | null
         }
         Relationships: [
           {
@@ -51,6 +69,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academic_milestones_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "academic_milestones"
             referencedColumns: ["id"]
           },
           {
@@ -92,6 +117,41 @@ export type Database = {
           {
             foreignKeyName: "apartment_guardians_guardian_staff_id_fkey"
             columns: ["guardian_staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_persuasions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: number
+          note: string | null
+          rate: number | null
+          student_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: number
+          note?: string | null
+          rate?: number | null
+          student_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: number
+          note?: string | null
+          rate?: number | null
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_persuasions_student_id_fkey"
+            columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -418,33 +478,39 @@ export type Database = {
           course_id: number | null
           id: number
           milestone_id: number | null
+          note: string | null
           program_subject_id: number | null
           recorded_at: string | null
           recorded_by: string | null
           score: number | null
           score_type: Database["public"]["Enums"]["score_type"]
+          status: string
           student_id: string | null
         }
         Insert: {
           course_id?: number | null
           id?: number
           milestone_id?: number | null
+          note?: string | null
           program_subject_id?: number | null
           recorded_at?: string | null
           recorded_by?: string | null
           score?: number | null
           score_type: Database["public"]["Enums"]["score_type"]
+          status?: string
           student_id?: string | null
         }
         Update: {
           course_id?: number | null
           id?: number
           milestone_id?: number | null
+          note?: string | null
           program_subject_id?: number | null
           recorded_at?: string | null
           recorded_by?: string | null
           score?: number | null
           score_type?: Database["public"]["Enums"]["score_type"]
+          status?: string
           student_id?: string | null
         }
         Relationships: [
@@ -873,6 +939,7 @@ export type Database = {
           hours_per_week: number | null
           id: number
           max_students: number | null
+          pass_mark: number
           program_id: number | null
           sessions_per_week: number | null
           subject_area: Database["public"]["Enums"]["subject_area"]
@@ -886,6 +953,7 @@ export type Database = {
           hours_per_week?: number | null
           id?: number
           max_students?: number | null
+          pass_mark?: number
           program_id?: number | null
           sessions_per_week?: number | null
           subject_area: Database["public"]["Enums"]["subject_area"]
@@ -899,6 +967,7 @@ export type Database = {
           hours_per_week?: number | null
           id?: number
           max_students?: number | null
+          pass_mark?: number
           program_id?: number | null
           sessions_per_week?: number | null
           subject_area?: Database["public"]["Enums"]["subject_area"]
@@ -1142,6 +1211,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      risk_config: {
+        Row: {
+          category: string | null
+          key: string
+          label: string | null
+          updated_at: string | null
+          value: number
+        }
+        Insert: {
+          category?: string | null
+          key: string
+          label?: string | null
+          updated_at?: string | null
+          value: number
+        }
+        Update: {
+          category?: string | null
+          key?: string
+          label?: string | null
+          updated_at?: string | null
+          value?: number
+        }
+        Relationships: []
       }
       schedule_changes: {
         Row: {
@@ -1435,6 +1528,7 @@ export type Database = {
           issue_date: string | null
           status: Database["public"]["Enums"]["doc_status"] | null
           student_id: string | null
+          title: string | null
           uploaded_by: string | null
         }
         Insert: {
@@ -1445,6 +1539,7 @@ export type Database = {
           issue_date?: string | null
           status?: Database["public"]["Enums"]["doc_status"] | null
           student_id?: string | null
+          title?: string | null
           uploaded_by?: string | null
         }
         Update: {
@@ -1455,6 +1550,7 @@ export type Database = {
           issue_date?: string | null
           status?: Database["public"]["Enums"]["doc_status"] | null
           student_id?: string | null
+          title?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
@@ -1583,6 +1679,38 @@ export type Database = {
           },
         ]
       }
+      student_hour_pools: {
+        Row: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          id: number
+          student_id: string
+          total_hours: number
+          updated_at: string | null
+        }
+        Insert: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          id?: number
+          student_id: string
+          total_hours?: number
+          updated_at?: string | null
+        }
+        Update: {
+          course_type?: Database["public"]["Enums"]["course_type"]
+          id?: number
+          student_id?: string
+          total_hours?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_hour_pools_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_subject_selections: {
         Row: {
           confirmed_at: string | null
@@ -1628,6 +1756,7 @@ export type Database = {
       students_info: {
         Row: {
           arrival_date: string | null
+          attendance_rate_updated_at: string | null
           date_of_birth: string | null
           emergency_contact_email: string | null
           emergency_contact_name: string | null
@@ -1642,6 +1771,7 @@ export type Database = {
           payment_note: string | null
           risk_level: Database["public"]["Enums"]["risk_level"] | null
           scholarship_requirement: string | null
+          school_attendance_rate: number | null
           school_name: string | null
           source_school: string | null
           student_id: string
@@ -1650,6 +1780,7 @@ export type Database = {
         }
         Insert: {
           arrival_date?: string | null
+          attendance_rate_updated_at?: string | null
           date_of_birth?: string | null
           emergency_contact_email?: string | null
           emergency_contact_name?: string | null
@@ -1664,6 +1795,7 @@ export type Database = {
           payment_note?: string | null
           risk_level?: Database["public"]["Enums"]["risk_level"] | null
           scholarship_requirement?: string | null
+          school_attendance_rate?: number | null
           school_name?: string | null
           source_school?: string | null
           student_id: string
@@ -1672,6 +1804,7 @@ export type Database = {
         }
         Update: {
           arrival_date?: string | null
+          attendance_rate_updated_at?: string | null
           date_of_birth?: string | null
           emergency_contact_email?: string | null
           emergency_contact_name?: string | null
@@ -1686,6 +1819,7 @@ export type Database = {
           payment_note?: string | null
           risk_level?: Database["public"]["Enums"]["risk_level"] | null
           scholarship_requirement?: string | null
+          school_attendance_rate?: number | null
           school_name?: string | null
           source_school?: string | null
           student_id?: string
@@ -1704,6 +1838,60 @@ export type Database = {
             foreignKeyName: "students_info_student_id_fkey"
             columns: ["student_id"]
             isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_follow_ups: {
+        Row: {
+          attachment_url: string | null
+          category: string
+          content: string
+          created_at: string | null
+          id: number
+          needs_followup: boolean
+          recorder_id: string | null
+          result: string | null
+          student_id: string
+          subject: string | null
+        }
+        Insert: {
+          attachment_url?: string | null
+          category: string
+          content: string
+          created_at?: string | null
+          id?: number
+          needs_followup?: boolean
+          recorder_id?: string | null
+          result?: string | null
+          student_id: string
+          subject?: string | null
+        }
+        Update: {
+          attachment_url?: string | null
+          category?: string
+          content?: string
+          created_at?: string | null
+          id?: number
+          needs_followup?: boolean
+          recorder_id?: string | null
+          result?: string | null
+          student_id?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_follow_ups_recorder_id_fkey"
+            columns: ["recorder_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_follow_ups_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1826,6 +2014,7 @@ export type Database = {
       }
       violation_logs: {
         Row: {
+          attachment_url: string | null
           created_at: string | null
           deduction_points: number | null
           id: number
@@ -1836,6 +2025,7 @@ export type Database = {
           violation_type: string | null
         }
         Insert: {
+          attachment_url?: string | null
           created_at?: string | null
           deduction_points?: number | null
           id?: number
@@ -1846,6 +2036,7 @@ export type Database = {
           violation_type?: string | null
         }
         Update: {
+          attachment_url?: string | null
           created_at?: string | null
           deduction_points?: number | null
           id?: number
@@ -1907,28 +2098,40 @@ export type Database = {
       }
       warning_letters: {
         Row: {
+          attachment_url: string | null
+          category: string | null
           evidence_content: string | null
           id: number
           issuer_id: string | null
+          occurred_on: string | null
           signed_at: string | null
+          source: string
           status: Database["public"]["Enums"]["warning_status"] | null
           student_id: string | null
           warning_level: number
         }
         Insert: {
+          attachment_url?: string | null
+          category?: string | null
           evidence_content?: string | null
           id?: number
           issuer_id?: string | null
+          occurred_on?: string | null
           signed_at?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["warning_status"] | null
           student_id?: string | null
           warning_level: number
         }
         Update: {
+          attachment_url?: string | null
+          category?: string | null
           evidence_content?: string | null
           id?: number
           issuer_id?: string | null
+          occurred_on?: string | null
           signed_at?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["warning_status"] | null
           student_id?: string | null
           warning_level?: number
@@ -2010,6 +2213,8 @@ export type Database = {
         | "parent_proof"
         | "apartment_visit"
         | "contract"
+        | "payment_receipt"
+        | "other"
       duty_shift: "morning" | "afternoon" | "evening"
       duty_type: "dorm_check" | "night_study" | "transport" | "patrol"
       enrollment_source: "green_channel" | "agent"
@@ -2219,6 +2424,8 @@ export const Constants = {
         "parent_proof",
         "apartment_visit",
         "contract",
+        "payment_receipt",
+        "other",
       ],
       duty_shift: ["morning", "afternoon", "evening"],
       duty_type: ["dorm_check", "night_study", "transport", "patrol"],
