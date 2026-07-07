@@ -35,6 +35,8 @@ export default function StudentDetail() {
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
+  const [credEdits, setCredEdits] = useState<any[]>([]);        // 现有平台账户编辑
+  const [newCred, setNewCred] = useState({ platform_name: '', account: '', encrypted_password: '' });
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,10 +78,21 @@ export default function StudentDetail() {
   const handleOpenEdit = () => {
     const prof = Array.isArray(student?.profiles) ? student?.profiles[0] : student?.profiles;
     const enr = Array.isArray(student?.student_enrollments) ? student?.student_enrollments[0] : student?.student_enrollments;
+    const docs2 = student?.student_documents || [];
+    const vd = docs2.find((d: any) => d.doc_type === 'visa');
+    const insd = docs2.find((d: any) => d.doc_type === 'insurance');
+    setCredEdits((student?.student_credentials || []).map((c: any) => ({ id: c.id, platform_name: c.platform_name, account: c.account, encrypted_password: c.encrypted_password })));
+    setNewCred({ platform_name: '', account: '', encrypted_password: '' });
     setEditForm({
       full_name: prof?.full_name || '',
       phone: prof?.phone || '',
       source: enr?.source || '',
+      visa_doc_id: vd?.id ?? null,
+      visa_status: vd?.status || 'valid',
+      visa_expiry: vd?.expiry_date || '',
+      insurance_doc_id: insd?.id ?? null,
+      insurance_status: insd?.status || 'valid',
+      insurance_expiry: insd?.expiry_date || '',
       english_name: student?.english_name || '',
       gender: student?.gender || '',
       date_of_birth: student?.date_of_birth || '',
@@ -102,7 +115,25 @@ export default function StudentDetail() {
 
   const handleSaveEdit = async () => {
     setIsSaving(true);
-    const success = await updateStudent(student!.student_id, editForm);
+    // 拆出跨表字段（证件），其余交给 updateStudent（profiles/students_info/enrollment.source）
+    const { visa_doc_id, visa_status, visa_expiry, insurance_doc_id, insurance_status, insurance_expiry, ...profilePayload } = editForm;
+    const success = await updateStudent(student!.student_id, profilePayload);
+    const db = supabase as any;
+    try {
+      // 证件到期日/状态（仅更新已有证件；无文件的证件请到「签证/保险/文件」tab 上传）
+      if (visa_doc_id) await db.from('student_documents').update({ expiry_date: visa_expiry || null, status: visa_status }).eq('id', visa_doc_id);
+      if (insurance_doc_id) await db.from('student_documents').update({ expiry_date: insurance_expiry || null, status: insurance_status }).eq('id', insurance_doc_id);
+      // 平台账户：更新现有 + 新增
+      for (const c of credEdits) {
+        await db.from('student_credentials').update({ platform_name: c.platform_name, account: c.account, encrypted_password: c.encrypted_password }).eq('id', c.id);
+      }
+      if (newCred.platform_name.trim() && newCred.account.trim()) {
+        await db.from('student_credentials').insert({ student_id: student!.student_id, ...newCred });
+      }
+    } catch (e: any) {
+      console.error(e);
+    }
+    if (id) await fetchStudentById(id);
     setIsSaving(false);
     if (success) {
       message.success('档案已更新');
@@ -399,6 +430,10 @@ export default function StudentDetail() {
             <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
           </div>
           <div className="form-group">
+            <label className="form-label">就读学校</label>
+            <input className="input" value={editForm.school_name} onChange={e => setEditForm({ ...editForm, school_name: e.target.value })} />
+          </div>
+          <div className="form-group">
             <label className="form-label">来源</label>
             <select className="input" value={editForm.source} onChange={e => setEditForm({ ...editForm, source: e.target.value })}>
               <option value="">未设置</option>
@@ -455,6 +490,40 @@ export default function StudentDetail() {
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">健康 / 禁忌备注</label>
             <textarea className="input" rows={2} value={editForm.health_notes} onChange={e => setEditForm({ ...editForm, health_notes: e.target.value })} />
+          </div>
+
+          {/* 证件 */}
+          <div style={editSectionStyle}>证件（到期日）</div>
+          <div className="form-group">
+            <label className="form-label">签证到期日</label>
+            {editForm.visa_doc_id ? (
+              <input className="input" type="date" value={editForm.visa_expiry} onChange={e => setEditForm({ ...editForm, visa_expiry: e.target.value })} />
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', padding: '6px 0' }}>未上传签证，请到「签证/保险/文件」上传后再设到期日</div>
+            )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">保险到期日</label>
+            {editForm.insurance_doc_id ? (
+              <input className="input" type="date" value={editForm.insurance_expiry} onChange={e => setEditForm({ ...editForm, insurance_expiry: e.target.value })} />
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', padding: '6px 0' }}>未上传保险，请到「签证/保险/文件」上传后再设到期日</div>
+            )}
+          </div>
+
+          {/* 学校平台账户 */}
+          <div style={editSectionStyle}>学校平台账户</div>
+          {credEdits.map((c, i) => (
+            <div key={c.id} style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <input className="input" placeholder="平台" value={c.platform_name} onChange={e => setCredEdits(prev => prev.map((x, j) => j === i ? { ...x, platform_name: e.target.value } : x))} />
+              <input className="input" placeholder="账号" value={c.account} onChange={e => setCredEdits(prev => prev.map((x, j) => j === i ? { ...x, account: e.target.value } : x))} />
+              <input className="input" placeholder="密码" value={c.encrypted_password} onChange={e => setCredEdits(prev => prev.map((x, j) => j === i ? { ...x, encrypted_password: e.target.value } : x))} />
+            </div>
+          ))}
+          <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <input className="input" placeholder="新增平台（如 学校门户）" value={newCred.platform_name} onChange={e => setNewCred({ ...newCred, platform_name: e.target.value })} />
+            <input className="input" placeholder="账号" value={newCred.account} onChange={e => setNewCred({ ...newCred, account: e.target.value })} />
+            <input className="input" placeholder="密码" value={newCred.encrypted_password} onChange={e => setNewCred({ ...newCred, encrypted_password: e.target.value })} />
           </div>
         </div>
       </Modal>
