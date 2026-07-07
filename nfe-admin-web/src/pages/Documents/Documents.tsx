@@ -74,8 +74,30 @@ export default function Documents() {
 
   // 矩阵总览：全体学生的文件（按 student_id 分组）
   const [allDocs, setAllDocs] = useState<Record<string, DocRow[]>>({});
+  const [phaseMap, setPhaseMap] = useState<Record<string, { name: string | null; source: string | null }>>({});
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const fetchPhases = useCallback(async () => {
+    const { data } = await db.from('student_enrollments').select('student_id, start_date, end_date, status, source, programs(name)');
+    const today = new Date().toISOString().slice(0, 10);
+    const byStart = (a: any, b: any) => (a.start_date || '').localeCompare(b.start_date || '');
+    const byStu: Record<string, any[]> = {};
+    for (const e of (data as any[]) || []) { if (e.student_id) (byStu[e.student_id] ||= []).push(e); }
+    const pm: Record<string, { name: string | null; source: string | null }> = {};
+    for (const [sid, list] of Object.entries(byStu)) {
+      const pool = list.filter(e => e.status !== 'withdrawn');
+      const usable = pool.length ? pool : list;
+      const inRange = usable.filter(e => e.status !== 'completed' && (!e.start_date || e.start_date <= today) && (!e.end_date || today <= e.end_date));
+      const upcoming = usable.filter(e => e.status !== 'completed' && e.start_date && e.start_date > today);
+      const cur = inRange.length ? inRange.slice().sort(byStart).reverse()[0]
+        : upcoming.length ? upcoming.slice().sort(byStart)[0]
+        : usable.slice().sort(byStart).reverse()[0];
+      const prog = Array.isArray(cur?.programs) ? cur.programs[0] : cur?.programs;
+      pm[sid] = { name: prog?.name || null, source: cur?.source || null };
+    }
+    setPhaseMap(pm);
+  }, []);
 
   const fetchAllDocs = useCallback(async () => {
     const { data } = await db.from('student_documents').select('*');
@@ -163,7 +185,7 @@ export default function Documents() {
     setDocsLoading(false);
   }, []);
 
-  useEffect(() => { fetchAllDocs(); }, [fetchAllDocs]);
+  useEffect(() => { fetchAllDocs(); fetchPhases(); }, [fetchAllDocs, fetchPhases]);
 
   useEffect(() => {
     if (selected) fetchDocs(selected.student_id);
@@ -186,7 +208,9 @@ export default function Documents() {
     }
     return { state: 'ok' as const, type: col.type };
   };
-  const filtered = students.filter(s => getName(s).includes(search));
+  const filtered = students
+    .filter(s => getName(s).includes(search))
+    .sort((a, b) => getName(a).localeCompare(getName(b)));
   const matrixAll = filtered.map(s => {
     const cells = REQUIRED_COLS.map(c => cellFor(allDocs[s.student_id] || [], c));
     const have = cells.filter(c => c.state !== 'missing').length;
@@ -294,6 +318,7 @@ export default function Documents() {
           <thead>
             <tr>
               <th style={{ padding: '10px 14px' }}>学生</th>
+              <th style={{ padding: '10px 14px' }}>课程/阶段</th>
               {REQUIRED_COLS.map(c => <th key={c.type} style={{ padding: '10px 14px', textAlign: 'center' }}>{c.label}</th>)}
               <th style={{ padding: '10px 14px', textAlign: 'center' }}>齐全度</th>
               <th style={{ padding: '10px 14px' }}>操作</th>
@@ -303,6 +328,15 @@ export default function Documents() {
             {matrixRows.map(({ s, cells, have }) => (
               <tr key={s.student_id} style={{ borderTop: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
                 <td style={{ padding: '10px 14px', fontWeight: 500 }}>{getName(s)}</td>
+                <td style={{ padding: '10px 14px' }}>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {phaseMap[s.student_id]?.source === 'green_channel' && <span className="pill p-green" style={{ fontSize: 10 }}>绿通</span>}
+                    {phaseMap[s.student_id]?.source === 'agent' && <span className="pill p-blue" style={{ fontSize: 10 }}>散客</span>}
+                    {phaseMap[s.student_id]?.name
+                      ? <span className="pill p-purple" style={{ fontSize: 10 }}>{phaseMap[s.student_id].name}</span>
+                      : <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>}
+                  </div>
+                </td>
                 {cells.map((cell, i) => (
                   <td key={i} style={{ padding: '10px 14px', textAlign: 'center' }}>
                     {cell.state === 'ok' && <IconCircleCheck size={18} style={{ color: 'var(--color-success)', verticalAlign: 'middle' }} />}
@@ -319,7 +353,7 @@ export default function Documents() {
               </tr>
             ))}
             {matrixRows.length === 0 && (
-              <tr><td colSpan={REQUIRED_COLS.length + 3} style={{ textAlign: 'center', padding: 30, color: 'var(--color-text-tertiary)' }}>无匹配学生</td></tr>
+              <tr><td colSpan={REQUIRED_COLS.length + 4} style={{ textAlign: 'center', padding: 30, color: 'var(--color-text-tertiary)' }}>无匹配学生</td></tr>
             )}
           </tbody>
         </table>
