@@ -137,6 +137,10 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         const info = infoMap[p.id] || {};
         const cur = currentPhaseMap[p.id] || null;
         const curFees = cur ? (feesByEnroll[cur.id] || []) : [];
+        // 全部阶段（按开学日期排序）+ 各阶段费用，供列表「阶段与服务费用」汇总
+        const allPhases = (enrollByStudent[p.id] || [])
+          .slice().sort(byStart)
+          .map((e: any) => ({ ...e, fees: feesByEnroll[e.id] || [] }));
         return {
           student_id: p.id,
           ...info,
@@ -147,6 +151,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           school_timetable: timetableSet.has(p.id) ? [{}] : [],
           current_phase: cur,        // 当前在读阶段（id/program/source/start_date/status/programs.name）
           current_fees: curFees,     // 当前阶段的服务费用
+          all_phases: allPhases,     // 全部阶段 + 各阶段费用
           visa_expiry: visaMap[p.id] || null,
           available_hours: hoursMap[p.id] ?? null,
         };

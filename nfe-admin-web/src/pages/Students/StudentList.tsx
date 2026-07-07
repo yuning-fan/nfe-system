@@ -90,10 +90,6 @@ export default function StudentList() {
     [programs]
   );
 
-  const schoolFilters = useMemo(() => {
-    const names = [...new Set(students.map(s => s.source_school).filter(Boolean))].sort();
-    return names.map(n => ({ text: n as string, value: n as string }));
-  }, [students]);
 
   // 顶部全局搜索（姓名/英文名/生源校）
   const dataSource = useMemo(() => {
@@ -181,10 +177,27 @@ export default function StudentList() {
       render: (_: any, s: any) => { const r = RISK(s.risk_level); return pill(r.label, r.cls); },
     },
     {
-      title: '生源校', key: 'school', width: 120,
-      filters: schoolFilters, filterSearch: true,
-      onFilter: (v, r) => r.source_school === v,
-      render: (_: any, s: any) => s.source_school || '—',
+      title: '阶段与服务费用', key: 'phases', width: 320,
+      render: (_: any, s: any) => {
+        const phases = s.all_phases || [];
+        if (!phases.length) return <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {phases.map((p: any) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                {pill(p.programs?.name || '阶段', 'p-purple')}
+                {FEE_TYPES.map(t => {
+                  const f = (p.fees || []).find((x: any) => x.fee_type === t);
+                  const state = !f ? 'none' : f.is_paid ? 'paid' : 'unpaid';
+                  const mark = state === 'paid' ? '✓' : state === 'unpaid' ? '✗' : '—';
+                  const cls = state === 'paid' ? 'p-green' : state === 'unpaid' ? 'p-amber' : 'p-gray';
+                  return <span key={t} style={{ fontSize: 10 }} className={`pill ${cls}`}>{FEE_TYPE_LABELS[t]}{mark}</span>;
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     {
       title: '缴费状态', key: 'fee_overall', width: 100,
