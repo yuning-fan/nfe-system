@@ -76,6 +76,7 @@ export default function Documents() {
   const [allDocs, setAllDocs] = useState<Record<string, DocRow[]>>({});
   const [phaseMap, setPhaseMap] = useState<Record<string, { name: string | null; source: string | null }>>({});
   const [onlyMissing, setOnlyMissing] = useState(false);
+  const [onlyWithProgram, setOnlyWithProgram] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const fetchPhases = useCallback(async () => {
@@ -216,7 +217,9 @@ export default function Documents() {
     const have = cells.filter(c => c.state !== 'missing').length;
     return { s, cells, have };
   });
-  const matrixRowsAll = onlyMissing ? matrixAll.filter(r => r.have < REQUIRED_COLS.length) : matrixAll;
+  const matrixRowsAll = matrixAll.filter(r =>
+    (!onlyMissing || r.have < REQUIRED_COLS.length) &&
+    (!onlyWithProgram || !!phaseMap[r.s.student_id]?.name));
   const { paged: matrixRows, page, totalPages, setPage, reset: resetPage, total } = usePagination(matrixRowsAll, 30);
 
   const openUploadFor = (s: Student, type: string) => {
@@ -307,9 +310,14 @@ export default function Documents() {
           <IconSearch size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
           <input className="search-bar" style={{ paddingLeft: 30 }} placeholder="搜索学生…" value={search} onChange={e => { setSearch(e.target.value); resetPage(); }} />
         </div>
-        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-text-secondary)' }}>
-          <input type="checkbox" checked={onlyMissing} onChange={e => { setOnlyMissing(e.target.checked); resetPage(); }} /> 只看有缺失
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-text-secondary)' }}>
+            <input type="checkbox" checked={onlyWithProgram} onChange={e => { setOnlyWithProgram(e.target.checked); resetPage(); }} /> 只看有项目
+          </label>
+          <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-text-secondary)' }}>
+            <input type="checkbox" checked={onlyMissing} onChange={e => { setOnlyMissing(e.target.checked); resetPage(); }} /> 只看有缺失
+          </label>
+        </div>
       </div>
 
       {/* 材料矩阵总览 */}
