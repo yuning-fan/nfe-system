@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getDownloadUrl, uploadFile } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
-import { IconLoader2, IconFileText, IconSearch, IconUpload, IconTrash } from '@tabler/icons-react';
-import { message, Modal } from 'antd';
+import { IconLoader2, IconFileText, IconSearch, IconUpload, IconTrash, IconCircleCheck, IconCircleX, IconAlertTriangle } from '@tabler/icons-react';
+import { message, Modal, Drawer } from 'antd';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 
@@ -39,6 +39,13 @@ const DOC_TYPES: { value: string; label: string; cls: string }[] = [
   { value: 'payment_receipt', label: '缴费凭证', cls: 'p-amber' },
   { value: 'other', label: '其他', cls: 'p-gray' },
 ];
+// 矩阵总览的必备列（缺失/齐全度按这些算）；expiry=true 的列带到期预警
+const REQUIRED_COLS: { type: string; label: string; expiry?: boolean }[] = [
+  { type: 'visa', label: '签证', expiry: true },
+  { type: 'offer_letter', label: '录取通知书' },
+  { type: 'payment_receipt', label: '缴费凭证' },
+];
+
 const docLabel = (t: string) => DOC_TYPES.find(d => d.value === t)?.label || t;
 const docCls = (t: string) => DOC_TYPES.find(d => d.value === t)?.cls || 'p-gray';
 
@@ -64,6 +71,18 @@ export default function Documents() {
 
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+
+  // 矩阵总览：全体学生的文件（按 student_id 分组）
+  const [allDocs, setAllDocs] = useState<Record<string, DocRow[]>>({});
+  const [onlyMissing, setOnlyMissing] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const fetchAllDocs = useCallback(async () => {
+    const { data } = await db.from('student_documents').select('*');
+    const map: Record<string, DocRow[]> = {};
+    for (const d of (data as DocRow[]) || []) { (map[d.student_id] ||= []).push(d); }
+    setAllDocs(map);
+  }, []);
 
   // 上传弹窗
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -110,6 +129,7 @@ export default function Documents() {
       message.success('已更新');
       setEditDoc(null);
       fetchDocs(selected.student_id);
+      fetchAllDocs();
     } catch (err: any) {
       console.error(err);
       message.error(err.message || '更新失败');
@@ -143,6 +163,8 @@ export default function Documents() {
     setDocsLoading(false);
   }, []);
 
+  useEffect(() => { fetchAllDocs(); }, [fetchAllDocs]);
+
   useEffect(() => {
     if (selected) fetchDocs(selected.student_id);
   }, [selected, fetchDocs]);
@@ -152,9 +174,31 @@ export default function Documents() {
     return p?.full_name || '—';
   };
 
-  const filtered = students.filter(s => getName(s).includes(search));
-  const { paged: pagedStudents, page, totalPages, setPage, reset: resetPage, total } = usePagination(filtered, 30);
   const selectedName = selected ? getName(selected) : '';
+
+  // 矩阵：每个学生对每个必备列的状态
+  const cellFor = (docList: DocRow[], col: typeof REQUIRED_COLS[number]) => {
+    const d = (docList || []).find(x => x.doc_type === col.type);
+    if (!d) return { state: 'missing' as const, type: col.type };
+    if (col.expiry) {
+      const st = deriveStatus(d.expiry_date);
+      if (st.cls === 'p-red' || st.cls === 'p-amber') return { state: 'warn' as const, label: st.label, type: col.type };
+    }
+    return { state: 'ok' as const, type: col.type };
+  };
+  const filtered = students.filter(s => getName(s).includes(search));
+  const matrixAll = filtered.map(s => {
+    const cells = REQUIRED_COLS.map(c => cellFor(allDocs[s.student_id] || [], c));
+    const have = cells.filter(c => c.state !== 'missing').length;
+    return { s, cells, have };
+  });
+  const matrixRowsAll = onlyMissing ? matrixAll.filter(r => r.have < REQUIRED_COLS.length) : matrixAll;
+  const { paged: matrixRows, page, totalPages, setPage, reset: resetPage, total } = usePagination(matrixRowsAll, 30);
+
+  const openUploadFor = (s: Student, type: string) => {
+    setSelected(s); setUploadType(type); setUploadTitle(''); setUploadExpiry(''); setUploadFileObj(null);
+    setDrawerOpen(true); setUploadOpen(true);
+  };
 
   // 顶部凭证状态卡：从真实 docs 提取签证/保险
   const visaDoc = docs.find(d => d.doc_type === 'visa');
@@ -187,6 +231,7 @@ export default function Documents() {
       setUploadExpiry('');
       setUploadTitle('');
       fetchDocs(selected.student_id);
+      fetchAllDocs();
     } catch (err: any) {
       console.error(err);
       message.error(err.message || '上传失败');
@@ -215,6 +260,7 @@ export default function Documents() {
         if (error) { message.error('删除失败'); return; }
         message.success('已删除');
         if (selected) fetchDocs(selected.student_id);
+        fetchAllDocs();
       },
     });
   };
@@ -230,40 +276,61 @@ export default function Documents() {
   const fileName = (key: string | null) => (key ? key.split('/').pop() : '—');
 
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
-      {/* 左侧学生列表 */}
-      <div style={{ width: 220, flexShrink: 0 }}>
-        <div style={{ position: 'relative', marginBottom: 10 }}>
+    <>
+      {/* 顶部：搜索 + 只看有缺失 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative' }}>
           <IconSearch size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-          <input
-            className="search-bar"
-            style={{ width: '100%', paddingLeft: 30 }}
-            placeholder="搜索学生…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); resetPage(); }}
-          />
+          <input className="search-bar" style={{ paddingLeft: 30 }} placeholder="搜索学生…" value={search} onChange={e => { setSearch(e.target.value); resetPage(); }} />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {pagedStudents.map(s => {
-            const isActive = selected?.student_id === s.student_id;
-            return (
-              <div
-                key={s.student_id}
-                className={`subnav-item ${isActive ? 'subnav-active' : ''}`}
-                onClick={() => setSelected(s)}
-              >
-                <div style={{ fontWeight: 500, color: isActive ? 'var(--color-text-info)' : undefined }}>
-                  {getName(s)}
-                </div>
-              </div>
-            );
-          })}
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-text-secondary)' }}>
+          <input type="checkbox" checked={onlyMissing} onChange={e => { setOnlyMissing(e.target.checked); resetPage(); }} /> 只看有缺失
+        </label>
+      </div>
+
+      {/* 材料矩阵总览 */}
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table className="tbl" style={{ width: '100%', textAlign: 'left' }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 14px' }}>学生</th>
+              {REQUIRED_COLS.map(c => <th key={c.type} style={{ padding: '10px 14px', textAlign: 'center' }}>{c.label}</th>)}
+              <th style={{ padding: '10px 14px', textAlign: 'center' }}>齐全度</th>
+              <th style={{ padding: '10px 14px' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {matrixRows.map(({ s, cells, have }) => (
+              <tr key={s.student_id} style={{ borderTop: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
+                <td style={{ padding: '10px 14px', fontWeight: 500 }}>{getName(s)}</td>
+                {cells.map((cell, i) => (
+                  <td key={i} style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    {cell.state === 'ok' && <IconCircleCheck size={18} style={{ color: 'var(--color-success)', verticalAlign: 'middle' }} />}
+                    {cell.state === 'warn' && <span className="pill p-amber" style={{ fontSize: 10 }}><IconAlertTriangle size={10} style={{ verticalAlign: 'middle', marginRight: 2 }} />{(cell as any).label}</span>}
+                    {cell.state === 'missing' && <span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => openUploadFor(s, cell.type)}><IconCircleX size={15} style={{ verticalAlign: 'middle' }} /> 上传</span>}
+                  </td>
+                ))}
+                <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                  <span className={`pill ${have === REQUIRED_COLS.length ? 'p-green' : have === 0 ? 'p-red' : 'p-amber'}`}>{have}/{REQUIRED_COLS.length}</span>
+                </td>
+                <td style={{ padding: '10px 14px' }}>
+                  <span className="link" onClick={() => { setSelected(s); setDrawerOpen(true); }}>管理</span>
+                </td>
+              </tr>
+            ))}
+            {matrixRows.length === 0 && (
+              <tr><td colSpan={REQUIRED_COLS.length + 3} style={{ textAlign: 'center', padding: 30, color: 'var(--color-text-tertiary)' }}>无匹配学生</td></tr>
+            )}
+          </tbody>
+        </table>
+        <div style={{ padding: '0 14px' }}>
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={30} onPage={setPage} />
         </div>
       </div>
 
-      {/* 右侧文件详情 */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* 单人文件管理抽屉 */}
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} width={780} title={`${selectedName} — 文件管理`}>
+      <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 500 }}>{selectedName} — 文件管理</div>
@@ -352,6 +419,7 @@ export default function Documents() {
           )}
         </div>
       </div>
+      </Drawer>
 
       {/* 上传弹窗 */}
       <Modal
@@ -422,6 +490,6 @@ export default function Documents() {
           </div>
         </div>
       </Modal>
-    </div>
+    </>
   );
 }
