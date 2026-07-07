@@ -75,9 +75,11 @@ export default function StudentDetail() {
   // Open edit modal pre-filled with current student data
   const handleOpenEdit = () => {
     const prof = Array.isArray(student?.profiles) ? student?.profiles[0] : student?.profiles;
+    const enr = Array.isArray(student?.student_enrollments) ? student?.student_enrollments[0] : student?.student_enrollments;
     setEditForm({
       full_name: prof?.full_name || '',
       phone: prof?.phone || '',
+      source: enr?.source || '',
       english_name: student?.english_name || '',
       gender: student?.gender || '',
       date_of_birth: student?.date_of_birth || '',
@@ -395,6 +397,14 @@ export default function StudentDetail() {
           <div className="form-group">
             <label className="form-label">生源校</label>
             <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">来源</label>
+            <select className="input" value={editForm.source} onChange={e => setEditForm({ ...editForm, source: e.target.value })}>
+              <option value="">未设置</option>
+              <option value="green_channel">绿通</option>
+              <option value="agent">散客</option>
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">英语水平</label>

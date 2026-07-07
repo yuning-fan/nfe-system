@@ -249,12 +249,15 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         clean[k] = v === '' ? null : v;
       }
 
-      // 姓名/电话属于 profiles 表，其余属于 students_info，拆开分别写
+      // 姓名/电话属于 profiles；source(来源) 属于 student_enrollments；其余属于 students_info
       const PROFILE_KEYS = ['full_name', 'phone'];
+      const ENROLL_KEYS = ['source'];
       const profilePatch: Record<string, any> = {};
+      const enrollPatch: Record<string, any> = {};
       const infoPatch: Record<string, any> = {};
       for (const [k, v] of Object.entries(clean)) {
         if (PROFILE_KEYS.includes(k)) profilePatch[k] = v;
+        else if (ENROLL_KEYS.includes(k)) enrollPatch[k] = v;
         else infoPatch[k] = v;
       }
       // full_name 不允许清空（NOT NULL）：为空则不更新该字段
@@ -263,6 +266,15 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       if (Object.keys(profilePatch).length > 0) {
         const { error: pErr } = await supabase.from('profiles').update(profilePatch as any).eq('id', id);
         if (pErr) throw pErr;
+      }
+
+      // 来源写 student_enrollments（来源是学生级属性，更新该学生所有阶段）
+      if (enrollPatch.source != null) {
+        const { error: eErr } = await (supabase as any)
+          .from('student_enrollments')
+          .update({ source: enrollPatch.source })
+          .eq('student_id', id);
+        if (eErr) throw eErr;
       }
 
       // Upsert students_info (creates the row if it doesn't exist yet)
