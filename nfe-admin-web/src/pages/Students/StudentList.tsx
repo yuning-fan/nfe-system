@@ -59,6 +59,12 @@ const onboardingMissing = (s: any): number => {
 
 const pill = (label: string, cls: string) => <span className={`pill ${cls}`}>{label}</span>;
 
+// 最晚结束的阶段结束日（服务截止日期）
+const latestEnd = (s: any): string | null => {
+  const ends = (s.all_phases || []).map((p: any) => p.end_date).filter(Boolean) as string[];
+  return ends.length ? ends.sort().slice(-1)[0] : null;
+};
+
 export default function StudentList() {
   const navigate = useNavigate();
   const { students, programs, isLoading, error, fetchStudents, fetchPrograms, createStudent } = useStudentStore();
@@ -177,23 +183,18 @@ export default function StudentList() {
       render: (_: any, s: any) => { const r = RISK(s.risk_level); return pill(r.label, r.cls); },
     },
     {
-      title: '阶段与服务周期', key: 'phases', width: 300,
-      filters: Array.from({ length: 12 }, (_, i) => ({ text: `${i + 1}月结束`, value: i + 1 })),
-      filterSearch: true,
-      onFilter: (v, r) => (r.all_phases || []).some((p: any) => p.end_date && (new Date(p.end_date).getMonth() + 1) === v),
+      title: '服务截止日期', key: 'service_end', width: 180,
+      filters: Array.from({ length: 12 }, (_, i) => ({ text: `${i + 1}月`, value: i + 1 })),
+      onFilter: (v, r) => { const e = latestEnd(r); return !!e && (new Date(e).getMonth() + 1) === v; },
+      sorter: (a, b) => (latestEnd(a) || '').localeCompare(latestEnd(b) || ''),
       render: (_: any, s: any) => {
-        const phases = s.all_phases || [];
-        if (!phases.length) return <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>;
+        const e = latestEnd(s);
+        if (!e) return <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>;
+        const p = (s.all_phases || []).find((x: any) => x.end_date === e);
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {phases.map((p: any) => (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                {pill(p.programs?.name || '阶段', 'p-purple')}
-                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                  {p.start_date || '—'} ~ {p.end_date || '—'}
-                </span>
-              </div>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 500 }}>{e}</span>
+            {p?.programs?.name && pill(p.programs.name, 'p-purple')}
           </div>
         );
       },
