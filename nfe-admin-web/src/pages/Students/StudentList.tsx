@@ -178,6 +178,9 @@ export default function StudentList() {
     },
     {
       title: '阶段与服务周期', key: 'phases', width: 300,
+      filters: Array.from({ length: 12 }, (_, i) => ({ text: `${i + 1}月结束`, value: i + 1 })),
+      filterSearch: true,
+      onFilter: (v, r) => (r.all_phases || []).some((p: any) => p.end_date && (new Date(p.end_date).getMonth() + 1) === v),
       render: (_: any, s: any) => {
         const phases = s.all_phases || [];
         if (!phases.length) return <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>;
