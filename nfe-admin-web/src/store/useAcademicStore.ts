@@ -102,6 +102,7 @@ interface AcademicStore {
   fetchProgramsAndSubjects: () => Promise<void>;
   fetchEnrollments: () => Promise<void>;
   createEnrollment: (studentId: string, programId: number) => Promise<boolean>;
+  backfillCoreSubjects: (enrollmentId: number, programId: number) => Promise<{ ok: boolean; added: number; noCore?: boolean }>;
   addElective: (enrollmentId: number, subjectId: number) => Promise<boolean>;
   removeElective: (selectionId: number) => Promise<boolean>;
   generateTimetable: (enrollmentId: number) => Promise<boolean>;
@@ -244,6 +245,28 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
       return false;
+    }
+  },
+
+  // 给已有报名补齐必修（该项目 core 科目中尚未选的），用于导入/旧报名回填
+  backfillCoreSubjects: async (enrollmentId, programId) => {
+    try {
+      const { data: coreSubjects } = await supabase.from('program_subjects')
+        .select('id').eq('program_id', programId).eq('subject_category', 'core');
+      if (!coreSubjects || coreSubjects.length === 0) return { ok: false, added: 0, noCore: true };
+      const { data: existing } = await supabase.from('student_subject_selections')
+        .select('program_subject_id').eq('enrollment_id', enrollmentId);
+      const have = new Set((existing || []).map((e: any) => e.program_subject_id));
+      const toAdd = (coreSubjects as any[]).filter(c => !have.has(c.id))
+        .map(c => ({ enrollment_id: enrollmentId, program_subject_id: c.id, selection_type: 'core', status: 'confirmed' }));
+      if (toAdd.length === 0) return { ok: true, added: 0 };
+      const { error } = await supabase.from('student_subject_selections').insert(toAdd as any);
+      if (error) throw error;
+      await get().fetchEnrollments();
+      return { ok: true, added: toAdd.length };
+    } catch (err: any) {
+      set({ error: err.message });
+      return { ok: false, added: 0 };
     }
   },
 

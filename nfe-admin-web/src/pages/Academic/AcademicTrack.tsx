@@ -21,8 +21,15 @@ export default function AcademicTrack() {
   const { 
     enrollments, selections, timetable, programSubjects, isLoading,
     fetchProgramsAndSubjects, fetchEnrollments, fetchTimetable,
-    addElective, removeElective, generateTimetable
+    addElective, removeElective, generateTimetable, backfillCoreSubjects
   } = useAcademicStore();
+
+  const handleBackfillCore = async (enrollment: any) => {
+    const res = await backfillCoreSubjects(enrollment.id, enrollment.program_id);
+    if (res.noCore) { message.warning('该项目未配置必修(core)科目——请先到「科目底表管理」把 EAP 设为必修'); return; }
+    if (!res.ok) { message.error('补齐失败'); return; }
+    message.success(res.added > 0 ? `已补齐 ${res.added} 门必修` : '必修已齐全');
+  };
 
   useEffect(() => {
     fetchProgramsAndSubjects();
@@ -147,7 +154,13 @@ export default function AcademicTrack() {
 
                     <div className="g2">
                       <div style={{ background: 'var(--color-bg-secondary)', padding: 12, borderRadius: 8 }}>
-                        <div style={{ fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>必修课 (系统自动分配)</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontWeight: 500, color: 'var(--color-text-secondary)' }}>必修课 (系统自动分配)</span>
+                          {coreSubjects.length === 0 && (
+                            <span className="link" style={{ fontSize: 12 }} onClick={() => handleBackfillCore(enrollment)}>补齐必修</span>
+                          )}
+                        </div>
+                        {coreSubjects.length === 0 && <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>暂无必修（导入/旧报名未分配），点「补齐必修」</div>}
                         {coreSubjects.map(s => (
                           <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
                             <span>{s.program_subjects?.subject_name}</span>
