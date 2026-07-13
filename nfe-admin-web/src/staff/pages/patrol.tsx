@@ -5,6 +5,8 @@ import { supabase } from '../../lib/supabase';
 import { IconLoader2, IconSearch, IconNotebook } from '@tabler/icons-react';
 import { Section, riskPill, pill } from '../ui';
 import RollCall from '../components/RollCall';
+import { RISK_WINDOW_DAYS } from '../../lib/riskEngine';
+import { RISK_LEVEL_LABEL } from '../../lib/riskLabels';
 
 const db = supabase as any;
 
@@ -34,7 +36,7 @@ export function PatrolStudents() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const since15 = new Date(Date.now() - 15 * 86400000).toISOString();
+    const since15 = new Date(Date.now() - RISK_WINDOW_DAYS * 86400000).toISOString();
     const [{ data: infos }, { data: dorms }, { data: viols }, { data: fus }] = await Promise.all([
       db.from('students_info').select('student_id, school_name, risk_level, profiles(full_name)'),
       db.from('dorm_assignments').select('student_id, dorms(building_name, room_number)').eq('is_active', true),
@@ -90,7 +92,7 @@ export function PatrolStudents() {
     <Section title="学生基本信息" hint="只读 · 违规口径：近15天（与风险引擎同窗口）/ 总计。如需更新学生信息请联系学管老师。">
       {/* 筛选行 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        {([['all', '全部'], ['red', '🔴 红色'], ['yellow', '🟡 黄色'], ['green', '🟢 正常'], ['pending', `有待跟进 ${pendingTotal ? `(${pendingTotal})` : ''}`]] as [string, string][]).map(([v, l]) => (
+        {([['all', '全部'], ['red', RISK_LEVEL_LABEL.red], ['yellow', RISK_LEVEL_LABEL.yellow], ['green', RISK_LEVEL_LABEL.green], ['pending', `有待跟进 ${pendingTotal ? `(${pendingTotal})` : ''}`]] as [string, string][]).map(([v, l]) => (
           <button key={v} className={`btn ${fRisk === v ? 'btn-primary' : ''}`}
             style={{ padding: '3px 12px', minHeight: 0, fontSize: 12 }} onClick={() => setFRisk(v)}>
             {l}

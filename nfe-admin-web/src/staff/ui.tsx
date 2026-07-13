@@ -1,5 +1,6 @@
 // 员工端静态壳通用小组件
 import type { ReactNode } from 'react';
+import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS } from '../lib/riskLabels';
 
 export function Section({ title, action, hint, children }: { title: string; action?: ReactNode; hint?: string; children?: ReactNode }) {
   return (
@@ -31,11 +32,9 @@ export function Table({ cols, rows }: { cols: string[]; rows: ReactNode[][] }) {
   );
 }
 
-export const riskPill = (level: 'red' | 'yellow' | 'green') => {
-  const map = { red: ['p-red', '🔴 红色'], yellow: ['p-amber', '🟡 黄色'], green: ['p-green', '🟢 正常'] } as const;
-  const [cls, label] = map[level];
-  return <span className={`pill ${cls}`}>{label}</span>;
-};
+export const riskPill = (level: 'red' | 'yellow' | 'green') => (
+  <span className={`pill ${RISK_LEVEL_PILL_CLASS[level]}`}>{RISK_LEVEL_LABEL[level]}</span>
+);
 
 export const pill = (cls: string, label: string) => <span className={`pill ${cls}`}>{label}</span>;
 

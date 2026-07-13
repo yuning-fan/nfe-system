@@ -91,6 +91,7 @@ export const useRiskStore = create<RiskStore>((set, get) => ({
       const user = useAuthStore.getState().user;
       if (!user) throw new Error('Not authenticated');
 
+      // TODO(二期): 同步写 warning_letter_violations 关联，使警告信可追溯到具体违规（表已建，学生档案侧已有读取）
       const { error } = await supabase
         .from('warning_letters')
         .insert({

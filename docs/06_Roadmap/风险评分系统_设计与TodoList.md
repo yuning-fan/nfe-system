@@ -1,8 +1,12 @@
 # 风险评分系统 · 设计口径与实现 TodoList
 
-> **创建日期**：2026-06-23
+> **创建日期**：2026-06-23 · **状态核对**：2026-07-12
 > **目标**：把风险预警从「全员绿 100、纯手动」做到「客观指标自动算分 + 自动升降级 + 人工覆盖」可跑起来的程度。
 > **依据**：《NFE_系统方案说明书_v2_0.docx》3.8 风险评分系统、《课后定向培养与自习室管理规定》、名校/绿通合约、staff 工作台原型。
+>
+> **2026-07-12 盘点结论**：专项完成度约 75–80%，核心链路（录入→即时算分→自动升降级→明细透明）已可跑。
+> 超出本档范围的已完成项：预警亮红灯双红线体系（Phase 20）、扣分/阈值全量配置化（Phase 21，`risk_config` 表 + 系统配置页）。
+> 剩余未做：等级变更通知推送、学生档案风险折线图、`warning_letter_violations` 联动写入（详见各 Step 标注）。
 
 ---
 
@@ -104,7 +108,7 @@
 - [x] 新建违规登记页/弹窗：选学生 + 类型（缺席自习/手机使用/晚归/睡觉/闲聊/严重违纪/其他）+ 原因 + 扣分（按类型预设默认值）+ reporter_id。（`pages/Risk/ViolationLog.tsx`，路由 `/violations`，侧栏「违规记录」）
 - [x] 近期违规列表 + 状态流转（待存档→已存档）+ 搜索/状态筛选/分页。
 - [x] 「申请警告信」按钮接现有三步走（复用 `WarningLetterModal` + `useRiskStore.issueWarning`）。
-- 备注：违规与警告信的 `warning_letter_violations` 关联表暂未联动写入（可后续补，使风险扣分追溯到具体违规）。
+- 备注：违规与警告信的 `warning_letter_violations` 关联表暂未联动写入（可后续补，使风险扣分追溯到具体违规）。**2026-07-12 核对：仍未联动**——`useRiskStore.issueWarning` 只写 `warning_letters`；学生档案侧已有该关联表的读取（`useStudentStore`），补写入即可闭环。已在代码中加 TODO 标注。
 
 ### Step 2 · 晚自习点名 + 早上出勤（产出缺勤数据）
 - [x] 通用点名组件 `src/staff/components/RollCall.tsx`，传 `check_type`（night_study / morning / tutoring）复用。2026-06-24
@@ -114,20 +118,20 @@
 - [x] **巡查 · 晚自习点名**已接真功能（`staff/pages/patrol.tsx` PatrolRollcall → `<RollCall checkType="night_study">`，应到=全体在读）。
 - [x] **生活 · 早上出勤**已接真功能（`staff/pages/life.tsx` LifeMorning → `<RollCall checkType="morning" scope="today_school">`，应到=今日有课学生，按 `school_timetable` day_of_week 1=周一..7=周日 + 生效区间取名单）。2026-06-24
 - [x] RollCall 加 `scope`('all' | 'today_school') 名单范围开关；点名记录支持当天覆盖、历史展开改状态/删单条/删当天，改删均即时重算。
-- [ ] 辅导 · 上课记录缺勤（tutoring）——待接。
+- [x] 辅导 · 上课记录缺勤——**已改道完成**（2026-06-26 Phase 19）：不走 `daily_checks(check_type='tutoring')`，改由销课时的 `schedules.status='absent'` 直接计分（撤销重销即自动消分，避免双写）。引擎侧见 `riskEngine.ts` 1b) 辅导课缺勤；`tutoring` 枚举保留但引擎跳过该类型。§3.5 表中「落表 daily_checks type=tutoring」口径随之作废。
 
 ### Step 3 · 风险自动算分引擎（核心）✅ 引擎已建 2026-06-24
 - [x] 算分引擎 `src/lib/riskEngine.ts`（前端、录入即时触发）：按 §2 口径，15 天窗口统计 `daily_checks`(absent，分 night_study/morning/tutoring/dorm_check) / `violation_logs`(扣分汇总) / 警告信累计 / 证件临期 / 欠费 / 成绩低于阈值 → 算 `total_risk_score` → 映射等级（≥85 绿 / 60-84 黄 / <60 红）→ 硬触发（连续缺勤≥3天 / 第3封警告 / 证件≤7天）直接红。
 - [x] 等级变化写 `log_risk_changes`（trigger_type=`system_auto`）。
 - [x] 接通现有录入：违规登记保存/存档（`ViolationLog`）、查寝/点名提交（`useDailyCheckStore`）、警告信审批（`useRiskStore.approveWarning` 改为交引擎重算）后即时调用 `recomputeRisk`。
 - [x] 迁移 `20260624120000_check_type_tutoring.sql`：`check_type` 加 `tutoring`。
-- [ ] **需执行**：把上述迁移 push 到云端 DB；首次跑一次 `recomputeAll()` 用现有数据初始化全员分数。
-- [ ] 等级变更触发通知（驾驶舱置顶 + 推送）——待接。
-- [ ] 风险页展示自动分项明细（哪几项扣了多少分），保留人工覆盖入口——`riskEngine` 已返回 breakdown，待接 UI。
+- [ ] **待云端确认**（2026-07-12）：迁移是否已 push 云端、首次 `recomputeAll()` 是否跑过，本地无法核实，需登 Supabase 控制台查（`check_type` 枚举含 tutoring？`risk_config` 有种子数据？全员分数非全 100？）。风险页已有「一键重算全员」按钮可随时补跑。
+- [ ] 等级变更触发通知（驾驶舱置顶 + 推送）——**仍未做**（2026-07-12 核对）：`notifications` 等三张表已建，前端零接入；等级变更目前仅写 `log_risk_changes` 并显示在风险页「近期等级变更记录」。已在代码中加 TODO 标注。
+- [x] 风险页展示自动分项明细——**已完成**：风险页「扣分明细查询」卡片，任选学生（含绿色）展示逐项扣分表格 + 硬触发 + 信息性备注（`RiskAlerts.tsx`）。人工覆盖入口保留。
 
 ### Step 4 · 收尾
-- [ ] 阈值/扣分接入系统配置页（可调）。
-- [ ] 学生档案风险等级旁近三个月折线（企划 3.8）。
+- [x] 阈值/扣分接入系统配置页（可调）——**已完成**（2026-06-26 Phase 21）：`risk_config` 表全量种子（扣分项/阈值红线两类），`riskEngine.loadConfig()` 优先读配置、读不到回落代码默认；配置页 `pages/Settings/SystemSettings.tsx` 可编辑并一键按新口径重算全员。
+- [ ] 学生档案风险等级旁近三个月折线（企划 3.8）——**未做**（2026-07-12 核对）：`log_risk_changes` 已有时间序列数据，缺可视化组件。已在代码中加 TODO 标注。
 - [ ] 主观指标录入（二期）。
 
 ---

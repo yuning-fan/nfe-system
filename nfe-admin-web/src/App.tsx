@@ -23,6 +23,8 @@ import StaffHome from './staff/StaffHome';
 import StaffSubPage from './staff/StaffSubPage';
 import RequireAuth from './components/RequireAuth';
 import { useAuthStore } from './store/useAuthStore';
+import { setRecomputeFailureHandler } from './lib/riskEngine';
+import { message } from 'antd';
 
 export default function App() {
   const { initialize } = useAuthStore();
@@ -30,6 +32,18 @@ export default function App() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // 风险分重算失败时提示用户（10s 节流，批量重算失败只提示一次）
+  useEffect(() => {
+    let lastWarnAt = 0;
+    setRecomputeFailureHandler(() => {
+      const now = Date.now();
+      if (now - lastWarnAt < 10000) return;
+      lastWarnAt = now;
+      message.warning('风险分自动重算失败，本次录入已保存；请稍后到「风险预警」页一键重算全员');
+    });
+    return () => setRecomputeFailureHandler(null);
+  }, []);
 
   return (
     <Routes>

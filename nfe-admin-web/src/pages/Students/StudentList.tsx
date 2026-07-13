@@ -6,11 +6,12 @@ import { IconPlus, IconLoader2, IconAlertTriangle, IconSearch } from '@tabler/ic
 import { useStudentStore } from '../../store/useStudentStore';
 import { FEE_TYPE_LABELS, FEE_TYPES, type FeeType } from '../../store/useFeeStore';
 import { derivePhaseStatus } from '../../lib/phaseStatus';
+import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS, normalizeRiskLevel } from '../../lib/riskLabels';
 
-const RISK = (r: string) =>
-  r === 'red' ? { label: '🔴 干预', cls: 'p-red' }
-  : r === 'yellow' ? { label: '🟡 关注', cls: 'p-amber' }
-  : { label: '🟢 正常', cls: 'p-green' };
+const RISK = (r: string) => {
+  const level = normalizeRiskLevel(r);
+  return { label: RISK_LEVEL_LABEL[level], cls: RISK_LEVEL_PILL_CLASS[level] };
+};
 
 const avatarColor = (idStr: string) => {
   const colors = ['av-blue', 'av-pink', 'av-teal', 'av-green', 'av-amber', 'av-purple'];

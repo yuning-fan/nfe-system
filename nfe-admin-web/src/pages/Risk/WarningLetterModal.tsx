@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { IconX, IconAlertTriangle, IconLoader2, IconRefresh } from '@tabler/icons-react';
 import { message } from 'antd';
 import { supabase } from '../../lib/supabase';
+import { RISK_WINDOW_DAYS, ATTEND_LABEL } from '../../lib/riskEngine';
 
 const db = supabase as any;
 
-// 拉该生近 15 天违规 + 缺勤，拼成佐证文本
+// 拉该生近 N 天（与风险引擎同窗口）违规 + 缺勤，拼成佐证文本
 async function buildEvidence(studentId: string): Promise<string> {
-  const since = new Date(Date.now() - 15 * 86400000).toISOString();
+  const since = new Date(Date.now() - RISK_WINDOW_DAYS * 86400000).toISOString();
   const lines: string[] = [];
   const { data: vios } = await db.from('violation_logs')
     .select('violation_type, reason, created_at').eq('student_id', studentId).neq('status', 'archived').gte('created_at', since).order('created_at', { ascending: false });
@@ -16,10 +17,9 @@ async function buildEvidence(studentId: string): Promise<string> {
   }
   const { data: checks } = await db.from('daily_checks')
     .select('check_type, status, created_at').eq('student_id', studentId).eq('status', 'absent').gte('created_at', since);
-  const label: Record<string, string> = { night_study: '晚自习缺勤', morning: '学校上课缺勤', tutoring: '辅导课缺勤', dorm_check: '查寝异常' };
   const cnt: Record<string, number> = {};
   for (const c of (checks || []) as any[]) cnt[c.check_type] = (cnt[c.check_type] || 0) + 1;
-  for (const [t, n] of Object.entries(cnt)) lines.push(`· 近15天${label[t] || t} ${n} 次`);
+  for (const [t, n] of Object.entries(cnt)) lines.push(`· 近${RISK_WINDOW_DAYS}天${ATTEND_LABEL[t] || t} ${n} 次`);
   return lines.length ? `近期记录（自动汇总，可修改）：\n${lines.join('\n')}` : '';
 }
 

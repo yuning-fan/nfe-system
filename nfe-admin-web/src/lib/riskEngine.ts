@@ -2,11 +2,9 @@
 // 设计：100 分制、扣分制、15 天滚动窗口。任何角色录入后调用 recomputeRisk(studentId) 即时重算。
 import { supabase } from './supabase';
 
-const db = supabase as any;
-
 export const RISK_WINDOW_DAYS = 15;
 
-// 扣分常量（一期写死，二期接系统配置页）
+// 扣分默认值（实际以 risk_config 表为准，见 loadConfig；读不到配置时回落这里）
 export const DEDUCT = {
   attendanceAbsent: 8, // 每次缺勤（晚自习/学校上课/辅导课，无医证或未留痕请假）
   gradeBelow: 6,       // 成绩低于阈值每科
@@ -20,7 +18,7 @@ export const DEDUCT = {
 export const GRADE_THRESHOLD = 60; // 成绩低于此分计为“低于阈值”
 
 // 出勤类型 → 中文标签（daily_checks.check_type）
-const ATTEND_LABEL: Record<string, string> = {
+export const ATTEND_LABEL: Record<string, string> = {
   night_study: '晚自习缺勤',
   morning: '学校上课缺勤',
   tutoring: '辅导课缺勤',
@@ -28,6 +26,14 @@ const ATTEND_LABEL: Record<string, string> = {
 };
 
 export type RiskLevel = 'green' | 'yellow' | 'red';
+
+// 重算失败通知回调——由 App 入口注册（lib 层不直接依赖 UI 组件），
+// 保证点名/违规提交成功但算分失败时用户能收到提示，而非静默失败。
+type RecomputeFailureHandler = (studentId: string, error: unknown) => void;
+let recomputeFailureHandler: RecomputeFailureHandler | null = null;
+export function setRecomputeFailureHandler(handler: RecomputeFailureHandler | null) {
+  recomputeFailureHandler = handler;
+}
 
 export interface RiskBreakdownItem {
   label: string;
@@ -54,9 +60,12 @@ const daysUntil = (dateStr: string) =>
 async function loadConfig(): Promise<(key: string, fallback: number) => number> {
   let map: Record<string, number> = {};
   try {
-    const { data } = await db.from('risk_config').select('key, value');
-    for (const r of (data || []) as any[]) map[r.key] = Number(r.value);
-  } catch { /* 回落默认 */ }
+    const { data } = await supabase.from('risk_config').select('key, value');
+    for (const r of (data || [])) map[r.key] = Number(r.value);
+  } catch (e) {
+    // 有意容错：配置读不到时按代码默认参数算分，但留痕避免与配置页静默不一致
+    console.warn('risk_config 读取失败，本次按代码默认参数算分', e);
+  }
   return (key: string, fallback: number) => (map[key] != null ? map[key] : fallback);
 }
 
@@ -87,7 +96,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   };
 
   // 1) 出勤缺勤（daily_checks，按 check_type 分类）
-  const { data: checks } = await db
+  const { data: checks } = await supabase
     .from('daily_checks')
     .select('check_type, status, created_at')
     .eq('student_id', studentId)
@@ -95,7 +104,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     .gte('created_at', since);
   const absentByType: Record<string, number> = {};
   const morningAbsentDates: string[] = [];
-  for (const c of (checks || []) as any[]) {
+  for (const c of (checks || [])) {
     if (c.check_type === 'tutoring') continue; // 辅导课缺勤改由 schedules 状态统计（见下），避免双写
     absentByType[c.check_type] = (absentByType[c.check_type] || 0) + 1;
     if (c.check_type === 'morning' && c.created_at) {
@@ -111,7 +120,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   }
 
   // 1b) 辅导课缺勤：直接读 schedules.status='absent'（销课时记的，撤销即消失）
-  const { data: tutAbsent } = await db
+  const { data: tutAbsent } = await supabase
     .from('schedules')
     .select('id')
     .eq('student_id', studentId)
@@ -123,24 +132,24 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   }
 
   // 2) 违规（violation_logs，未存档计入）
-  const { data: violations } = await db
+  const { data: violations } = await supabase
     .from('violation_logs')
     .select('violation_type, deduction_points, status, created_at')
     .eq('student_id', studentId)
     .neq('status', 'archived')
     .gte('created_at', since);
-  const vSum = ((violations || []) as any[]).reduce((s, v) => s + (v.deduction_points || 0), 0);
+  const vSum = (violations || []).reduce((s, v) => s + (v.deduction_points || 0), 0);
   if (vSum > 0) {
     breakdown.push({ label: '违规登记', points: vSum, detail: `${(violations || []).length} 条` });
   }
 
   // 3) 警告信：区分内部三步走 与 学校信
-  const { data: allLetters } = await db
+  const { data: allLetters } = await supabase
     .from('warning_letters')
     .select('warning_level, status, source')
     .eq('student_id', studentId);
-  const internalCount = ((allLetters || []) as any[]).filter(l => l.source !== 'school' && ['issued', 'signed_onsite'].includes(l.status)).length;
-  const schoolCount = ((allLetters || []) as any[]).filter(l => l.source === 'school' && l.status !== 'rejected').length;
+  const internalCount = (allLetters || []).filter(l => l.source !== 'school' && l.status != null && ['issued', 'signed_onsite'].includes(l.status)).length;
+  const schoolCount = (allLetters || []).filter(l => l.source === 'school' && l.status !== 'rejected').length;
   if (internalCount >= C.internalRedCnt) {
     hardTriggers.push(`内部警告信累计 ≥ ${C.internalRedCnt} 封（严重违约）`);
   } else if (internalCount === 2) {
@@ -154,13 +163,13 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   }
 
   // 4) 证件临期（取最紧迫一项）
-  const { data: docs } = await db
+  const { data: docs } = await supabase
     .from('student_documents')
     .select('expiry_date')
     .eq('student_id', studentId)
     .not('expiry_date', 'is', null);
   let minDays = Infinity;
-  for (const d of (docs || []) as any[]) {
+  for (const d of (docs || [])) {
     if (d.expiry_date) minDays = Math.min(minDays, daysUntil(d.expiry_date));
   }
   if (minDays <= C.docRedDays) {
@@ -173,7 +182,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   }
 
   // 5) 欠费（存在未缴即扣）
-  const { data: fees } = await db
+  const { data: fees } = await supabase
     .from('student_fees')
     .select('id, is_paid')
     .eq('student_id', studentId)
@@ -183,7 +192,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   }
 
   // 6) 成绩低于阈值（窗口内）
-  const { data: grades } = await db
+  const { data: grades } = await supabase
     .from('grade_records')
     .select('score, recorded_at')
     .eq('student_id', studentId)
@@ -195,7 +204,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
 
   // 7) 官方出勤率（巡查周一录入）—— 双红线：合约 95% / 学校 93%
   let attendanceYellow = false;
-  const { data: info } = await db
+  const { data: info } = await supabase
     .from('students_info')
     .select('school_attendance_rate')
     .eq('student_id', studentId)
@@ -208,12 +217,12 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
 
   // 8) 屡教不改：出勤反复跌破合约线次数 + 劝说次数（信息性，不扣分）
   const notes: string[] = [];
-  const { data: persuasions } = await db
+  const { data: persuasions } = await supabase
     .from('attendance_persuasions')
     .select('rate, note, created_at')
     .eq('student_id', studentId)
     .order('created_at', { ascending: false });
-  const plist = (persuasions || []) as any[];
+  const plist = persuasions || [];
   const dipCount = plist.filter(p => p.rate != null && Number(p.rate) < C.contractLine).length;
   const adviceCount = plist.filter(p => p.note && String(p.note).trim()).length;
   if (dipCount >= 2) notes.push(`出勤率反复跌破 ${C.contractLine}%：${dipCount} 次（屡教不改）`);
@@ -238,20 +247,21 @@ export async function recomputeRisk(studentId: string, operatorId?: string | nul
   try {
     const result = await computeRisk(studentId);
 
-    const { data: cur } = await db
+    const { data: cur } = await supabase
       .from('students_info')
       .select('risk_level, total_risk_score')
       .eq('student_id', studentId)
       .single();
     const oldLevel: RiskLevel = (cur?.risk_level as RiskLevel) || 'green';
 
-    await db
+    await supabase
       .from('students_info')
       .update({ risk_level: result.level, total_risk_score: result.score })
       .eq('student_id', studentId);
 
     if (oldLevel !== result.level) {
-      await db.from('log_risk_changes').insert({
+      // TODO(二期): 等级变更触发通知推送——绿→黄推学管+生活、黄→红推管理员并驾驶舱置顶（notifications 三表已建，前端未接）
+      await supabase.from('log_risk_changes').insert({
         student_id: studentId,
         old_level: oldLevel,
         new_level: result.level,
@@ -265,14 +275,15 @@ export async function recomputeRisk(studentId: string, operatorId?: string | nul
     return result;
   } catch (e) {
     console.error('recomputeRisk failed', e);
+    recomputeFailureHandler?.(studentId, e);
     return null;
   }
 }
 
 // 批量重算（全校 / 定时兜底用）
 export async function recomputeAll(): Promise<void> {
-  const { data } = await db.from('students_info').select('student_id');
-  for (const s of (data || []) as any[]) {
+  const { data } = await supabase.from('students_info').select('student_id');
+  for (const s of (data || [])) {
     await recomputeRisk(s.student_id);
   }
 }

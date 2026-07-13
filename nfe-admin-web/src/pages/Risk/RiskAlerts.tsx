@@ -9,6 +9,7 @@ import { message, Modal, Select } from 'antd';
 import type { StudentInfo } from '../../types/database';
 import { useRiskStore } from '../../store/useRiskStore';
 import { recomputeAll, computeRisk, type RiskBreakdownItem, type RiskLevel } from '../../lib/riskEngine';
+import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS } from '../../lib/riskLabels';
 import WarningLetterModal from './WarningLetterModal';
 
 type RiskStudent = StudentInfo & {
@@ -248,9 +249,7 @@ export default function RiskAlerts() {
           {bd && !bdLoading && (
             <span style={{ fontSize: 13 }}>
               当前 <b>{bd.score}</b> 分 ·{' '}
-              <span className={`pill ${bd.level === 'red' ? 'p-red' : bd.level === 'yellow' ? 'p-amber' : 'p-green'}`}>
-                {bd.level === 'red' ? '红' : bd.level === 'yellow' ? '黄' : '绿'}
-              </span>
+              <span className={`pill ${RISK_LEVEL_PILL_CLASS[bd.level]}`}>{RISK_LEVEL_LABEL[bd.level]}</span>
             </span>
           )}
         </div>

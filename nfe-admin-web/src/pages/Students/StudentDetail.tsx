@@ -8,6 +8,7 @@ import GradebookCard from './GradebookCard';
 import FollowUpTimelineCard from './FollowUpTimelineCard';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
+import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS, normalizeRiskLevel } from '../../lib/riskLabels';
 import DcgPanel from './DcgPanel';
 import PhaseFeePanel from './PhaseFeePanel';
 import { derivePhaseStatus } from '../../lib/phaseStatus';
@@ -292,12 +293,8 @@ export default function StudentDetail() {
 
   // Helper mappings
   const getRiskLabel = (risk: string) => {
-    switch (risk) {
-      case 'green': return { label: '🟢 正常', className: 'p-green' };
-      case 'yellow': return { label: '🟡 关注', className: 'p-amber' };
-      case 'red': return { label: '🔴 干预', className: 'p-red' };
-      default: return { label: '🟢 正常', className: 'p-green' };
-    }
+    const level = normalizeRiskLevel(risk);
+    return { label: RISK_LEVEL_LABEL[level], className: RISK_LEVEL_PILL_CLASS[level] };
   };
 
   const getAvatarColor = (idStr: string) => {
@@ -664,6 +661,7 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">签证到期日</span><span className="field-v" style={visaDoc?.expiry_date && new Date(visaDoc.expiry_date).getTime() - Date.now() < 90 * 86400000 ? { color: '#A32D2D', fontWeight: 500 } : {}}>{visaDoc?.expiry_date || '—'}</span></div>
                 <div className="field"><span className="field-k">保险状态</span><span className="field-v">{insuranceDoc ? (insuranceDoc.status === 'valid' ? '有效' : insuranceDoc.status) : '—'}</span></div>
                 <div className="field"><span className="field-k">保险到期日</span><span className="field-v">{insuranceDoc?.expiry_date || '—'}</span></div>
+                {/* TODO(二期): 风险等级旁加近三个月折线（企划 3.8，数据源 log_risk_changes 时间序列） */}
                 <div className="field"><span className="field-k">风险等级</span><span className="field-v"><span className={`pill ${riskInfo.className}`}>{riskInfo.label}</span></span></div>
                 <div className="field"><span className="field-k">风险积分</span><span className="field-v">{student.total_risk_score} 分</span></div>
               </div>
