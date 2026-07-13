@@ -2,7 +2,7 @@
 // 逐人标记 在场/缺席/请假 + 备注，提交写 daily_checks；缺席由算分引擎自动扣分。
 import { useEffect, useState, useCallback, Fragment } from 'react';
 import { supabase } from '../../lib/supabase';
-import { useDailyCheckStore } from '../../store/useDailyCheckStore';
+import { useDailyCheckStore, type DailyCheckType } from '../../store/useDailyCheckStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { recomputeRisk } from '../../lib/riskEngine';
 import { message, Modal } from 'antd';
@@ -19,7 +19,7 @@ const ST_LABEL: Record<St, string> = { present: '在场', absent: '缺席', leav
 const ST_CLS: Record<St, string> = { present: 'p-green', absent: 'p-red', leave: 'p-amber' };
 
 // scope: 'all' = 全体在读（晚自习）；'today_school' = 今日有课的学生（早上出勤，按 school_timetable）
-export default function RollCall({ checkType, title, hint, scope = 'all' }: { checkType: string; title: string; hint?: string; scope?: 'all' | 'today_school' }) {
+export default function RollCall({ checkType, title, hint, scope = 'all' }: { checkType: DailyCheckType; title: string; hint?: string; scope?: 'all' | 'today_school' }) {
   const submit = useDailyCheckStore(s => s.submitDailyChecks);
   const saving = useDailyCheckStore(s => s.isLoading);
 

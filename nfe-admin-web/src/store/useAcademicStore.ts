@@ -126,7 +126,7 @@ interface AcademicStore {
   // 课时池（按课型 1对1/班科）
   hourPools: { id: number; student_id: string; course_type: string; total_hours: number; full_name?: string }[];
   fetchHourPools: () => Promise<void>;
-  topUpPool: (studentId: string, courseType: string, hours: number) => Promise<boolean>;
+  topUpPool: (studentId: string, courseType: 'one_on_one' | 'group_class', hours: number) => Promise<boolean>;
 
   // Grade Records Management
   gradeRecords: GradeRecord[];
@@ -157,8 +157,8 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
         supabase.from('program_subjects').select('*')
       ]);
       set({
-        programs: programsRes.data as any || [],
-        programSubjects: subjectsRes.data as any || [],
+        programs: programsRes.data || [],
+        programSubjects: (subjectsRes.data || []) as unknown as ProgramSubject[], // 本地接口比 DB 行窄（program_id 等非空），定点收窄
         isLoading: false
       });
     } catch (err: any) {
@@ -231,13 +231,13 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
 
       // 3. Insert core subjects
       if (coreSubjects && coreSubjects.length > 0) {
-        const selections = coreSubjects.map((subj: any) => ({
+        const selections = coreSubjects.map(subj => ({
           enrollment_id: enrollment.id,
           program_subject_id: subj.id,
-          selection_type: 'core',
-          status: 'confirmed'
+          selection_type: 'core' as const,
+          status: 'confirmed' as const,
         }));
-        await supabase.from('student_subject_selections').insert(selections as any);
+        await supabase.from('student_subject_selections').insert(selections);
       }
 
       await get().fetchEnrollments();
@@ -257,10 +257,10 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       const { data: existing } = await supabase.from('student_subject_selections')
         .select('program_subject_id').eq('enrollment_id', enrollmentId);
       const have = new Set((existing || []).map((e: any) => e.program_subject_id));
-      const toAdd = (coreSubjects as any[]).filter(c => !have.has(c.id))
-        .map(c => ({ enrollment_id: enrollmentId, program_subject_id: c.id, selection_type: 'core', status: 'confirmed' }));
+      const toAdd = coreSubjects.filter(c => !have.has(c.id))
+        .map(c => ({ enrollment_id: enrollmentId, program_subject_id: c.id, selection_type: 'core' as const, status: 'confirmed' as const }));
       if (toAdd.length === 0) return { ok: true, added: 0 };
-      const { error } = await supabase.from('student_subject_selections').insert(toAdd as any);
+      const { error } = await supabase.from('student_subject_selections').insert(toAdd);
       if (error) throw error;
       await get().fetchEnrollments();
       return { ok: true, added: toAdd.length };
@@ -413,7 +413,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   updateMilestone: async (id, payload) => {
     set({ isLoading: true });
     try {
-      const { error } = await (supabase as any).from('academic_milestones').update(payload).eq('id', id);
+      const { error } = await supabase.from('academic_milestones').update(payload as any).eq('id', id) // payload 为动态字段集，定点收窄;
       if (error) throw error;
       await get().fetchMilestones();
       return true;
@@ -478,7 +478,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   fetchCourses: async () => {
     try {
       const { data } = await supabase.from('courses').select('*');
-      set({ courses: data as any || [] });
+      set({ courses: data || [] });
     } catch (e) {
       console.error(e);
     }
@@ -486,8 +486,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
 
   fetchHourPools: async () => {
     try {
-      const db = supabase as any;
-      const { data } = await db
+      const { data } = await supabase
         .from('student_hour_pools')
         .select('*, profiles(full_name)');
       const formatted = (data || []).map((p: any) => ({
@@ -503,15 +502,14 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   topUpPool: async (studentId, courseType, hours) => {
     set({ isLoading: true });
     try {
-      const db = supabase as any;
-      const { data: existing } = await db.from('student_hour_pools').select('*')
-        .eq('student_id', studentId).eq('course_type', courseType).single();
+      const { data: existing } = await supabase.from('student_hour_pools').select('*')
+        .eq('student_id', studentId).eq('course_type', courseType).maybeSingle();
       if (existing) {
-        const { error } = await db.from('student_hour_pools')
+        const { error } = await supabase.from('student_hour_pools')
           .update({ total_hours: Number(existing.total_hours) + Number(hours) }).eq('id', existing.id);
         if (error) throw error;
       } else {
-        const { error } = await db.from('student_hour_pools')
+        const { error } = await supabase.from('student_hour_pools')
           .insert({ student_id: studentId, course_type: courseType, total_hours: Number(hours) });
         if (error) throw error;
       }
@@ -569,7 +567,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { error } = await (supabase as any).from('grade_records').update(payload).eq('id', id);
+      const { error } = await supabase.from('grade_records').update(payload as any).eq('id', id) // payload 为动态字段集，定点收窄;
       if (error) throw error;
       if (payload.student_id) await recomputeRisk(payload.student_id as string, user?.id ?? null);
       await get().fetchGradeRecords();
@@ -584,7 +582,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { error } = await (supabase as any).from('grade_records').delete().eq('id', id);
+      const { error } = await supabase.from('grade_records').delete().eq('id', id);
       if (error) throw error;
       if (studentId) await recomputeRisk(studentId, user?.id ?? null);
       await get().fetchGradeRecords();

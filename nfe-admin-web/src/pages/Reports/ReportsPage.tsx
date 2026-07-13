@@ -3,9 +3,9 @@ import { useReportStore } from '../../store/useReportStore';
 import type { ReportRecord } from '../../store/useReportStore';
 import { IconReport, IconPencil, IconEye, IconTrash, IconFileDownload } from '@tabler/icons-react';
 import { Modal, Select, message } from 'antd';
-import { supabase } from '../../lib/supabase';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
+import StudentSelect from '../../components/common/StudentSelect';
 import { ReportEditor, ReportPreview } from './ReportEditor';
 import { exportReportDoc } from '../../lib/reportExport';
 
@@ -30,17 +30,12 @@ export default function ReportsPage() {
   const [genStart, setGenStart] = useState(dp.start);
   const [genEnd, setGenEnd] = useState(dp.end);
   const [genStudent, setGenStudent] = useState<string | undefined>(); // undefined = 全体
-  const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
   const [generating, setGenerating] = useState(false);
 
   const [editing, setEditing] = useState<ReportRecord | null>(null);
   const [previewing, setPreviewing] = useState<ReportRecord | null>(null);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
-  useEffect(() => {
-    (supabase as any).from('profiles').select('id, full_name').eq('role', 'student').order('full_name')
-      .then(({ data }: any) => setStudents(data || []));
-  }, []);
 
   const fmt = (s: string | null) => s ? `${s.slice(5, 7)}-${s.slice(8, 10)}` : '-';
   const period = (r: ReportRecord) => (r.period_start && r.period_end) ? `${fmt(r.period_start)} 至 ${fmt(r.period_end)}` : '—';
@@ -176,9 +171,8 @@ export default function ReportsPage() {
           </div>
           <div>
             <label className="form-label">学生</label>
-            <Select allowClear showSearch style={{ width: '100%' }} value={genStudent} onChange={setGenStudent}
-              placeholder="默认全体在读学生（可选单个）" optionFilterProp="label"
-              options={students.map(s => ({ label: s.full_name, value: s.id }))} />
+            <StudentSelect allowClear style={{ width: '100%' }} value={genStudent} onChange={setGenStudent}
+              placeholder="默认全体在读学生（可选单个）" />
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}><label className="form-label">周期开始</label><input type="date" className="input" style={{ width: '100%' }} value={genStart} onChange={e => setGenStart(e.target.value)} /></div>

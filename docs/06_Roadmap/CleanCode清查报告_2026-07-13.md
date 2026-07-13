@@ -53,6 +53,16 @@ store 层 throw / return false / 仅 console.error 三种并存。**最重要**�
 
 1. **V3-①** recomputeRisk 失败提示 —— ✅ 已完成（2026-07-13）：riskEngine 加 `setRecomputeFailureHandler` 注册点（lib 层不依赖 UI），App.tsx 注册带 10s 节流的 `message.warning`，单点覆盖全部 16 个调用点；`loadConfig` 失败补 `console.warn` 留痕。
 2. **V4** riskLabels 常量 + RISK_WINDOW_DAYS —— ✅ 已完成（2026-07-13）：新建 `lib/riskLabels.ts`（LABEL/PILL_CLASS/normalize），替换 StudentList/StudentDetail/staff-ui/patrol/RiskAlerts 五处映射，统一措辞为「🔴 干预 / 🟡 关注 / 🟢 正常」（staff 侧原「红色/黄色」随之变更）；两处 `15 * 86400000` 改 import `RISK_WINDOW_DAYS`；`ATTEND_LABEL` 从 riskEngine 导出，WarningLetterModal 复用。区块标题类文案（「重点干预」小节头等）系上下文文案，不纳入映射，保留。
-3. **V1** StudentSelect 共享组件 + 逐目录替换（半天，消重最大头）
-4. **V2/V3-②** store 层去 as any + 错误模式统一，每次一个 store（细水长流，穿插在功能开发间隙）
-5. StudentDetail 拆分：**不排期**，等下次要在该页加新卡片时顺势按四段式拆。
+3. **V1** StudentSelect 共享组件 —— ✅ 已完成（2026-07-13）：新建 `components/common/StudentSelect.tsx`（`useStudentRoster` 名单 hook：模块级缓存 + 挂载后台刷新；`StudentSelect` 组件：showSearch/optionFilterProp 预置，`options` 可覆盖）。已替换 12 处：
+   - 全员名单直连（自查询删除）：ViolationLog、followUps（×2 + 批量名单）、schoolWarnings、tutorFeedback、ResourcesPage、RiskAlerts、ReportsPage。
+   - 业务口径名单（保留本地查询，仅统一选择器）：warningLetterGen（附出勤率标签）、CourseHours/GradeRecords（store 名单）、HousingAssignmentModal（无住宿筛选）、TransportAssignmentModal（在读筛选）。
+   - **有意不动**：RollCall 的应到名单查询（点名关键流程，须每次实时拉取，不用缓存 roster）；TutorScheduleManagement/EnrollmentModal 的原生 `<select>`（另一种 UI 模式，换 antd 属行为变更，待后续单独处理）；Communications 的学生侧栏（是列表不是选择器）。
+4. **V2** store 层去 as any —— ✅ 已完成（2026-07-13）：
+   - 先用 `supabase gen types` 对比云端：**类型文件与云端 0 差异、迁移已全部 push**（否定了"新表缺类型导致回退"的假设，回退纯属编码习惯）。
+   - store 层 `as any` 60 → 24；剩余 24 处均为带注释的定点收窄（join 形状进本地接口 / 动态字段集 payload / error.context），符合 Phase 8 标准。
+   - 顺带收窄的签名：`topUpPool`/`submitDailyChecks`/`RollCall` 的 course_type、check_type、status 从宽 `string` 改为枚举字面量联合。
+   - **类型化挖出并修复一个真 bug**：`useScheduleStore.cancelSchedule` 往 `schedule_changes` 插变更留痕时缺必填列 `new_start_time` 且 error 未接——取消课的留痕此前一直静默插入失败。已补 `new_start_time`（记原开课时间）并接住 error。
+   - 另清理若干 null-key 死桶写入（docs/fees 按 null id 入桶）并加守卫，行为等价。
+   - 全库（含页面层）174 → 117；页面层剩余按计划不动，新代码不再新增此模式即可。
+5. **V3-②** store 错误处理三模式统一 —— 未做，另行排期（与类型清理分开提交，避免混改）。
+6. StudentDetail 拆分：**不排期**，等下次要在该页加新卡片时顺势按四段式拆。

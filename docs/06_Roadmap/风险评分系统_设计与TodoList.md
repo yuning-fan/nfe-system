@@ -125,7 +125,7 @@
 - [x] 等级变化写 `log_risk_changes`（trigger_type=`system_auto`）。
 - [x] 接通现有录入：违规登记保存/存档（`ViolationLog`）、查寝/点名提交（`useDailyCheckStore`）、警告信审批（`useRiskStore.approveWarning` 改为交引擎重算）后即时调用 `recomputeRisk`。
 - [x] 迁移 `20260624120000_check_type_tutoring.sql`：`check_type` 加 `tutoring`。
-- [ ] **待云端确认**（2026-07-12）：迁移是否已 push 云端、首次 `recomputeAll()` 是否跑过，本地无法核实，需登 Supabase 控制台查（`check_type` 枚举含 tutoring？`risk_config` 有种子数据？全员分数非全 100？）。风险页已有「一键重算全员」按钮可随时补跑。
+- [x] **迁移已确认全部 push 云端**（2026-07-13 用 `supabase gen types` 对比云端核实：`check_type` 含 tutoring、`risk_config` 等表齐全，与本地 0 差异）。仅剩「首次 `recomputeAll()` 是否跑过」未确认——看风险页全员分数是否仍全 100，需要则点「一键重算全员」。
 - [ ] 等级变更触发通知（驾驶舱置顶 + 推送）——**仍未做**（2026-07-12 核对）：`notifications` 等三张表已建，前端零接入；等级变更目前仅写 `log_risk_changes` 并显示在风险页「近期等级变更记录」。已在代码中加 TODO 标注。
 - [x] 风险页展示自动分项明细——**已完成**：风险页「扣分明细查询」卡片，任选学生（含绿色）展示逐项扣分表格 + 硬触发 + 信息性备注（`RiskAlerts.tsx`）。人工覆盖入口保留。
 

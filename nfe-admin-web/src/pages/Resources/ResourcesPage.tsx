@@ -8,6 +8,7 @@ import { message, Modal, Select, InputNumber, Upload } from 'antd';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import { SUBJECTS, PROGRAM_STAGES, RESOURCE_TYPES } from '../../lib/resourceTags';
+import StudentSelect from '../../components/common/StudentSelect';
 
 const db = supabase as any;
 
@@ -28,7 +29,6 @@ interface Resource {
   created_at: string;
 }
 
-interface StudentOpt { id: string; full_name: string; }
 
 const blankForm = {
   title: '',
@@ -49,7 +49,6 @@ export default function ResourcesPage() {
 
   // 复用统计：resource_id -> 关联的 student_id 列表
   const [linksByRes, setLinksByRes] = useState<Record<number, string[]>>({});
-  const [students, setStudents] = useState<StudentOpt[]>([]);
 
   // 筛选（支持从 URL 带入，例如学业跟进跳转 /library?subject=物理&stage=预科-Standard）
   const [params] = useSearchParams();
@@ -92,12 +91,7 @@ export default function ResourcesPage() {
     setLoading(false);
   }, []);
 
-  const fetchStudents = useCallback(async () => {
-    const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
-    setStudents((data as StudentOpt[]) || []);
-  }, []);
-
-  useEffect(() => { fetchResources(); fetchStudents(); }, [fetchResources, fetchStudents]);
+  useEffect(() => { fetchResources(); }, [fetchResources]);
 
   const knowledgeHistory = [...new Set(resources.flatMap(r => r.knowledge_points || []))];
   const yearHistory = [...new Set(resources.map(r => r.resource_year).filter((y): y is number => !!y))].sort((a, b) => b - a);
@@ -443,15 +437,12 @@ export default function ResourcesPage() {
       <Modal title={`关联学生 · ${linkRes?.title || ''}`} open={linkOpen} onCancel={() => setLinkOpen(false)} onOk={saveLink} okText={linkSaving ? '保存中…' : '保存'} confirmLoading={linkSaving} width={480}>
         <div style={{ marginTop: 12 }}>
           <label className="form-label">已关联学生（用过此资料的学生）</label>
-          <Select
+          <StudentSelect
             mode="multiple"
-            showSearch
             style={{ width: '100%' }}
             value={linkSel}
             onChange={setLinkSel}
             placeholder="搜索并选择学生"
-            optionFilterProp="label"
-            options={students.map(s => ({ label: s.full_name, value: s.id }))}
           />
           <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 8 }}>关联次数会计入复用统计，用于判断资料质量。</div>
         </div>

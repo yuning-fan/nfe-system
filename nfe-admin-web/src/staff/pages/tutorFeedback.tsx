@@ -2,10 +2,10 @@
 // 读 schedules 已销课记录：公开反馈 + 作业安排；据此督促学生完成任务并记入「学习跟进」。
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Select } from 'antd';
 import { IconLoader2 } from '@tabler/icons-react';
 import { supabase } from '../../lib/supabase';
 import { Section, pill } from '../ui';
+import StudentSelect from '../../components/common/StudentSelect';
 
 const db = supabase as any;
 
@@ -37,26 +37,21 @@ const fmt = (iso: string) => {
 export function TutorFeedbackView() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<FeedbackRow[]>([]);
-  const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
   const [fStudent, setFStudent] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const [{ data: sch }, { data: stu }] = await Promise.all([
-      db.from('schedules')
-        .select(`id, student_id, status, start_time, subject_label, homework_content, feedback_public,
-          student:profiles!schedules_student_id_fkey(full_name),
-          tutor:profiles!schedules_tutor_id_fkey(full_name),
-          course:courses(name)`)
-        .in('status', ['completed', 'absent', 'leave'])
-        .gte('start_time', since)
-        .order('start_time', { ascending: false }),
-      db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name'),
-    ]);
+    const { data: sch } = await db.from('schedules')
+      .select(`id, student_id, status, start_time, subject_label, homework_content, feedback_public,
+        student:profiles!schedules_student_id_fkey(full_name),
+        tutor:profiles!schedules_tutor_id_fkey(full_name),
+        course:courses(name)`)
+      .in('status', ['completed', 'absent', 'leave'])
+      .gte('start_time', since)
+      .order('start_time', { ascending: false });
     setRows((sch || []) as FeedbackRow[]);
-    setStudents((stu || []) as any[]);
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -72,9 +67,8 @@ export function TutorFeedbackView() {
       hint={`近 30 天已销课记录（只读）· 共 ${filtered.length} 节，其中 ${withHomework} 节有作业安排 · 督促结果记入「学习跟进」`}
       action={
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Select allowClear showSearch placeholder="按学生筛选" style={{ width: 160 }}
-            value={fStudent} onChange={setFStudent} optionFilterProp="label"
-            options={students.map(s => ({ value: s.id, label: s.full_name }))} />
+          <StudentSelect allowClear placeholder="按学生筛选" style={{ width: 160 }}
+            value={fStudent} onChange={setFStudent} />
           <button className="btn btn-primary" onClick={() => navigate('../follow-ups')}>去记跟进</button>
         </div>
       }

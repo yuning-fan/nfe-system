@@ -9,6 +9,7 @@ import Pagination from '../../components/common/Pagination';
 import WarningLetterModal from './WarningLetterModal';
 import { recomputeRisk } from '../../lib/riskEngine';
 import FileUploadButton from '../../components/common/FileUploadButton';
+import StudentSelect from '../../components/common/StudentSelect';
 import { getDownloadUrl } from '../../lib/r2';
 
 const db = supabase as any;
@@ -38,8 +39,6 @@ interface Violation {
   reporter?: { full_name: string } | Array<{ full_name: string }>;
 }
 
-interface StudentOpt { id: string; full_name: string; }
-
 const blankForm = { student_id: '', violation_type: '缺席自习', reason: '', deduction_points: 8, attachment_url: '' };
 
 export default function ViolationLog() {
@@ -47,7 +46,6 @@ export default function ViolationLog() {
   const issueWarning = useRiskStore(s => s.issueWarning);
 
   const [rows, setRows] = useState<Violation[]>([]);
-  const [students, setStudents] = useState<StudentOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [fStatus, setFStatus] = useState<string | undefined>();
@@ -69,12 +67,7 @@ export default function ViolationLog() {
     setLoading(false);
   }, []);
 
-  const fetchStudents = useCallback(async () => {
-    const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
-    setStudents((data as StudentOpt[]) || []);
-  }, []);
-
-  useEffect(() => { fetchRows(); fetchStudents(); }, [fetchRows, fetchStudents]);
+  useEffect(() => { fetchRows(); }, [fetchRows]);
 
   const name = (p?: { full_name: string } | Array<{ full_name: string }>) =>
     (Array.isArray(p) ? p[0]?.full_name : p?.full_name) || '—';
@@ -201,9 +194,8 @@ export default function ViolationLog() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
           <div>
             <label className="form-label">学生 *</label>
-            <Select showSearch style={{ width: '100%' }} value={form.student_id || undefined} placeholder="搜索并选择学生"
-              optionFilterProp="label" onChange={v => setForm(f => ({ ...f, student_id: v }))}
-              options={students.map(s => ({ label: s.full_name, value: s.id }))} />
+            <StudentSelect style={{ width: '100%' }} value={form.student_id || undefined} placeholder="搜索并选择学生"
+              onChange={v => setForm(f => ({ ...f, student_id: v }))} />
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>

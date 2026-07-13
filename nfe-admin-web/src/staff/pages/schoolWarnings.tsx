@@ -7,6 +7,7 @@ import { message, Modal, Select, Input } from 'antd';
 import { IconLoader2, IconPlus } from '@tabler/icons-react';
 import { Section } from '../ui';
 import FileUploadButton from '../../components/common/FileUploadButton';
+import StudentSelect from '../../components/common/StudentSelect';
 import { getDownloadUrl } from '../../lib/r2';
 
 const db = supabase as any;
@@ -27,7 +28,6 @@ interface Letter {
 export function SchoolWarnings() {
   const issuerId = useAuthStore(s => s.user?.id ?? null);
   const [rows, setRows] = useState<Letter[]>([]);
-  const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,11 +41,7 @@ export function SchoolWarnings() {
     setRows((data as Letter[]) || []);
     setLoading(false);
   }, []);
-  const loadStudents = useCallback(async () => {
-    const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
-    setStudents((data as any[]) || []);
-  }, []);
-  useEffect(() => { load(); loadStudents(); }, [load, loadStudents]);
+  useEffect(() => { load(); }, [load]);
 
   const name = (s: Letter['student']) => (Array.isArray(s) ? s[0]?.full_name : s?.full_name) || '—';
 
@@ -114,9 +110,8 @@ export function SchoolWarnings() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
           <div>
             <label className="form-label">学生 *</label>
-            <Select showSearch optionFilterProp="label" style={{ width: '100%' }} value={form.student_id || undefined}
-              placeholder="搜索并选择学生" onChange={v => setForm(f => ({ ...f, student_id: v }))}
-              options={students.map(s => ({ label: s.full_name, value: s.id }))} />
+            <StudentSelect style={{ width: '100%' }} value={form.student_id || undefined}
+              placeholder="搜索并选择学生" onChange={v => setForm(f => ({ ...f, student_id: v }))} />
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>

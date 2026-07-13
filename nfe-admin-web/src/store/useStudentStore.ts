@@ -60,7 +60,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .order('expiry_date', { ascending: false });
 
       // Step 4: 课时（按课型两个池，剩余=total_hours）
-      const { data: assetsData } = await (supabase as any)
+      const { data: assetsData } = await supabase
         .from('student_hour_pools')
         .select('student_id, total_hours');
 
@@ -79,7 +79,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .from('student_enrollments')
         .select('id, student_id, program_id, source, start_date, end_date, status, programs(name)');
       const enrollByStudent: Record<string, any[]> = {};
-      for (const e of (enrollAll as any[] || [])) {
+      for (const e of enrollAll || []) {
         if (!e.student_id) continue;
         (enrollByStudent[e.student_id] ||= []).push(e);
       }
@@ -106,34 +106,37 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .from('student_fees')
         .select('enrollment_id, student_id, fee_type, is_paid');
       const feesByEnroll: Record<number, any[]> = {};
-      for (const f of (feesData as any[] || [])) {
+      for (const f of feesData || []) {
+        if (f.enrollment_id == null) continue; // 无阶段归属的费用不进桶（原逻辑落入 "null" 死桶，从未被读取）
         (feesByEnroll[f.enrollment_id] ||= []).push(f);
       }
 
       // Build lookup maps
       const infoMap: Record<string, any> = {};
-      for (const info of (infoData as any[] || [])) {
+      for (const info of infoData || []) {
         infoMap[info.student_id] = info;
       }
       const docsMap: Record<string, any[]> = {};
-      for (const doc of (docsData as any[] || [])) {
+      for (const doc of docsData || []) {
+        if (!doc.student_id) continue; // 无归属学生的文档不进桶
         if (!docsMap[doc.student_id]) docsMap[doc.student_id] = [];
         docsMap[doc.student_id].push(doc);
       }
       const visaMap: Record<string, string> = {};
-      for (const doc of (docsData as any[] || [])) {
-        if (doc.doc_type === 'visa' && !visaMap[doc.student_id]) {
+      for (const doc of docsData || []) {
+        if (!doc.student_id) continue;
+        if (doc.doc_type === 'visa' && doc.expiry_date && !visaMap[doc.student_id]) {
           visaMap[doc.student_id] = doc.expiry_date;
         }
       }
       const hoursMap: Record<string, number> = {};
-      for (const asset of (assetsData as any[] || [])) {
+      for (const asset of assetsData || []) {
         hoursMap[asset.student_id] = (hoursMap[asset.student_id] || 0) + (Number(asset.total_hours) || 0);
       }
-      const dormsSet = new Set((dormsData || []).map((d: any) => d.student_id));
-      const timetableSet = new Set((timetableData || []).map((t: any) => t.student_id));
+      const dormsSet = new Set((dormsData || []).map(d => d.student_id));
+      const timetableSet = new Set((timetableData || []).map(t => t.student_id));
 
-      const normalized = (profileData || []).map((p: any) => {
+      const normalized = (profileData || []).map(p => {
         const info = infoMap[p.id] || {};
         const cur = currentPhaseMap[p.id] || null;
         const curFees = cur ? (feesByEnroll[cur.id] || []) : [];
@@ -215,18 +218,18 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('id', { ascending: false }),
         supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
         supabase.from('student_documents').select('*').eq('student_id', id).order('expiry_date', { ascending: true }),
-        (supabase as any).from('student_hour_pools').select('*').eq('student_id', id),
+        supabase.from('student_hour_pools').select('*').eq('student_id', id),
         supabase.from('student_credentials').select('*').eq('student_id', id),
-        (supabase as any).from('grade_records').select('*').eq('student_id', id),
-        (supabase as any).from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, term_no, week_no, milestone_type'),
-        (supabase as any).from('program_subjects').select('id, subject_name, pass_mark'),
+        supabase.from('grade_records').select('*').eq('student_id', id),
+        supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, term_no, week_no, milestone_type'),
+        supabase.from('program_subjects').select('id, subject_name, pass_mark'),
       ]);
 
       const merged = {
         student_id: id,
         ...(infoData || {}),
         profiles: profileData,
-        student_enrollments: (infoData as any)?.student_enrollments || [],
+        student_enrollments: infoData?.student_enrollments || [],
         dorm_assignments: dormRes.data || [],
         warning_letters: warningRes.data || [],
         school_timetable: timetableRes.data || [],
@@ -275,7 +278,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
 
       // 来源写 student_enrollments（来源是学生级属性，更新该学生所有阶段）
       if (enrollPatch.source != null) {
-        const { error: eErr } = await (supabase as any)
+        const { error: eErr } = await supabase
           .from('student_enrollments')
           .update({ source: enrollPatch.source })
           .eq('student_id', id);
@@ -331,8 +334,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       if (existing) {
         const { error } = await supabase
           .from('student_enrollments')
-          .update(clean as any)
-          .eq('id', (existing as any).id);
+          .update(clean as any) // 动态字段集，无法静态收窄（Phase 8 同款定点标注）
+          .eq('id', existing.id);
         if (error) throw error;
       } else {
         const user = useAuthStore.getState().user;

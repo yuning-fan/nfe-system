@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
 import { recomputeRisk } from '../lib/riskEngine';
 
+export type DailyCheckType = 'morning' | 'night_study' | 'dorm_check' | 'tutoring';
+export type DailyCheckStatus = 'present' | 'absent' | 'leave';
+
 interface Passenger {
   id: number;
   student_id: string;
@@ -36,9 +39,9 @@ interface DailyCheckStore {
   loadTodayPassengers: () => Promise<void>;
   updatePassengerStatus: (passengerId: number, newStatus: string) => Promise<boolean>;
   loadDormStudents: () => Promise<void>;
-  submitDormChecks: (records: { student_id: string; status: string; notes?: string }[]) => Promise<boolean>;
+  submitDormChecks: (records: { student_id: string; status: DailyCheckStatus; notes?: string }[]) => Promise<boolean>;
   // 通用点名提交：晚自习(night_study) / 早上出勤(morning) / 辅导课(tutoring) / 查寝(dorm_check)
-  submitDailyChecks: (checkType: string, records: { student_id: string; status: string; notes?: string }[]) => Promise<boolean>;
+  submitDailyChecks: (checkType: DailyCheckType, records: { student_id: string; status: DailyCheckStatus; notes?: string }[]) => Promise<boolean>;
 }
 
 export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
@@ -124,7 +127,7 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
       const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(dayStart.getTime() + 86400000);
       const ids = Array.from(new Set(records.map(r => r.student_id)));
-      await (supabase as any)
+      await supabase
         .from('daily_checks')
         .delete()
         .eq('check_type', checkType)
@@ -142,7 +145,7 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
 
       const { error } = await supabase
         .from('daily_checks')
-        .insert(inserts as any);
+        .insert(inserts);
 
       if (error) throw error;
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, TimePicker, message } from 'antd';
+import { Modal, Form, Input, TimePicker, message } from 'antd';
 import { supabase } from '../../lib/supabase';
+import StudentSelect from '../../components/common/StudentSelect';
 
 interface TransportAssignmentModalProps {
   isOpen: boolean;
@@ -21,11 +22,11 @@ export default function TransportAssignmentModal({ isOpen, onClose, onSuccess }:
   }, [isOpen]);
 
   const fetchStudents = async () => {
-    // Get all active students
+    // 只列有档案的在读学生（students_info），与全员 roster 口径不同，故保留本地名单
     const { data } = await supabase
       .from('students_info')
       .select('student_id, profiles(full_name)');
-    
+
     setStudents(data || []);
   };
 
@@ -66,13 +67,8 @@ export default function TransportAssignmentModal({ isOpen, onClose, onSuccess }:
     >
       <Form form={form} layout="vertical">
         <Form.Item name="student_id" label="选择学生" rules={[{ required: true, message: '请选择学生' }]}>
-          <Select showSearch optionFilterProp="children" placeholder="搜索并选择学生">
-            {students.map(s => (
-              <Select.Option key={s.student_id} value={s.student_id}>
-                {s.profiles?.full_name || s.student_id}
-              </Select.Option>
-            ))}
-          </Select>
+          <StudentSelect placeholder="搜索并选择学生"
+            options={students.map((s: any) => ({ label: s.profiles?.full_name || s.student_id, value: s.student_id }))} />
         </Form.Item>
         
         <Form.Item name="pickup_time" label="接送时间" rules={[{ required: true, message: '请选择时间' }]}>

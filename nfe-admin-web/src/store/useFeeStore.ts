@@ -53,7 +53,7 @@ export const useFeeStore = create<FeeStore>((set, get) => ({
     try {
       const { error } = await supabase.from('student_fees').insert({
         enrollment_id: enrollmentId, student_id: studentId, fee_type: feeType, is_paid: false,
-      } as any);
+      });
       if (error) throw error;
       await get().fetchFees(studentId);
       return true;
@@ -66,7 +66,7 @@ export const useFeeStore = create<FeeStore>((set, get) => ({
   togglePaid: async (id, isPaid) => {
     try {
       const { error } = await supabase.from('student_fees')
-        .update({ is_paid: isPaid, paid_date: isPaid ? new Date().toISOString().slice(0, 10) : null } as any)
+        .update({ is_paid: isPaid, paid_date: isPaid ? new Date().toISOString().slice(0, 10) : null })
         .eq('id', id);
       if (error) throw error;
       const sid = get().fees.find(f => f.id === id)?.student_id;

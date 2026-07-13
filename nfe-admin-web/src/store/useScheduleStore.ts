@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
 import { recomputeRisk } from '../lib/riskEngine';
 
-const db = supabase as any;
 
 export type ScheduleStatus =
   | 'pending_approval' | 'scheduled' | 'completed'
@@ -35,33 +34,37 @@ const hours = (s: { start_time: string; end_time: string }) =>
   (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 3600000;
 
 // 取该课对应的课型（one_on_one / group_class）
-async function courseTypeOf(courseId: number | null): Promise<string | null> {
+type CourseType = 'one_on_one' | 'group_class';
+async function courseTypeOf(courseId: number | null): Promise<CourseType | null> {
   if (!courseId) return null;
-  const { data } = await db.from('courses').select('type').eq('id', courseId).single();
-  return data?.type ?? null;
+  const { data } = await supabase.from('courses').select('type').eq('id', courseId).single();
+  const t = data?.type;
+  return t === 'one_on_one' || t === 'group_class' ? t : null;
 }
 
 // 内部：按课时长从「对应课型的课时池」扣（销课用）
-async function deductHours(schedule: { student_id: string; course_id: number | null; start_time: string; end_time: string }) {
+async function deductHours(schedule: { student_id: string | null; course_id: number | null; start_time: string; end_time: string }) {
+  if (!schedule.student_id) return; // 无归属学生的课不动池（原逻辑匹配不到池且插入必失败）
   const type = await courseTypeOf(schedule.course_id);
   if (!type) return;
-  const { data: pool } = await db.from('student_hour_pools').select('*')
-    .eq('student_id', schedule.student_id).eq('course_type', type).single();
+  const { data: pool } = await supabase.from('student_hour_pools').select('*')
+    .eq('student_id', schedule.student_id).eq('course_type', type).maybeSingle();
   const cur = pool ? Number(pool.total_hours) : 0;
   const next = Math.max(0, cur - hours(schedule));
-  if (pool) await db.from('student_hour_pools').update({ total_hours: next }).eq('id', pool.id);
-  else await db.from('student_hour_pools').insert({ student_id: schedule.student_id, course_type: type, total_hours: 0 });
+  if (pool) await supabase.from('student_hour_pools').update({ total_hours: next }).eq('id', pool.id);
+  else await supabase.from('student_hour_pools').insert({ student_id: schedule.student_id, course_type: type, total_hours: 0 });
 }
 
 // 内部：把课时退回对应课型的池（撤销销课用，deductHours 的逆操作）
-async function refundHours(schedule: { student_id: string; course_id: number | null; start_time: string; end_time: string }) {
+async function refundHours(schedule: { student_id: string | null; course_id: number | null; start_time: string; end_time: string }) {
+  if (!schedule.student_id) return;
   const type = await courseTypeOf(schedule.course_id);
   if (!type) return;
-  const { data: pool } = await db.from('student_hour_pools').select('*')
-    .eq('student_id', schedule.student_id).eq('course_type', type).single();
+  const { data: pool } = await supabase.from('student_hour_pools').select('*')
+    .eq('student_id', schedule.student_id).eq('course_type', type).maybeSingle();
   const cur = pool ? Number(pool.total_hours) : 0;
-  if (pool) await db.from('student_hour_pools').update({ total_hours: cur + hours(schedule) }).eq('id', pool.id);
-  else await db.from('student_hour_pools').insert({ student_id: schedule.student_id, course_type: type, total_hours: hours(schedule) });
+  if (pool) await supabase.from('student_hour_pools').update({ total_hours: cur + hours(schedule) }).eq('id', pool.id);
+  else await supabase.from('student_hour_pools').insert({ student_id: schedule.student_id, course_type: type, total_hours: hours(schedule) });
 }
 
 export interface Tutor {
@@ -264,7 +267,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
   deleteSchedule: async (scheduleId) => {
     set({ isLoading: true });
     try {
-      const { error } = await db.from('schedules').delete().eq('id', scheduleId);
+      const { error } = await supabase.from('schedules').delete().eq('id', scheduleId);
       if (error) throw error;
       await Promise.all([get().fetchSchedules(), get().fetchPendingSchedules()]);
       set({ isLoading: false });
@@ -278,7 +281,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
   fetchMySchedules: async (tutorId) => {
     set({ isLoading: true });
     try {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('schedules')
         .select(`*, student:profiles!schedules_student_id_fkey(full_name), course:courses(name)`)
         .eq('tutor_id', tutorId)
@@ -298,7 +301,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
 
   fetchPendingReschedules: async () => {
     try {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('schedule_changes')
         .select(`*, schedule:schedules(*, student:profiles!schedules_student_id_fkey(full_name), tutor:profiles!schedules_tutor_id_fkey(full_name))`)
         .eq('status', 'pending')
@@ -325,11 +328,11 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { data: sch, error: fErr } = await db.from('schedules').select('*').eq('id', scheduleId).single();
+      const { data: sch, error: fErr } = await supabase.from('schedules').select('*').eq('id', scheduleId).single();
       if (fErr) throw fErr;
 
       const statusMap = { present: 'completed', absent: 'absent', leave: 'leave' } as const;
-      const { error: uErr } = await db.from('schedules').update({
+      const { error: uErr } = await supabase.from('schedules').update({
         status: statusMap[payload.outcome],
         feedback_public: payload.feedback_public ?? null,
         feedback_internal: payload.feedback_internal ?? null,
@@ -342,11 +345,11 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
       } else if (payload.outcome === 'absent') {
         // 无故缺勤：照扣课时 + 重算风险（缺勤由 schedules.status='absent' 计分）
         await deductHours(sch);
-        await recomputeRisk(sch.student_id, user?.id ?? null);
+        if (sch.student_id) await recomputeRisk(sch.student_id, user?.id ?? null);
       }
       // 请假：不扣课时、不扣风险，仅状态置 leave
 
-      await get().fetchMySchedules(sch.tutor_id);
+      if (sch.tutor_id) await get().fetchMySchedules(sch.tutor_id);
       set({ isLoading: false });
       return true;
     } catch (err: any) {
@@ -359,13 +362,17 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { data: sch } = await db.from('schedules').select('tutor_id').eq('id', scheduleId).single();
-      const { error } = await db.from('schedules').update({ status: 'cancelled' }).eq('id', scheduleId);
+      const { data: sch } = await supabase.from('schedules').select('tutor_id, start_time').eq('id', scheduleId).single();
+      const { error } = await supabase.from('schedules').update({ status: 'cancelled' }).eq('id', scheduleId);
       if (error) throw error;
-      await db.from('schedule_changes').insert({
+      // 修复（2026-07-13 类型化时发现）：new_start_time 为必填列，此前缺失且 error 未接，
+      // 取消课的变更留痕一直静默插入失败。取消场景无新时间，记原开课时间。
+      const { error: cErr } = await supabase.from('schedule_changes').insert({
         schedule_id: scheduleId, requester_id: user?.id ?? null,
+        new_start_time: sch?.start_time ?? new Date().toISOString(),
         reason: reason || '取消该课', status: 'approved', approver_id: user?.id ?? null,
       });
+      if (cErr) console.error('cancelSchedule: 变更留痕写入失败', cErr);
       if (sch?.tutor_id) await get().fetchMySchedules(sch.tutor_id);
       set({ isLoading: false });
       return true;
@@ -379,17 +386,17 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { data: sch, error: fErr } = await db.from('schedules').select('*').eq('id', scheduleId).single();
+      const { data: sch, error: fErr } = await supabase.from('schedules').select('*').eq('id', scheduleId).single();
       if (fErr) throw fErr;
       // 出席/缺勤都扣过课时 → 退回
       if (sch.status === 'completed' || sch.status === 'absent') {
         await refundHours(sch);
       }
-      const { error } = await db.from('schedules').update({ status: 'scheduled' }).eq('id', scheduleId);
+      const { error } = await supabase.from('schedules').update({ status: 'scheduled' }).eq('id', scheduleId);
       if (error) throw error;
       // 缺勤撤销后，schedules 不再是 absent → 重算把那 8 分加回来
-      await recomputeRisk(sch.student_id, user?.id ?? null);
-      await get().fetchMySchedules(sch.tutor_id);
+      if (sch.student_id) await recomputeRisk(sch.student_id, user?.id ?? null);
+      if (sch.tutor_id) await get().fetchMySchedules(sch.tutor_id);
       set({ isLoading: false });
       return true;
     } catch (err: any) {
@@ -402,7 +409,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { error: cErr } = await db.from('schedule_changes').insert({
+      const { error: cErr } = await supabase.from('schedule_changes').insert({
         schedule_id: scheduleId,
         requester_id: user?.id ?? null,
         new_start_time: newStart,
@@ -411,7 +418,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         approver_id: null,
       });
       if (cErr) throw cErr;
-      const { error: uErr } = await db.from('schedules').update({ status: 'rescheduling' }).eq('id', scheduleId);
+      const { error: uErr } = await supabase.from('schedules').update({ status: 'rescheduling' }).eq('id', scheduleId);
       if (uErr) throw uErr;
       if (user?.id) await get().fetchMySchedules(user.id);
       set({ isLoading: false });
@@ -426,16 +433,17 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { data: chg, error: fErr } = await db.from('schedule_changes').select('*').eq('id', changeId).single();
+      const { data: chg, error: fErr } = await supabase.from('schedule_changes').select('*').eq('id', changeId).single();
       if (fErr) throw fErr;
       // reason 里暂存了新结束时间：'原因|end:ISO'
       const endMatch = /\|end:(.+)$/.exec(chg.reason || '');
       const newEnd = endMatch ? endMatch[1] : null;
       const upd: any = { start_time: chg.new_start_time, status: 'scheduled' };
       if (newEnd) upd.end_time = newEnd;
-      const { error: sErr } = await db.from('schedules').update(upd).eq('id', chg.schedule_id);
+      if (chg.schedule_id == null) throw new Error('变更记录缺少关联课程');
+      const { error: sErr } = await supabase.from('schedules').update(upd).eq('id', chg.schedule_id);
       if (sErr) throw sErr;
-      await db.from('schedule_changes').update({ status: 'approved', approver_id: user?.id ?? null }).eq('id', changeId);
+      await supabase.from('schedule_changes').update({ status: 'approved', approver_id: user?.id ?? null }).eq('id', changeId);
       await get().fetchPendingReschedules();
       set({ isLoading: false });
       return true;
@@ -449,9 +457,9 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const user = useAuthStore.getState().user;
-      const { data: chg } = await db.from('schedule_changes').select('schedule_id').eq('id', changeId).single();
-      await db.from('schedule_changes').update({ status: 'rejected', approver_id: user?.id ?? null }).eq('id', changeId);
-      if (chg?.schedule_id) await db.from('schedules').update({ status: 'scheduled' }).eq('id', chg.schedule_id);
+      const { data: chg } = await supabase.from('schedule_changes').select('schedule_id').eq('id', changeId).single();
+      await supabase.from('schedule_changes').update({ status: 'rejected', approver_id: user?.id ?? null }).eq('id', changeId);
+      if (chg?.schedule_id) await supabase.from('schedules').update({ status: 'scheduled' }).eq('id', chg.schedule_id);
       await get().fetchPendingReschedules();
       set({ isLoading: false });
       return true;

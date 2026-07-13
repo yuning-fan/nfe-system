@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { message, Select } from 'antd';
 import { IconFileDownload } from '@tabler/icons-react';
 import { Section } from '../ui';
+import StudentSelect from '../../components/common/StudentSelect';
 
 const db = supabase as any;
 
@@ -92,7 +93,7 @@ export function WarningLetterGen() {
   return (
     <Section title="警告信生成（出勤）" hint="选学生+级别自动填充，可在线编辑后导出 Word（.doc）打印">
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Select showSearch optionFilterProp="label" style={{ width: 220 }} placeholder="选择学生"
+        <StudentSelect style={{ width: 220 }} placeholder="选择学生"
           value={sid} onChange={onPickStudent}
           options={students.map(s => ({ label: `${s.name}${s.rate != null ? `（出勤${s.rate}%）` : ''}`, value: s.id }))} />
         <Select style={{ width: 160 }} value={level} onChange={onPickLevel}

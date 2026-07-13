@@ -4,8 +4,8 @@ import { message } from 'antd';
 import { useAuthStore } from './useAuthStore';
 import { computeRisk } from '../lib/riskEngine';
 import { computeSubject } from '../lib/gradeCalc';
+import type { Json } from '../types/database.types';
 
-const db = supabase as any;
 
 // 报告结构化内容（出勤报告 biweekly / 学术报告 monthly 共用超集，按 report_type 取用相应字段）
 export interface ReportGrade { subject: string; score: string; note: string; }
@@ -83,10 +83,10 @@ async function prefillAttendance(studentId: string, start: string, end: string):
   const c = emptyContent();
   const endTs = `${end}T23:59:59`;
   try {
-    const { data: info } = await db.from('students_info').select('school_attendance_rate').eq('student_id', studentId).single();
+    const { data: info } = await supabase.from('students_info').select('school_attendance_rate').eq('student_id', studentId).single();
     c.attendance.official_rate = info?.school_attendance_rate ?? null;
 
-    const { data: checks } = await db.from('daily_checks').select('status')
+    const { data: checks } = await supabase.from('daily_checks').select('status')
       .eq('student_id', studentId).in('check_type', ['night_study', 'morning'])
       .gte('created_at', start).lte('created_at', endTs);
     if (checks && checks.length) {
@@ -96,7 +96,7 @@ async function prefillAttendance(studentId: string, start: string, end: string):
       const total = present + absent + leave;
       c.attendance = { ...c.attendance, present, absent, leave, rate: total ? Math.round((present / total) * 100) : null };
     }
-    const { data: vios } = await db.from('violation_logs').select('violation_type, reason, created_at')
+    const { data: vios } = await supabase.from('violation_logs').select('violation_type, reason, created_at')
       .eq('student_id', studentId).gte('created_at', start).lte('created_at', endTs);
     if (vios) c.violations = vios.map((v: any) => ({ type: v.violation_type || '违规', date: (v.created_at || '').slice(0, 10), note: v.reason || '' }));
     c.alerts = await buildAlerts(studentId);
@@ -110,9 +110,9 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
   const endTs = `${end}T23:59:59`;
   try {
     const [{ data: grades }, { data: nodes }, { data: subjMeta }] = await Promise.all([
-      db.from('grade_records').select('milestone_id, program_subject_id, score, recorded_at').eq('student_id', studentId),
-      db.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, term_no, week_no, due_date'),
-      db.from('program_subjects').select('id, subject_name, pass_mark'),
+      supabase.from('grade_records').select('milestone_id, program_subject_id, score, recorded_at').eq('student_id', studentId),
+      supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, term_no, week_no, due_date'),
+      supabase.from('program_subjects').select('id, subject_name, pass_mark'),
     ]);
     const gr = grades || [];
     const subjectIds = Array.from(new Set(gr.map((g: any) => g.program_subject_id).filter(Boolean)));
@@ -128,7 +128,7 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
       };
     });
     // 辅导公开反馈（周期内已完成的课）
-    const { data: fb } = await db.from('schedules')
+    const { data: fb } = await supabase.from('schedules')
       .select('start_time, subject_label, feedback_public')
       .eq('student_id', studentId).eq('status', 'completed')
       .gte('start_time', start).lte('start_time', endTs);
@@ -146,7 +146,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   fetchReports: async () => {
     set({ isLoading: true });
     try {
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from('reports')
         .select('*, student:profiles!reports_student_id_fkey(full_name, avatar_url)')
         .order('generated_at', { ascending: false });
@@ -166,14 +166,14 @@ export const useReportStore = create<ReportStore>((set, get) => ({
       const user = useAuthStore.getState().user;
       const isAcademic = reportType === 'monthly';
       const label = isAcademic ? '学术月报' : '出勤双周报';
-      let q = db.from('profiles').select('id, full_name').eq('role', 'student');
+      let q = supabase.from('profiles').select('id, full_name').eq('role', 'student');
       if (studentIds && studentIds.length) q = q.in('id', studentIds);
       const { data: students, error: sErr } = await q;
       if (sErr) throw sErr;
       if (!students || students.length === 0) { message.warning('暂无在读学生'); return false; }
 
       // 去重：同学生 + 同周期 + 同类型已存在则跳过
-      const { data: existing } = await db.from('reports').select('student_id')
+      const { data: existing } = await supabase.from('reports').select('student_id')
         .eq('report_type', reportType).eq('period_start', periodStart).eq('period_end', periodEnd);
       const skip = new Set((existing || []).map((e: any) => e.student_id));
       const targets = students.filter((s: any) => !skip.has(s.id));
@@ -188,10 +188,12 @@ export const useReportStore = create<ReportStore>((set, get) => ({
           student_id: s.id, report_type: reportType,
           title: `${s.full_name} · ${label}`,
           period_start: periodStart, period_end: periodEnd,
-          content, status: 'draft', generated_by: user?.id ?? null,
+          // ReportContent 存 Json 列，接口无索引签名需定点桥接
+          content: content as unknown as Json,
+          status: 'draft' as const, generated_by: user?.id ?? null,
         });
       }
-      const { error } = await db.from('reports').insert(rows);
+      const { error } = await supabase.from('reports').insert(rows);
       if (error) throw error;
       message.success(`已生成 ${rows.length} 份${label}草稿（已预填可得数据）`);
       get().fetchReports();
@@ -205,7 +207,8 @@ export const useReportStore = create<ReportStore>((set, get) => ({
 
   updateReport: async (id, patch) => {
     try {
-      const { error } = await db.from('reports').update(patch).eq('id', id);
+      const { error } = await supabase.from('reports')
+        .update({ ...patch, content: patch.content as unknown as Json }).eq('id', id);
       if (error) throw error;
       message.success('报告已保存');
       get().fetchReports();
@@ -218,7 +221,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
 
   deleteReport: async (id) => {
     try {
-      const { error } = await db.from('reports').delete().eq('id', id);
+      const { error } = await supabase.from('reports').delete().eq('id', id);
       if (error) throw error;
       message.success('报告已删除');
       get().fetchReports();
@@ -233,7 +236,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
     try {
       const user = useAuthStore.getState().user;
       const now = new Date().toISOString();
-      const { error } = await db.from('reports')
+      const { error } = await supabase.from('reports')
         .update({ status: 'sent', reviewer_id: user?.id ?? null, reviewed_at: now, sent_at: now })
         .eq('id', id);
       if (error) throw error;
@@ -248,7 +251,7 @@ export const useReportStore = create<ReportStore>((set, get) => ({
 
   attachPdf: async (id, key) => {
     try {
-      const { error } = await db.from('reports').update({ pdf_url: key }).eq('id', id);
+      const { error } = await supabase.from('reports').update({ pdf_url: key }).eq('id', id);
       if (error) throw error;
       get().fetchReports();
       return true;

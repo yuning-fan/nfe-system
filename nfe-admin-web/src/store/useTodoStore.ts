@@ -70,7 +70,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
         created_by: user?.id,
         due_at: dueAt || null,
         collaborator_ids: collaboratorIds,
-      } as any);
+      });
       if (error) throw error;
       await get().fetchTodos();
       return true;
@@ -83,7 +83,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   toggleDone: async (id, isDone) => {
     try {
       const { error } = await supabase.from('todos')
-        .update({ is_done: isDone, done_at: isDone ? new Date().toISOString() : null } as any)
+        .update({ is_done: isDone, done_at: isDone ? new Date().toISOString() : null })
         .eq('id', id);
       if (error) throw error;
       await get().fetchTodos();

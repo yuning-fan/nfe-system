@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useDailyCheckStore } from '../../store/useDailyCheckStore';
+import { useDailyCheckStore, type DailyCheckStatus } from '../../store/useDailyCheckStore';
 import { IconBuilding, IconCheck, IconX, IconMoonStars } from '@tabler/icons-react';
 import { message } from 'antd';
 
 export default function DormCheck() {
   const { dormStudents, loadDormStudents, submitDormChecks, isLoading } = useDailyCheckStore();
-  const [attendance, setAttendance] = useState<Record<string, { status: string; notes: string }>>({});
+  const [attendance, setAttendance] = useState<Record<string, { status: DailyCheckStatus; notes: string }>>({});
 
   useEffect(() => {
     loadDormStudents();
@@ -14,7 +14,7 @@ export default function DormCheck() {
   // Initialize attendance state when dormStudents load
   useEffect(() => {
     if (dormStudents.length > 0 && Object.keys(attendance).length === 0) {
-      const initial: Record<string, { status: string; notes: string }> = {};
+      const initial: Record<string, { status: DailyCheckStatus; notes: string }> = {};
       dormStudents.forEach(s => {
         initial[s.student_id] = { status: 'present', notes: '' };
       });
@@ -22,7 +22,7 @@ export default function DormCheck() {
     }
   }, [dormStudents, attendance]);
 
-  const handleStatusChange = (studentId: string, status: string) => {
+  const handleStatusChange = (studentId: string, status: DailyCheckStatus) => {
     setAttendance(prev => ({
       ...prev,
       [studentId]: { ...prev[studentId], status }

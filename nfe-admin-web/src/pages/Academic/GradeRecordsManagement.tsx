@@ -4,6 +4,7 @@ import { useAcademicStore } from '../../store/useAcademicStore';
 import { useStudentStore } from '../../store/useStudentStore';
 import { IconReportAnalytics } from '@tabler/icons-react';
 import { Modal, message, Select, InputNumber, Input } from 'antd';
+import StudentSelect from '../../components/common/StudentSelect';
 import { computeSubject } from '../../lib/gradeCalc';
 
 const STATUS_OPTS = [
@@ -78,7 +79,7 @@ export default function GradeRecordsManagement() {
 
       {/* 选择 + 总评条 */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Select showSearch optionFilterProp="label" style={{ width: 200 }} placeholder="选择学生" value={studentId} onChange={setStudentId}
+        <StudentSelect style={{ width: 200 }} placeholder="选择学生" value={studentId} onChange={setStudentId}
           options={students.map((s: any) => ({ label: s.profiles?.full_name || '—', value: s.student_id }))} />
         <Select showSearch optionFilterProp="label" style={{ width: 180 }} placeholder="选择项目" value={programId}
           onChange={v => { setProgramId(v); setSubjectId(undefined); }}

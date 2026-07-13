@@ -9,6 +9,7 @@ import { message, Modal, Select, Input, AutoComplete } from 'antd';
 import { IconLoader2, IconPlus, IconTrash, IconCheck, IconUsers, IconChevronRight, IconChevronDown } from '@tabler/icons-react';
 import { Fragment } from 'react';
 import { Section, pill } from '../ui';
+import StudentSelect, { useStudentRoster } from '../../components/common/StudentSelect';
 
 const db = supabase as any;
 
@@ -47,7 +48,6 @@ interface FollowUp {
   recorder?: { full_name: string } | Array<{ full_name: string }>;
 }
 
-interface StudentOpt { id: string; full_name: string }
 interface BatchRow { result: string; negative: boolean; note: string; needs: boolean }
 
 const one = (p: any) => (Array.isArray(p) ? p[0] : p);
@@ -64,7 +64,7 @@ export function StudyFollowUps() {
   // URL 参数：?student=<id> 预选学生、?tab=pending 直达待跟进、?batch=1 直接进批量模式
   const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<FollowUp[]>([]);
-  const [students, setStudents] = useState<StudentOpt[]>([]);
+  const students = useStudentRoster();
   const [loading, setLoading] = useState(true);
 
   // 列表筛选
@@ -93,15 +93,11 @@ export function StudyFollowUps() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: fu }, { data: stu }] = await Promise.all([
-      db.from('study_follow_ups')
-        .select('*, student:profiles!study_follow_ups_student_id_fkey(full_name), recorder:profiles!study_follow_ups_recorder_id_fkey(full_name)')
-        .order('created_at', { ascending: false })
-        .limit(500),
-      db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name'),
-    ]);
+    const { data: fu } = await db.from('study_follow_ups')
+      .select('*, student:profiles!study_follow_ups_student_id_fkey(full_name), recorder:profiles!study_follow_ups_recorder_id_fkey(full_name)')
+      .order('created_at', { ascending: false })
+      .limit(500);
     setRows((fu || []) as FollowUp[]);
-    setStudents((stu || []) as StudentOpt[]);
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -353,9 +349,8 @@ export function StudyFollowUps() {
               {c.label}
             </button>
           ))}
-          <Select allowClear showSearch placeholder="按学生筛选" style={{ width: 160, marginLeft: 'auto' }}
-            value={fStudent} onChange={setFStudent} optionFilterProp="label"
-            options={students.map(s => ({ value: s.id, label: s.full_name }))} />
+          <StudentSelect allowClear placeholder="按学生筛选" style={{ width: 160, marginLeft: 'auto' }}
+            value={fStudent} onChange={setFStudent} />
         </div>
 
         {filtered.length === 0 ? (
@@ -421,9 +416,8 @@ export function StudyFollowUps() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
           <div>
             <label className="form-label">学生 *</label>
-            <Select showSearch style={{ width: '100%' }} placeholder="选择学生" optionFilterProp="label"
-              value={form.student_id || undefined} onChange={v => setForm(f => ({ ...f, student_id: v, subject: '' }))}
-              options={students.map(s => ({ value: s.id, label: s.full_name }))} />
+            <StudentSelect style={{ width: '100%' }} placeholder="选择学生"
+              value={form.student_id || undefined} onChange={v => setForm(f => ({ ...f, student_id: v, subject: '' }))} />
           </div>
           <div>
             <label className="form-label">类别 *</label>

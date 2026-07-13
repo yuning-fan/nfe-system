@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Select, DatePicker, message } from 'antd';
 import { supabase } from '../../lib/supabase';
+import StudentSelect from '../../components/common/StudentSelect';
 
 interface HousingAssignmentModalProps {
   isOpen: boolean;
@@ -90,13 +91,8 @@ export default function HousingAssignmentModal({ isOpen, onClose, onSuccess, ava
     >
       <Form form={form} layout="vertical">
         <Form.Item name="student_id" label="选择学生" rules={[{ required: true, message: '请选择学生' }]}>
-          <Select showSearch optionFilterProp="children" placeholder="搜索并选择无住宿学生">
-            {students.map(s => (
-              <Select.Option key={s.student_id} value={s.student_id}>
-                {s.profiles?.full_name}
-              </Select.Option>
-            ))}
-          </Select>
+          <StudentSelect placeholder="搜索并选择无住宿学生"
+            options={students.map(s => ({ label: s.profiles?.full_name || '—', value: s.student_id }))} />
         </Form.Item>
         
         <Form.Item name="dorm_id" label="选择房间" rules={[{ required: true, message: '请选择房间' }]}>

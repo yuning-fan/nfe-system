@@ -5,11 +5,12 @@ import {
   IconAlertCircle, IconAlertTriangle, IconChartLine,
   IconLoader2, IconShieldX, IconUser, IconCheck, IconX, IconRefresh
 } from '@tabler/icons-react';
-import { message, Modal, Select } from 'antd';
+import { message, Modal } from 'antd';
 import type { StudentInfo } from '../../types/database';
 import { useRiskStore } from '../../store/useRiskStore';
 import { recomputeAll, computeRisk, type RiskBreakdownItem, type RiskLevel } from '../../lib/riskEngine';
 import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS } from '../../lib/riskLabels';
+import StudentSelect from '../../components/common/StudentSelect';
 import WarningLetterModal from './WarningLetterModal';
 
 type RiskStudent = StudentInfo & {
@@ -52,17 +53,9 @@ export default function RiskAlerts() {
   const [recomputing, setRecomputing] = useState(false);
 
   // 扣分明细查询
-  const [allStudents, setAllStudents] = useState<{ id: string; name: string }[]>([]);
   const [bdStudent, setBdStudent] = useState<string | undefined>();
   const [bd, setBd] = useState<{ score: number; level: RiskLevel; breakdown: RiskBreakdownItem[]; hardTriggers: string[]; notes: string[] } | null>(null);
   const [bdLoading, setBdLoading] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
-      setAllStudents(((data as any[]) || []).map(p => ({ id: p.id, name: p.full_name })));
-    })();
-  }, []);
 
   const loadBreakdown = async (studentId: string) => {
     setBdStudent(studentId); setBdLoading(true); setBd(null);
@@ -240,10 +233,9 @@ export default function RiskAlerts() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title" style={{ marginBottom: 10 }}>扣分明细查询</div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Select
-            showSearch optionFilterProp="label" style={{ width: 240 }} placeholder="选择学生查看当前扣分明细"
+          <StudentSelect
+            style={{ width: 240 }} placeholder="选择学生查看当前扣分明细"
             value={bdStudent} onChange={loadBreakdown}
-            options={allStudents.map(s => ({ label: s.name, value: s.id }))}
           />
           {bdLoading && <IconLoader2 size={16} className="spinner" style={{ color: 'var(--color-primary)' }} />}
           {bd && !bdLoading && (

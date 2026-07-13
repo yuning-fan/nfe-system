@@ -3,6 +3,7 @@ import { useAcademicStore } from '../../store/useAcademicStore';
 import { useStudentStore } from '../../store/useStudentStore';
 import { IconWallet, IconPlus } from '@tabler/icons-react';
 import { Modal, message, Select } from 'antd';
+import StudentSelect from '../../components/common/StudentSelect';
 
 const TYPE_OPTIONS = [
   { label: '班科', value: 'group_class' },
@@ -13,7 +14,7 @@ export default function CourseHoursManagement() {
   const { students, fetchStudents } = useStudentStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState({ student_id: '', course_type: 'group_class', hours: 10 });
+  const [form, setForm] = useState<{ student_id: string; course_type: 'one_on_one' | 'group_class'; hours: number }>({ student_id: '', course_type: 'group_class', hours: 10 });
 
   useEffect(() => { fetchHourPools(); fetchStudents(); }, [fetchHourPools, fetchStudents]);
 
@@ -78,7 +79,7 @@ export default function CourseHoursManagement() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
           <div className="form-group">
             <label className="form-label">选择学生</label>
-            <Select showSearch optionFilterProp="label" style={{ width: '100%' }} value={form.student_id || undefined}
+            <StudentSelect style={{ width: '100%' }} value={form.student_id || undefined}
               placeholder="搜索并选择学生" onChange={v => setForm({ ...form, student_id: v })}
               options={students.map(s => ({ label: (s as any).profiles?.full_name || '—', value: s.student_id }))} />
           </div>

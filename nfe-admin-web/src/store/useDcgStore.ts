@@ -87,11 +87,11 @@ export const useDcgStore = create<DcgStore>((set, get) => ({
         const { data: r } = await supabase
           .from('dcg_supervision_reports')
           .select('*, reporter:profiles!dcg_supervision_reports_reporter_staff_id_fkey(full_name)')
-          .eq('case_id', (caseData as any).id)
+          .eq('case_id', caseData.id)
           .order('report_date', { ascending: false });
         reports = r || [];
       }
-      set({ currentCase: (caseData as any) || null, reports, isLoading: false });
+      set({ currentCase: (caseData as unknown as DcgCase) || null, reports, isLoading: false }); // 本地接口带 join 字段，定点收窄
     } catch (err) {
       console.error('fetchCaseByStudent error', err);
       set({ currentCase: null, reports: [], isLoading: false });
@@ -108,21 +108,21 @@ export const useDcgStore = create<DcgStore>((set, get) => ({
         .eq('student_id', studentId)
         .eq('is_active', true)
         .maybeSingle();
-      const building = (dorm as any)?.dorms?.building_name;
+      const building = dorm?.dorms?.building_name;
       if (building) {
         const { data: ag } = await supabase
           .from('apartment_guardians')
           .select('guardian_staff_id')
           .eq('building_name', building)
           .maybeSingle();
-        guardianId = (ag as any)?.guardian_staff_id ?? null;
+        guardianId = ag?.guardian_staff_id ?? null;
       }
 
       const { error } = await supabase.from('dcg_cases').insert({
         student_id: studentId,
         stage: 'applied',
         guardian_staff_id: guardianId,
-      } as any);
+      });
       if (error) throw error;
       await get().fetchCaseByStudent(studentId);
       return true;
@@ -136,6 +136,7 @@ export const useDcgStore = create<DcgStore>((set, get) => ({
     try {
       const patch: Record<string, any> = { stage };
       if (dateField) patch[dateField] = new Date().toISOString().slice(0, 10);
+      // patch 为动态日期字段集，定点收窄
       const { error } = await supabase.from('dcg_cases').update(patch as any).eq('id', caseId);
       if (error) throw error;
       const sid = get().currentCase?.student_id;
@@ -156,7 +157,7 @@ export const useDcgStore = create<DcgStore>((set, get) => ({
         content: payload.content,
         photo_url: payload.photo_url ?? null,
         reporter_staff_id: user?.id ?? null,
-      } as any);
+      });
       if (error) throw error;
       const sid = get().currentCase?.student_id;
       if (sid) await get().fetchCaseByStudent(sid);
@@ -173,7 +174,7 @@ export const useDcgStore = create<DcgStore>((set, get) => ({
         .from('apartment_guardians')
         .select('*, guardian:profiles!apartment_guardians_guardian_staff_id_fkey(full_name)')
         .order('building_name');
-      set({ apartmentGuardians: (data as any) || [] });
+      set({ apartmentGuardians: (data as unknown as ApartmentGuardian[]) || [] }); // 本地接口带 join 字段，定点收窄
     } catch (err) {
       console.error('fetchApartmentGuardians error', err);
     }
@@ -183,7 +184,7 @@ export const useDcgStore = create<DcgStore>((set, get) => ({
     try {
       const { error } = await supabase
         .from('apartment_guardians')
-        .update({ guardian_staff_id: staffId, updated_at: new Date().toISOString() } as any)
+        .update({ guardian_staff_id: staffId, updated_at: new Date().toISOString() })
         .eq('building_name', building);
       if (error) throw error;
       await get().fetchApartmentGuardians();
