@@ -54,7 +54,8 @@ function formatTime(ts: string) {
 
 const blankForm = { contact_type: 'parent', channel: 'phone', content: '' };
 
-export default function Communications() {
+// restrictStudentIds：传入时仅显示这些学生（生活老师限名下公寓）；不传 = 全体（学管默认）
+export default function Communications({ restrictStudentIds }: { restrictStudentIds?: string[] } = {}) {
   const user = useAuthStore(s => s.user);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -69,19 +70,20 @@ export default function Communications() {
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const restrictKey = restrictStudentIds ? restrictStudentIds.join(',') : null;
   useEffect(() => {
     async function fetchStudents() {
-      const { data } = await db
-        .from('students_info')
-        .select('student_id, profiles(full_name)')
-        .order('student_id');
+      let q = db.from('students_info').select('student_id, profiles(full_name)').order('student_id');
+      if (restrictStudentIds) q = q.in('student_id', restrictStudentIds.length ? restrictStudentIds : ['00000000-0000-0000-0000-000000000000']);
+      const { data } = await q;
       const list = (data as Student[]) || [];
       setStudents(list);
-      if (list.length > 0) setSelectedStudent(list[0]);
+      setSelectedStudent(list.length > 0 ? list[0] : null);
       setIsLoading(false);
     }
     fetchStudents();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restrictKey]);
 
   const fetchLogs = async (studentId: string) => {
     const { data } = await db

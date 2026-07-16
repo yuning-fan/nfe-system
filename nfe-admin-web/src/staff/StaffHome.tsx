@@ -2,12 +2,14 @@ import { useParams, Link } from 'react-router-dom';
 import { STAFF_ROLES } from './staffConfig';
 import PatrolHome from './PatrolHome';
 import AcademicHome from './AcademicHome';
+import LifeHome from './LifeHome';
 
 // 工作台首页：巡查/学管用真实聚合版，其余角色用统一静态版（待处理 + 今日日程 + 模块快捷入口）
 export default function StaffHome() {
   const { role = 'patrol' } = useParams();
   if (role === 'patrol') return <PatrolHome />;
   if (role === 'academic') return <AcademicHome />;
+  if (role === 'life') return <LifeHome />;
 
   const cfg = STAFF_ROLES[role] || STAFF_ROLES.patrol;
   const shortcuts = cfg.nav.filter(n => n.to); // 去掉首页本身

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useDailyCheckStore, type DailyCheckType } from '../../store/useDailyCheckStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { recomputeRisk } from '../../lib/riskEngine';
+import { getGuardedStudentIds } from '../../lib/guardedStudents';
 import { message, Modal } from 'antd';
 import { IconLoader2, IconChevronRight, IconChevronDown, IconTrash } from '@tabler/icons-react';
 import { Section } from '../ui';
@@ -18,8 +19,9 @@ interface HistRow { date: string; present: number; absent: number; leave: number
 const ST_LABEL: Record<St, string> = { present: '在场', absent: '缺席', leave: '请假' };
 const ST_CLS: Record<St, string> = { present: 'p-green', absent: 'p-red', leave: 'p-amber' };
 
-// scope: 'all' = 全体在读（晚自习）；'today_school' = 今日有课的学生（早上出勤，按 school_timetable）
-export default function RollCall({ checkType, title, hint, scope = 'all' }: { checkType: DailyCheckType; title: string; hint?: string; scope?: 'all' | 'today_school' }) {
+// scope: 'all' = 全体在读（晚自习）；'today_school' = 今日有课的学生（早上出勤，按 school_timetable）；
+//        'my_dorm' = 当前登录生活老师名下公寓的在住学生（查寝）
+export default function RollCall({ checkType, title, hint, scope = 'all' }: { checkType: DailyCheckType; title: string; hint?: string; scope?: 'all' | 'today_school' | 'my_dorm' }) {
   const submit = useDailyCheckStore(s => s.submitDailyChecks);
   const saving = useDailyCheckStore(s => s.isLoading);
 
@@ -46,6 +48,14 @@ export default function RollCall({ checkType, title, hint, scope = 'all' }: { ch
         .lte('effective_from', today)
         .gte('effective_until', today);
       const ids = Array.from(new Set(((tt || []) as any[]).map(r => r.student_id).filter(Boolean)));
+      if (ids.length) {
+        const { data } = await db.from('profiles').select('id, full_name').in('id', ids).order('full_name');
+        list = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
+      }
+    } else if (scope === 'my_dorm') {
+      // 名下公寓的在住学生（查寝）
+      const staffId = useAuthStore.getState().user?.id ?? null;
+      const ids = await getGuardedStudentIds(staffId);
       if (ids.length) {
         const { data } = await db.from('profiles').select('id, full_name').in('id', ids).order('full_name');
         list = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
@@ -217,7 +227,7 @@ export default function RollCall({ checkType, title, hint, scope = 'all' }: { ch
         </div>
         {students.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>
-            {scope === 'today_school' ? '今日无排课学生（周末或课表为空）' : '暂无在读学生'}
+            {scope === 'today_school' ? '今日无排课学生（周末或课表为空）' : scope === 'my_dorm' ? '暂无名下公寓学生（未绑定公寓或公寓无在住学生）' : '暂无在读学生'}
           </div>
         ) : (
           <table className="tbl" style={{ width: '100%', textAlign: 'left' }}>

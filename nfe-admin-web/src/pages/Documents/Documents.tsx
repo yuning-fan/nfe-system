@@ -407,7 +407,7 @@ export default function Documents() {
         </div>
 
         {/* 文件表 */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
           {docsLoading ? (
             <div style={{ padding: 30, textAlign: 'center' }}>
               <IconLoader2 className="spinner" size={24} style={{ color: 'var(--color-primary)' }} />
@@ -433,10 +433,10 @@ export default function Documents() {
                   return (
                     <tr key={doc.id}>
                       <td><span className={`pill ${docCls(doc.doc_type)}`}>{docLabel(doc.doc_type)}</span></td>
-                      <td>
+                      <td style={{ maxWidth: 320 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-                          <div>
+                          <IconFileText size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+                          <div style={{ minWidth: 0, wordBreak: 'break-all' }}>
                             <div>{doc.title || fileName(doc.file_url)}</div>
                             {doc.title && <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{fileName(doc.file_url)}</div>}
                           </div>
@@ -444,7 +444,7 @@ export default function Documents() {
                       </td>
                       <td style={{ color: 'var(--color-text-secondary)' }}>{doc.expiry_date || '—'}</td>
                       <td><span className={`pill ${st.cls}`}>{st.label}</span></td>
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
                         <span className="link" onClick={() => handleView(doc)}>查看</span>
                         {' · '}
                         <span className="link" onClick={() => openEdit(doc)}>编辑</span>

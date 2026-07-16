@@ -8,6 +8,12 @@ import { StudyFollowUps } from './pages/followUps';
 import { TutorFeedbackView } from './pages/tutorFeedback';
 import { TutorStudents, TutorSchedule, TutorRecords } from './pages/tutor';
 import { LifeMorning } from './pages/life';
+import { LifeStudents } from './pages/lifeStudents';
+import { LifeDorm } from './pages/lifeDorm';
+import { LifeMeds } from './pages/lifeMeds';
+import { LifeComms } from './pages/lifeComms';
+import { LifeRisk } from './pages/lifeRisk';
+import TransportManagement from '../pages/Transport/TransportManagement';
 import { SchoolWarnings } from './pages/schoolWarnings';
 import { WarningLetterGen } from './pages/warningLetterGen';
 import { StaffLibrary } from './pages/common';
@@ -38,8 +44,14 @@ const REGISTRY: Record<string, ReactNode> = {
   'tutor/records': <TutorRecords />,
   'tutor/follow-ups': <StudyFollowUps />,
   'tutor/library': <ResourcesPage />,
-  // 生活（早上出勤已接真功能）
+  // 生活（前两批已接真功能；餐食/白天巡查/卫生检查留待下一轮）
+  'life/students': <LifeStudents />,
   'life/morning': <LifeMorning />,
+  'life/dorm': <LifeDorm />,
+  'life/transport': <TransportManagement />,
+  'life/meds': <LifeMeds />,
+  'life/comms': <LifeComms />,
+  'life/risk': <LifeRisk />,
   'life/library': <StaffLibrary />,
   // 学管（真功能：复用 admin 功能页）
   'academic/students': <StudentList />,
