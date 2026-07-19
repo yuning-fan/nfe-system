@@ -1,8 +1,5 @@
-// 生活老师 · 住宿管理（本轮：晚上查寝）
-// 1) 查寝点名（dorm_check，名下公寓）→ 异常由风险引擎自动扣分
-// 2) 外宿审批（leave_applications overnight_stay 待审批）
-// 3) 晚归/未归违规（violation_logs 只读）
-// 白天巡查 / 卫生检查两 tab 需新建表 + 照片留档，留到下一轮。
+// 生活老师 · 住宿管理（三 tab：晚上查寝 / 白天巡查 / 卫生检查）
+// 晚上查寝：查寝点名(dorm_check→风险引擎扣分) + 外宿审批 + 违规只读
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -11,6 +8,7 @@ import RollCall from '../components/RollCall';
 import { Section } from '../ui';
 import { message } from 'antd';
 import { IconLoader2 } from '@tabler/icons-react';
+import { LifeDormHygiene } from './lifeDormHygiene';
 
 const db = supabase as any;
 
@@ -32,7 +30,30 @@ interface Violation {
 
 const fmt = (iso: string | null) => (iso ? iso.slice(0, 16).replace('T', ' ') : '—');
 
+// 两 tab 壳（白天巡查暂不需要，已移除）
+type DormTab = 'night' | 'hygiene';
 export function LifeDorm() {
+  const [tab, setTab] = useState<DormTab>('night');
+  const tabs: { k: DormTab; label: string }[] = [
+    { k: 'night', label: '晚上查寝' },
+    { k: 'hygiene', label: '卫生检查' },
+  ];
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {tabs.map(t => (
+          <button key={t.k} className={`btn ${tab === t.k ? 'btn-primary' : ''}`} onClick={() => setTab(t.k)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'night' && <LifeDormNight />}
+      {tab === 'hygiene' && <LifeDormHygiene />}
+    </>
+  );
+}
+
+function LifeDormNight() {
   const staffId = useAuthStore(s => s.user?.id ?? null);
   const [overnight, setOvernight] = useState<Overnight[]>([]);
   const [violations, setViolations] = useState<Violation[]>([]);

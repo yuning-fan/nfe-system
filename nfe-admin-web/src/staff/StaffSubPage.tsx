@@ -11,6 +11,7 @@ import { LifeMorning } from './pages/life';
 import { LifeStudents } from './pages/lifeStudents';
 import { LifeDorm } from './pages/lifeDorm';
 import { LifeMeds } from './pages/lifeMeds';
+import { LifeMeals } from './pages/lifeMealsPage';
 import { LifeComms } from './pages/lifeComms';
 import { LifeRisk } from './pages/lifeRisk';
 import TransportManagement from '../pages/Transport/TransportManagement';
@@ -48,6 +49,7 @@ const REGISTRY: Record<string, ReactNode> = {
   'life/students': <LifeStudents />,
   'life/morning': <LifeMorning />,
   'life/dorm': <LifeDorm />,
+  'life/meals': <LifeMeals />,
   'life/transport': <TransportManagement />,
   'life/meds': <LifeMeds />,
   'life/comms': <LifeComms />,
