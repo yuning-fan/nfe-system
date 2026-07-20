@@ -102,6 +102,10 @@ export default function StudentDetail() {
       source_school: student?.source_school || '',
       english_level: student?.english_level || '',
       target_university: student?.target_university || '',
+      up_student_id: student?.up_student_id || '',
+      uoa_student_id: student?.uoa_student_id || '',
+      target_degree: student?.target_degree || '',
+      offer_status: student?.offer_status || '',
       scholarship_requirement: student?.scholarship_requirement || '',
       emergency_contact_name: student?.emergency_contact_name || '',
       emergency_contact_phone: student?.emergency_contact_phone || '',
@@ -446,6 +450,22 @@ export default function StudentDetail() {
             <label className="form-label">目标院校</label>
             <input className="input" value={editForm.target_university} onChange={e => setEditForm({ ...editForm, target_university: e.target.value })} />
           </div>
+          <div className="form-group">
+            <label className="form-label">UP 预科学号</label>
+            <input className="input" placeholder="如 270991279" value={editForm.up_student_id} onChange={e => setEditForm({ ...editForm, up_student_id: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">奥大学号</label>
+            <input className="input" placeholder="录取后取得，未录取留空" value={editForm.uoa_student_id} onChange={e => setEditForm({ ...editForm, uoa_student_id: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">offer 情况</label>
+            <input className="input" placeholder="如 齐全" value={editForm.offer_status} onChange={e => setEditForm({ ...editForm, offer_status: e.target.value })} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">目标专业</label>
+            <input className="input" placeholder="如 Bachelor of Commerce: Accounting" value={editForm.target_degree} onChange={e => setEditForm({ ...editForm, target_degree: e.target.value })} />
+          </div>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">奖学金要求</label>
             <input className="input" value={editForm.scholarship_requirement} onChange={e => setEditForm({ ...editForm, scholarship_requirement: e.target.value })} />
@@ -599,16 +619,21 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">来源</span><span className="field-v">{enrollment?.source === 'green_channel' ? '绿通' : enrollment?.source === 'agent' ? '散客' : '—'}</span></div>
                 <div className="field"><span className="field-k">阶段</span><span className="field-v">{program?.name || '—'}</span></div>
                 <div className="field"><span className="field-k">缴费备注</span><span className="field-v">{student.payment_note || '—'}</span></div>
-              </div>
 
-              {/* 在读状态 + 留学目标 */}
-              <div className="card">
-                <div className="group-head"><IconCalendarStats size={16} />在读状态</div>
+                {/* 在读状态：与报名/阶段同属一组，合并展示以平衡卡片高度 */}
+                <div className="group-head" style={{ marginTop: 16 }}><IconCalendarStats size={16} />在读状态</div>
                 <div className="field"><span className="field-k">项目周期</span><span className="field-v">{enrollment?.start_date || '—'} 至 {enrollment?.end_date || '—'}</span></div>
                 <div className="field"><span className="field-k">在读状态</span><span className="field-v"><span className={`pill ${statusInfo.cls}`}>{statusInfo.label}</span></span></div>
-                
-                <div className="group-head" style={{ marginTop: 16 }}><IconTarget size={16} />留学目标</div>
+              </div>
+
+              {/* 留学目标（独立成卡：字段较多，并入他卡会撑高整行） */}
+              <div className="card">
+                <div className="group-head"><IconTarget size={16} />留学目标</div>
                 <div className="field"><span className="field-k">目标院校</span><span className="field-v">{student.target_university || '—'}</span></div>
+                <div className="field"><span className="field-k">UP 预科学号</span><span className="field-v">{student.up_student_id || '—'}</span></div>
+                <div className="field"><span className="field-k">奥大学号</span><span className="field-v">{student.uoa_student_id || '—'}</span></div>
+                <div className="field"><span className="field-k">目标专业</span><span className="field-v">{student.target_degree || '—'}</span></div>
+                <div className="field"><span className="field-k">offer 情况</span><span className="field-v">{student.offer_status || '—'}</span></div>
                 <div className="field"><span className="field-k">英语水平</span><span className="field-v">{student.english_level || '—'}</span></div>
                 <div className="field"><span className="field-k">奖学金要求</span><span className="field-v">{student.scholarship_requirement || '无'}</span></div>
               </div>

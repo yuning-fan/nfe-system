@@ -48,6 +48,10 @@ export interface StudentInfo {
   source_school: string | null;
   english_level: string | null;
   target_university: string | null;
+  up_student_id: string | null;      // UP 预科学号（27 开头）
+  uoa_student_id: string | null;     // 奥克兰大学学号（录取后取得）
+  target_degree: string | null;      // 目标专业/学位
+  offer_status: string | null;       // offer 情况
   scholarship_requirement: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
