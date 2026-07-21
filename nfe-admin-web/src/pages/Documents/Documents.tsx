@@ -46,6 +46,15 @@ const REQUIRED_COLS: { type: string; label: string; expiry?: boolean }[] = [
   { type: 'payment_receipt', label: '缴费凭证' },
 ];
 
+// 上传口径：后端（r2-sign）不限制格式与大小，这里是唯一的把关处。
+const ACCEPT_TYPES = 'image/*,.pdf,.doc,.docx,.xls,.xlsx';
+const MAX_SIZE_MB = 20;
+// 返回错误文案；通过校验返回 null
+const checkFile = (f: File): string | null =>
+  f.size > MAX_SIZE_MB * 1024 * 1024
+    ? `文件 ${(f.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_SIZE_MB}MB 上限`
+    : null;
+
 const docLabel = (t: string) => DOC_TYPES.find(d => d.value === t)?.label || t;
 const docCls = (t: string) => DOC_TYPES.find(d => d.value === t)?.cls || 'p-gray';
 
@@ -488,11 +497,16 @@ export default function Documents() {
             <input className="input" type="date" style={{ width: '100%' }} value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)} />
           </div>
           <div>
-            <label className="form-label">选择文件（≤20MB）</label>
+            <label className="form-label">选择文件（图片 / PDF / Word / Excel，≤{MAX_SIZE_MB}MB）</label>
             <input
               type="file"
-              accept="image/*,.pdf"
-              onChange={e => setUploadFileObj(e.target.files?.[0] || null)}
+              accept={ACCEPT_TYPES}
+              onChange={e => {
+                const f = e.target.files?.[0] || null;
+                const err = f && checkFile(f);
+                if (err) { message.error(err); e.target.value = ''; setUploadFileObj(null); return; }
+                setUploadFileObj(f);
+              }}
             />
             {uploadFileObj && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>已选：{uploadFileObj.name}</div>}
           </div>
@@ -525,7 +539,12 @@ export default function Documents() {
           </div>
           <div>
             <label className="form-label">替换文件（可选，不选则保留原文件）</label>
-            <input type="file" accept="image/*,.pdf" onChange={e => setEditFileObj(e.target.files?.[0] || null)} />
+            <input type="file" accept={ACCEPT_TYPES} onChange={e => {
+              const f = e.target.files?.[0] || null;
+              const err = f && checkFile(f);
+              if (err) { message.error(err); e.target.value = ''; setEditFileObj(null); return; }
+              setEditFileObj(f);
+            }} />
             {editFileObj
               ? <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>新文件：{editFileObj.name}</div>
               : <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 4 }}>当前：{fileName(editDoc?.file_url || '')}</div>}
