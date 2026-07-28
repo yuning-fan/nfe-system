@@ -527,7 +527,9 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('grade_records')
-        .select(`*, profiles(full_name), courses(name), program_subjects(subject_name), academic_milestones(title)`)
+        // profiles 需指明外键：grade_records 有 student_id / recorded_by 两个指向 profiles 的外键，
+        // 不指定会因关系歧义导致整条查询报错、列表恒为空。
+        .select(`*, profiles!student_id(full_name), courses(name), program_subjects(subject_name), academic_milestones(title)`)
         .order('recorded_at', { ascending: false });
       if (error) throw error;
       

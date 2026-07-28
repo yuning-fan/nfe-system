@@ -1,5 +1,5 @@
 // 学生档案 · 学业 tab 成绩单卡：按科目展示考核节点得分 + 加权总评 + 过线 + 提分趋势
-import { computeSubject } from '../../lib/gradeCalc';
+import { computeSubject, computeRequirement } from '../../lib/gradeCalc';
 
 export default function GradebookCard({ student }: { student: any }) {
   const grades: any[] = student.grade_records || [];
@@ -32,6 +32,7 @@ export default function GradebookCard({ student }: { student: any }) {
           const passMark = meta?.pass_mark ?? 50;
           const subjectNodes = nodes.filter(n => n.program_subject_id === sid);
           const r = computeSubject(subjectNodes, scoreOf, passMark);
+          const req = computeRequirement(r, passMark);
           // 趋势：该科已录成绩按日期
           const trend = grades
             .filter(g => g.program_subject_id === sid && g.recorded_at)
@@ -49,6 +50,25 @@ export default function GradebookCard({ student }: { student: any }) {
                     : r.pass ? <span className="pill p-green">已过线 ✓</span> : <span className="pill p-red">未过线</span>}
                 </span>
               </div>
+
+              {/* 达标预测：剩余考核还需拿到多少平均分 */}
+              {req.status !== 'done' && (
+                <div style={{ marginBottom: 8, fontSize: 12 }}>
+                  {req.status === 'achievable' && (
+                    <span className={req.requiredAvg! > 85 ? 'pill p-red' : req.requiredAvg! > 70 ? 'pill p-amber' : 'pill p-green'}>
+                      剩余 {req.remainingWeight}% 需均分 ≥ <b>{req.requiredAvg}</b> 才能过线
+                    </span>
+                  )}
+                  {req.status === 'secured' && (
+                    <span className="pill p-green">已锁定过线（剩余 {req.remainingWeight}% 即使为0也达标）</span>
+                  )}
+                  {req.status === 'impossible' && (
+                    <span className="pill p-red">
+                      ⚠️ 剩余 {req.remainingWeight}% 即使全满分也无法过线（尚差 {req.gapPoints} 分）
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* 节点得分 */}
               <table className="tbl" style={{ width: '100%', textAlign: 'left' }}>

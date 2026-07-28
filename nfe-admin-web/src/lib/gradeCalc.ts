@@ -31,6 +31,40 @@ export interface SubjectResult {
   pass: boolean | null;       // total>=passMark
 }
 
+export type RequirementStatus =
+  | 'done'         // 已全部评完，无剩余考核
+  | 'secured'      // 剩余全交白卷也已过线
+  | 'achievable'   // 剩余需拿到 requiredAvg 才能过线
+  | 'impossible';  // 即使剩余全满分也无法过线
+
+export interface Requirement {
+  remainingWeight: number;        // 尚未评分的权重(以总评100为基准)
+  requiredAvg: number | null;     // 剩余考核需达到的平均分；done/无剩余时为 null
+  status: RequirementStatus;
+  gapPoints: number;              // 距过线还差的加权分
+}
+
+// 实时推算「接下来还需拿到多少平均分才能过线」
+// 口径：剩余权重 = 100 - 已评权重（顶层节点未配满100时，缺口视为尚未建立的考核）
+export function computeRequirement(result: SubjectResult, passMark: number): Requirement {
+  const remainingWeight = round1(100 - result.gradedWeight);
+  const gapPoints = round1(passMark - result.earnedPoints);
+
+  if (remainingWeight <= 0) {
+    return { remainingWeight: 0, requiredAvg: null, status: 'done', gapPoints };
+  }
+  if (gapPoints <= 0) {
+    return { remainingWeight, requiredAvg: null, status: 'secured', gapPoints };
+  }
+  const requiredAvg = round1((gapPoints / remainingWeight) * 100);
+  return {
+    remainingWeight,
+    requiredAvg,
+    status: requiredAvg > 100 ? 'impossible' : 'achievable',
+    gapPoints,
+  };
+}
+
 // nodes: 该科全部节点(含父子)；scoreOf: 节点id -> 最终分(已录) 或 undefined
 export function computeSubject(
   nodes: NodeLite[],

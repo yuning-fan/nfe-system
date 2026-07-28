@@ -5,7 +5,7 @@ import { useStudentStore } from '../../store/useStudentStore';
 import { IconReportAnalytics } from '@tabler/icons-react';
 import { Modal, message, Select, InputNumber, Input } from 'antd';
 import StudentSelect from '../../components/common/StudentSelect';
-import { computeSubject } from '../../lib/gradeCalc';
+import { computeSubject, computeRequirement } from '../../lib/gradeCalc';
 
 const STATUS_OPTS = [
   { label: '正常', value: 'graded' },
@@ -37,6 +37,7 @@ export default function GradeRecordsManagement() {
   const nodes = milestones.filter(m => m.program_subject_id === subjectId);
   const gradeOf = (nodeId: number) => gradeRecords.find((r: any) => r.student_id === studentId && r.milestone_id === nodeId);
   const result = computeSubject(nodes as any, (id) => gradeOf(id)?.score ?? null, passMark);
+  const req = computeRequirement(result, passMark);
 
   const openEntry = (n: any) => {
     const g = gradeOf(n.id);
@@ -98,6 +99,18 @@ export default function GradeRecordsManagement() {
               <div>{result.total == null
                 ? <span className="pill p-amber">进行中 · 已评{Math.round(result.gradedWeight)}%</span>
                 : result.pass ? <span className="pill p-green">已过线 ✓</span> : <span className="pill p-red">未过线</span>}</div></div>
+            {req.status !== 'done' && (
+              <div><div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>达标预测</div>
+                <div style={{ fontSize: 13 }}>
+                  {req.status === 'achievable' && (
+                    <span className={req.requiredAvg! > 85 ? 'pill p-red' : req.requiredAvg! > 70 ? 'pill p-amber' : 'pill p-green'}>
+                      剩余 {req.remainingWeight}% 需均分 ≥ <b>{req.requiredAvg}</b>
+                    </span>
+                  )}
+                  {req.status === 'secured' && <span className="pill p-green">已锁定过线</span>}
+                  {req.status === 'impossible' && <span className="pill p-red">⚠️ 已无法过线（差 {req.gapPoints} 分）</span>}
+                </div></div>
+            )}
             <div style={{ fontSize: 12, color: Math.round(result.topWeightSum) === 100 ? 'var(--color-text-tertiary)' : 'var(--color-danger)' }}>
               顶层权重合计 {result.topWeightSum}%{Math.round(result.topWeightSum) === 100 ? '' : '（节点权重未配满 100%）'}
               {result.total == null && <span>　带 * 为已得加权分（未录完）</span>}
