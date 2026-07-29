@@ -1,13 +1,14 @@
 // 风险评分引擎 —— 客观指标自动算分（口径见 docs/06_Roadmap/风险评分系统_设计与TodoList.md §2）
 // 设计：100 分制、扣分制、15 天滚动窗口。任何角色录入后调用 recomputeRisk(studentId) 即时重算。
 import { supabase } from './supabase';
+import { computeSubject } from './gradeCalc';
 
 export const RISK_WINDOW_DAYS = 15;
 
 // 扣分默认值（实际以 risk_config 表为准，见 loadConfig；读不到配置时回落这里）
 export const DEDUCT = {
   attendanceAbsent: 8, // 每次缺勤（晚自习/学校上课/辅导课，无医证或未留痕请假）
-  gradeBelow: 6,       // 成绩低于阈值每科
+  gradeBelow: 6,       // 每有一科加权均分低于该科过线分
   feeUnpaid: 10,       // 存在欠费
   docExpiry30: 5,
   docExpiry14: 10,
@@ -15,7 +16,7 @@ export const DEDUCT = {
   warning1: 10,
   warning2: 20,
 };
-export const GRADE_THRESHOLD = 60; // 成绩低于此分计为“低于阈值”
+export const GRADE_THRESHOLD = 60; // 兜底阈值：仅当科目未设 pass_mark 时使用
 
 // 出勤类型 → 中文标签（daily_checks.check_type）
 export const ATTEND_LABEL: Record<string, string> = {
@@ -191,15 +192,57 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
     breakdown.push({ label: '欠费', points: C.fee, detail: `${(fees || []).length} 笔未缴` });
   }
 
-  // 6) 成绩低于阈值（窗口内）
-  const { data: grades } = await supabase
+  // 6) 科目低于过线分（按科目加权均分判定，累计口径 —— 不受 15 天窗口限制）
+  // 说明：成绩已细化到考核节点级，单条低分不再各自扣分（否则粒度越细惩罚越重）。
+  // 改为按科目算「已出成绩加权均分」，低于该科自身 pass_mark 才计一次扣分。
+  const { data: gradeRows } = await supabase
     .from('grade_records')
-    .select('score, recorded_at')
-    .eq('student_id', studentId)
-    .lt('score', C.gradeTh)
-    .gte('recorded_at', since);
-  if ((grades || []).length > 0) {
-    breakdown.push({ label: '成绩低于阈值', points: (grades || []).length * C.gradeBelow, detail: `${(grades || []).length} 科 < ${C.gradeTh}` });
+    .select('score, milestone_id, program_subject_id')
+    .eq('student_id', studentId);
+
+  const subjectIds = Array.from(
+    new Set((gradeRows || []).map(g => g.program_subject_id).filter(Boolean))
+  ) as number[];
+
+  if (subjectIds.length > 0) {
+    const [{ data: nodeRows }, { data: subjRows }] = await Promise.all([
+      supabase
+        .from('academic_milestones')
+        .select('id, parent_id, weight_percent, title, program_subject_id')
+        .in('program_subject_id', subjectIds),
+      supabase
+        .from('program_subjects')
+        .select('id, subject_name, pass_mark')
+        .in('id', subjectIds),
+    ]);
+
+    const belowSubjects: string[] = [];
+    for (const s of subjRows || []) {
+      const nodes = (nodeRows || []).filter(n => n.program_subject_id === s.id);
+      if (nodes.length === 0) continue;
+      const passMark = Number(s.pass_mark ?? C.gradeTh);
+      const r = computeSubject(
+        nodes as any,
+        (mid: number) => {
+          const g = (gradeRows || []).find(x => x.milestone_id === mid);
+          return g ? Number(g.score) : null;
+        },
+        passMark
+      );
+      if (r.gradedWeight <= 0) continue;                 // 该科尚无有效成绩，不参与评分
+      const avg = (r.earnedPoints / r.gradedWeight) * 100;
+      if (avg < passMark) {
+        belowSubjects.push(`${s.subject_name} ${avg.toFixed(1)}<${passMark}`);
+      }
+    }
+
+    if (belowSubjects.length > 0) {
+      breakdown.push({
+        label: '科目低于过线分',
+        points: belowSubjects.length * C.gradeBelow,
+        detail: `${belowSubjects.length} 科：${belowSubjects.join('、')}`,
+      });
+    }
   }
 
   // 7) 官方出勤率（巡查周一录入）—— 双红线：合约 95% / 学校 93%
