@@ -10,7 +10,9 @@ import type { Json } from '../types/database.types';
 // 报告结构化内容（出勤报告 biweekly / 学术报告 monthly 共用超集，按 report_type 取用相应字段）
 export interface ReportGrade { subject: string; score: string; note: string; }
 export interface ReportViolation { type: string; date: string; note: string; }
-export interface ReportSubject { name: string; total: number | null; passMark: number; pass: boolean | null; nodes: { title: string; weight: number; score: number | null }[]; }
+// nodes.date = 考核日期（academic_milestones.due_date）
+// 「措施」列不由系统填充：导出后由学管在 Word 里手写，故报告数据不含该字段。
+export interface ReportSubject { name: string; total: number | null; passMark: number; pass: boolean | null; nodes: { title: string; weight: number; score: number | null; date?: string | null }[]; }
 export interface ReportFeedback { date: string; subject: string; feedback: string; }
 export interface ReportContent {
   attendance: { rate: number | null; official_rate?: number | null; present: number; absent: number; leave: number };
@@ -124,7 +126,10 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
       const r = computeSubject(subjectNodes as any, scoreOf, passMark);
       return {
         name: meta?.subject_name || '科目', total: r.total, passMark, pass: r.pass,
-        nodes: r.rows.map(row => ({ title: (row.node as any).title, weight: row.weight, score: row.score })),
+        nodes: r.rows.map(row => {
+          const n = row.node as any;
+          return { title: n.title, weight: row.weight, score: row.score, date: n.due_date || null };
+        }),
       };
     });
     // 辅导公开反馈（周期内已完成的课）

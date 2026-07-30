@@ -8,6 +8,7 @@ import Pagination from '../../components/common/Pagination';
 import StudentSelect from '../../components/common/StudentSelect';
 import { ReportEditor, ReportPreview } from './ReportEditor';
 import { exportReportDoc } from '../../lib/reportExport';
+import { downloadAcademicDocx } from '../../lib/reportDocx';
 
 // 默认周期：出勤=近14天，学术=近30天
 function defaultPeriod(days: number) {
@@ -64,6 +65,16 @@ export default function ReportsPage() {
     finally { setGenerating(false); }
   };
 
+  // 学术月报 → 真 .docx（表格版式，对齐线下《成绩记录表》）；出勤双周报 → 原 HTML .doc
+  const onExport = async (r: ReportRecord) => {
+    if (r.report_type !== 'monthly') { exportReportDoc(r); return; }
+    try {
+      await downloadAcademicDocx(r, { studentName: r.student?.full_name || '学生' });
+    } catch (e: any) {
+      message.error(e?.message || '导出失败');
+    }
+  };
+
   const confirmDelete = (r: ReportRecord) => {
     Modal.confirm({ title: '删除报告', content: `确认删除「${r.student?.full_name} 双周报告」草稿吗？`, okType: 'danger', onOk: () => deleteReport(r.id) });
   };
@@ -113,7 +124,7 @@ export default function ReportsPage() {
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <span className="link" onClick={() => setEditing(r)}><IconPencil size={12} style={{ verticalAlign: 'middle' }} /> 编辑</span>
                     {' · '}<span className="link" onClick={() => setPreviewing(r)}><IconEye size={12} style={{ verticalAlign: 'middle' }} /> 预览</span>
-                    {' · '}<span className="link" onClick={() => exportReportDoc(r)}><IconFileDownload size={12} style={{ verticalAlign: 'middle' }} /> Word</span>
+                    {' · '}<span className="link" onClick={() => onExport(r)}><IconFileDownload size={12} style={{ verticalAlign: 'middle' }} /> Word</span>
                     {' · '}<span className="link" onClick={() => publishReport(r.id)}>审核发布</span>
                     {' · '}<span className="link" style={{ color: 'var(--color-danger)' }} onClick={() => confirmDelete(r)}><IconTrash size={12} style={{ verticalAlign: 'middle' }} /> 删除</span>
                   </td>
@@ -149,7 +160,7 @@ export default function ReportsPage() {
                   <td style={{ padding: '12px 16px' }}>{fmt(r.sent_at?.slice(0, 10) || r.reviewed_at?.slice(0, 10) || null)}</td>
                   <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                     <span className="link" style={{ fontSize: 12 }} onClick={() => setPreviewing(r)}><IconEye size={12} style={{ verticalAlign: 'middle' }} /> 预览</span>
-                    {' · '}<span className="link" style={{ fontSize: 12 }} onClick={() => exportReportDoc(r)}><IconFileDownload size={12} style={{ verticalAlign: 'middle' }} /> Word</span>
+                    {' · '}<span className="link" style={{ fontSize: 12 }} onClick={() => onExport(r)}><IconFileDownload size={12} style={{ verticalAlign: 'middle' }} /> Word</span>
                   </td>
                 </tr>
               ))}
