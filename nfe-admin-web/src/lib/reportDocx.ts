@@ -18,7 +18,7 @@ const SUBJECT_CN: Record<string, string> = {
   Mathematics: '数学', Calculus: '微积分', Statistics: '统计',
   Economics: '经济', Accounting: '会计', Design: '设计',
 };
-const cnOf = (name: string) => {
+export const cnOf = (name: string) => {
   const hit = Object.keys(SUBJECT_CN).find(k => name.toLowerCase().includes(k.toLowerCase()));
   return hit ? SUBJECT_CN[hit] : '';
 };
@@ -47,7 +47,8 @@ function cell(text: unknown, o: { w: number; bold?: boolean; bg?: string; align?
 }
 
 // 加权小结：与 gradeCalc / computeRequirement 同口径
-function summarize(sub: ReportSubject) {
+// 导出给预览页复用，确保「系统里看到的」与「导出的 Word」完全一致
+export function summarizeSubject(sub: ReportSubject) {
   const scored = sub.nodes.filter(n => n.weight > 0 && n.score != null);
   const gradedWeight = scored.reduce((s, n) => s + n.weight, 0);
   const earned = scored.reduce((s, n) => s + (n.weight / 100) * (n.score as number), 0);
@@ -67,10 +68,10 @@ function summarize(sub: ReportSubject) {
   };
 }
 
-const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).replace(/-/g, '/') : '—');
+export const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).replace(/-/g, '/') : '—');
 
 function subjectBlock(sub: ReportSubject) {
-  const s = summarize(sub);
+  const s = summarizeSubject(sub);
   const cn = cnOf(sub.name);
   const rows = [
     new TableRow({

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Modal, InputNumber } from 'antd';
 import { IconPlus, IconTrash, IconFileDownload } from '@tabler/icons-react';
-import type { ReportRecord, ReportContent } from '../../store/useReportStore';
+import type { ReportRecord, ReportContent, ReportSubject } from '../../store/useReportStore';
 import { emptyContent } from '../../store/useReportStore';
 import { exportReportDoc } from '../../lib/reportExport';
+import { summarizeSubject, cnOf, fmtDate, downloadAcademicDocx } from '../../lib/reportDocx';
 
 // 双周学术报告编辑器
 export function ReportEditor({ report, onCancel, onSave }: {
@@ -30,7 +31,12 @@ export function ReportEditor({ report, onCancel, onSave }: {
     <Modal title={`编辑报告 · ${report.student?.full_name || ''}`} open onCancel={onCancel} onOk={save}
       okText={saving ? '保存中…' : '保存'} confirmLoading={saving} width={680}
       footer={[
-        <button key="x" className="btn" onClick={() => exportReportDoc({ ...report, content: c })}><IconFileDownload size={14} style={{ marginRight: 4 }} />导出 Word</button>,
+        <button key="x" className="btn" onClick={() => {
+          const r = { ...report, content: c };
+          // 学术月报走真 .docx 表格版式；出勤双周报仍用原导出
+          if (isAcademic) downloadAcademicDocx(r, { studentName: report.student?.full_name || '学生' });
+          else exportReportDoc(r);
+        }}><IconFileDownload size={14} style={{ marginRight: 4 }} />导出 Word</button>,
         <button key="c" className="btn" onClick={onCancel}>取消</button>,
         <button key="s" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? '保存中…' : '保存'}</button>,
       ]}>
@@ -57,13 +63,10 @@ export function ReportEditor({ report, onCancel, onSave }: {
         {isAcademic ? (
           <>
             {/* 学术：各科加权总评（只读汇总） */}
-            <Block title="各科总评（自动汇总）">
-              {(c.subjects && c.subjects.length) ? c.subjects.map((s, i) => (
-                <div key={i} style={{ borderTop: i ? '1px solid var(--color-border-tertiary)' : 'none', padding: '6px 0' }}>
-                  <div style={{ fontWeight: 600 }}>{s.name}　总评 {s.total != null ? s.total : '进行中'} / 过线 {s.passMark}　{s.pass == null ? '' : s.pass ? '✅ 已过线' : '❌ 未过线'}</div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{s.nodes.map(n => `${n.title}(${n.weight}%):${n.score == null ? '待录' : n.score}`).join('　')}</div>
-                </div>
-              )) : <Empty />}
+            <Block title="科目成绩（自动汇总，与导出 Word 一致）">
+              {(c.subjects && c.subjects.length)
+                ? c.subjects.map((s, i) => <SubjectTable key={i} sub={s} />)
+                : <Empty />}
             </Block>
             {/* 学术：辅导反馈（只读） */}
             <Block title="辅导课反馈（本期）">
@@ -154,13 +157,10 @@ export function ReportPreview({ report, onClose }: { report: ReportRecord; onClo
 
         {isAcademic ? (
           <>
-            <PvSection title="各科总评">
-              {c.subjects && c.subjects.length ? c.subjects.map((s, i) => (
-                <div key={i} style={{ marginBottom: 6 }}>
-                  <b>{s.name}</b>：总评 {s.total != null ? s.total : '进行中'} / 过线 {s.passMark} {s.pass == null ? '' : s.pass ? '（已过线）' : '（未过线）'}
-                  <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{s.nodes.map(n => `${n.title}(${n.weight}%):${n.score == null ? '待录' : n.score}`).join('　')}</div>
-                </div>
-              )) : '本期暂无成绩'}
+            <PvSection title="科目成绩">
+              {c.subjects && c.subjects.length
+                ? c.subjects.map((s, i) => <SubjectTable key={i} sub={s} />)
+                : '本期暂无成绩'}
             </PvSection>
             <PvSection title="辅导课反馈">
               {c.tutoring_feedback && c.tutoring_feedback.length ? c.tutoring_feedback.map((f, i) => <div key={i}>{f.date} {f.subject}：{f.feedback}</div>) : '本期暂无辅导反馈'}
@@ -210,6 +210,66 @@ function AddBtn({ onClick }: { onClick: () => void }) {
   return <button className="btn" onClick={onClick} style={{ padding: '2px 10px', fontSize: 12, minHeight: 24 }}><IconPlus size={12} /> 添加</button>;
 }
 function Empty() { return <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', padding: '4px 0' }}>暂无,点「添加」</div>; }
+// 预览用科目表 —— 与导出 Word 同版式、同口径（summarizeSubject 来自 reportDocx）
+function SubjectTable({ sub }: { sub: ReportSubject }) {
+  const s = summarizeSubject(sub);
+  const cn = cnOf(sub.name);
+  const th: React.CSSProperties = {
+    padding: '6px 8px', background: 'var(--color-bg-tertiary)', fontWeight: 600,
+    fontSize: 12, textAlign: 'left', border: '1px solid var(--color-border-tertiary)',
+  };
+  const td: React.CSSProperties = {
+    padding: '6px 8px', fontSize: 12, border: '1px solid var(--color-border-tertiary)',
+  };
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{cn ? `${sub.name}（${cn}）` : sub.name}</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+          <thead>
+            <tr>
+              <th style={th}>评估项</th>
+              <th style={{ ...th, textAlign: 'center', width: 64 }}>占比</th>
+              <th style={{ ...th, textAlign: 'center', width: 80 }}>得分</th>
+              <th style={{ ...th, textAlign: 'center', width: 92 }}>记录时间</th>
+              <th style={{ ...th, width: 140 }}>措施</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sub.nodes.map((n, i) => {
+              const pending = n.score == null;
+              const low = !pending && n.weight > 0 && (n.score as number) < sub.passMark;
+              return (
+                <tr key={i}>
+                  <td style={td}>{n.title}</td>
+                  <td style={{ ...td, textAlign: 'center', color: n.weight > 0 ? undefined : 'var(--color-danger)' }}>
+                    {n.weight > 0 ? `${n.weight}%` : '待确认'}
+                  </td>
+                  <td style={{
+                    ...td, textAlign: 'center', fontWeight: low ? 700 : 400,
+                    color: low ? 'var(--color-danger)' : pending ? 'var(--color-text-tertiary)' : undefined,
+                  }}>
+                    {pending ? '待录' : `${n.score}%`}
+                  </td>
+                  <td style={{ ...td, textAlign: 'center' }}>{fmtDate(n.date)}</td>
+                  <td style={{ ...td, color: 'var(--color-text-tertiary)' }}>—</td>
+                </tr>
+              );
+            })}
+            <tr style={{ background: 'var(--color-bg-secondary)' }}>
+              <td style={{ ...td, fontWeight: 600 }}>已出成绩加权小结</td>
+              <td style={{ ...td, textAlign: 'center', fontWeight: 600 }}>{s.gradedWeight}%</td>
+              <td style={{ ...td, textAlign: 'center', fontWeight: 600 }}>{s.avg == null ? '—' : `${s.avg}%`}</td>
+              <td style={{ ...td, textAlign: 'center' }}>过线 {sub.passMark}</td>
+              <td style={td}>剩余 {s.remaining}% 需均分：{s.need}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function PvSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
