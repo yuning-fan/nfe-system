@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Input, Modal, Select, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { IconPlus, IconLoader2, IconAlertTriangle, IconSearch } from '@tabler/icons-react';
+import { IconPlus, IconLoader2, IconAlertTriangle, IconSearch, IconFileSpreadsheet } from '@tabler/icons-react';
 import { useStudentStore } from '../../store/useStudentStore';
 import { FEE_TYPE_LABELS, FEE_TYPES, type FeeType } from '../../store/useFeeStore';
 import { derivePhaseStatus } from '../../lib/phaseStatus';
 import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS, normalizeRiskLevel } from '../../lib/riskLabels';
+import { downloadXlsx, type CellValue } from '../../lib/xlsx';
 
 const RISK = (r: string) => {
   const level = normalizeRiskLevel(r);
@@ -66,6 +67,41 @@ const latestEnd = (s: any): string | null => {
   return ends.length ? ends.sort().slice(-1)[0] : null;
 };
 
+// ---- 导出 Excel ----
+// 比表格列多带一批档案字段（生日/城市/顾问/签证等）：表格是速览，导出是存档。
+// 状态口径全部复用页面同款函数，避免两处各写一套。
+const SOURCE_LABEL: Record<string, string> = { green_channel: '绿通', agent: '散客' };
+const FEE_STATE_TEXT: Record<string, string> = { paid: '已缴', unpaid: '未缴', none: '未登记' };
+const OVERALL_FEE_TEXT: Record<string, string> = { paid: '已缴清', partial: '部分', unpaid: '未缴费', none: '未登记' };
+
+const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellValue }[] = [
+  { title: '姓名', width: 12, value: s => s.profiles?.full_name },
+  { title: '英文名', width: 14, value: s => s.english_name },
+  { title: '性别', width: 6, value: s => s.gender === 'male' ? '男' : s.gender === 'female' ? '女' : '' },
+  { title: '出生日期', width: 12, value: s => s.date_of_birth },
+  { title: '电话', width: 14, value: s => s.profiles?.phone },
+  { title: '城市', width: 8, value: s => s.city },
+  { title: '来源学校', width: 22, value: s => s.source_school },
+  { title: '就读学校', width: 18, value: s => s.school_name },
+  { title: '市场来源', width: 12, value: s => s.market_source },
+  { title: '顾问', width: 10, value: s => s.advisor },
+  { title: '渠道', width: 8, value: s => SOURCE_LABEL[s.current_phase?.source] ?? '' },
+  { title: '当前课程/阶段', width: 24, value: s => s.current_phase?.programs?.name },
+  { title: '开学日期', width: 12, value: s => s.current_phase?.start_date },
+  { title: '开学季', width: 8, value: s => { const m = intakeMonth(s); return m ? `${m}月` : ''; } },
+  { title: '在读状态', width: 10, value: s => derivePhaseStatus(s.current_phase).label },
+  { title: '风险等级', width: 10, value: s => RISK_LEVEL_LABEL[normalizeRiskLevel(s.risk_level)] },
+  { title: '服务截止日期', width: 14, value: s => latestEnd(s) },
+  { title: '缴费状态', width: 10, value: s => OVERALL_FEE_TEXT[overallFee(s)] },
+  ...FEE_TYPES.map(t => ({
+    title: `${FEE_TYPE_LABELS[t]}费`, width: 8, value: (s: any) => FEE_STATE_TEXT[feeOf(s, t)],
+  })),
+  { title: '可用课时', width: 10, value: s => s.available_hours ?? null },
+  { title: '抵新日期', width: 12, value: s => s.arrival_date },
+  { title: '签证到期', width: 12, value: s => s.visa_expiry },
+  { title: '入学清单待办', width: 12, value: s => onboardingMissing(s) },
+];
+
 export default function StudentList() {
   const navigate = useNavigate();
   const { students, programs, isLoading, error, fetchStudents, fetchPrograms, createStudent } = useStudentStore();
@@ -107,6 +143,23 @@ export default function StudentList() {
       (s.english_name ?? '').toLowerCase().includes(q) ||
       (s.source_school ?? '').toLowerCase().includes(q));
   }, [students, search]);
+
+  // 导出取表格「当前视图」：搜索 + 列筛选 + 排序后的全部行（不止当前页）。
+  // 列筛选状态在 antd 内部，只能从 onChange 的 currentDataSource 拿；搜索变化时回落到 dataSource。
+  const [viewRows, setViewRows] = useState<any[]>([]);
+  useEffect(() => { setViewRows(dataSource); }, [dataSource]);
+
+  const handleExport = () => {
+    if (!viewRows.length) { message.warning('当前没有可导出的学生'); return; }
+    const today = new Date().toLocaleDateString('sv');  // sv 语言环境即 YYYY-MM-DD
+    downloadXlsx(`学生信息_${today}.xlsx`, {
+      sheetName: '学生信息',
+      headers: EXPORT_COLUMNS.map(c => c.title),
+      colWidths: EXPORT_COLUMNS.map(c => c.width),
+      rows: viewRows.map(s => EXPORT_COLUMNS.map(c => c.value(s))),
+    });
+    message.success(`已导出 ${viewRows.length} 名学生`);
+  };
 
   const feeColumn = (t: FeeType): ColumnsType<any>[number] => ({
     title: FEE_TYPE_LABELS[t],
@@ -237,7 +290,13 @@ export default function StudentList() {
           onChange={e => setSearch(e.target.value)}
           style={{ width: 280 }}
         />
-        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}><IconPlus stroke={1.5} size={16} />新建学生档案</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="btn" onClick={handleExport} disabled={isLoading || !viewRows.length}
+            title="按当前搜索与筛选结果导出（不止当前页）">
+            <IconFileSpreadsheet stroke={1.5} size={16} />导出 Excel
+          </button>
+          <button className="btn btn-primary" onClick={() => setCreateOpen(true)}><IconPlus stroke={1.5} size={16} />新建学生档案</button>
+        </div>
       </div>
 
       <Modal title="新建学生档案" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={handleCreate}
@@ -284,6 +343,7 @@ export default function StudentList() {
         loading={isLoading ? { indicator: <IconLoader2 className="spinner" size={24} /> } : false}
         columns={columns}
         dataSource={dataSource}
+        onChange={(_p, _f, _s, extra) => setViewRows(extra.currentDataSource)}
         scroll={{ x: 1370 }}
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 名学生` }}
       />
