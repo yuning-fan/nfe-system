@@ -105,7 +105,7 @@ export default function HousingManagement() {
       .order('room_number');
     const { data: assignData } = await supabase
       .from('dorm_assignments')
-      .select('*, profiles(full_name)')
+      .select('*, profiles!student_id(full_name)')
       .eq('is_active', true);
     const { data: guardianData } = await supabase
       .from('apartment_guardians')
@@ -125,7 +125,7 @@ export default function HousingManagement() {
     // 最近一批 Intake：未来入学的报名按月份分组，取最早的那个月
     const { data: enrData } = await (supabase as any)
       .from('student_enrollments')
-      .select('student_id, start_date, profiles(full_name)')
+      .select('student_id, start_date, profiles!student_id(full_name)')
       .not('start_date', 'is', null);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const future = ((enrData as any[]) || []).filter(e => e.start_date && new Date(e.start_date) >= today);

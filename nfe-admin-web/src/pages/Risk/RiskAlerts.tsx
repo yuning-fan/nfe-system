@@ -86,12 +86,12 @@ export default function RiskAlerts() {
 
     const { data: red } = await supabase
       .from('students_info')
-      .select('*, profiles(*), student_enrollments(status, programs(name))')
+      .select('*, profiles!student_id(*), student_enrollments(status, programs(name))')
       .eq('risk_level', 'red');
 
     const { data: yellow } = await supabase
       .from('students_info')
-      .select('*, profiles(*), student_enrollments(status, programs(name))')
+      .select('*, profiles!student_id(*), student_enrollments(status, programs(name))')
       .eq('risk_level', 'yellow');
 
     const { count: greenCnt } = await supabase

@@ -29,7 +29,7 @@ export function AttendanceRateEntry() {
     setLoading(true);
     const { data: infos } = await db
       .from('students_info')
-      .select('student_id, school_attendance_rate, profiles(full_name)');
+      .select('student_id, school_attendance_rate, profiles!student_id(full_name)');
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const { data: checks } = await db
       .from('daily_checks')

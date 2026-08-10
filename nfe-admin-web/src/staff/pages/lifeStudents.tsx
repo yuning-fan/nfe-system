@@ -32,7 +32,7 @@ export function LifeStudents() {
 
     const [{ data: infos }, { data: assigns }] = await Promise.all([
       db.from('students_info')
-        .select('student_id, emergency_contact_name, emergency_contact_phone, health_notes, risk_level, profiles(full_name)')
+        .select('student_id, emergency_contact_name, emergency_contact_phone, health_notes, risk_level, profiles!student_id(full_name)')
         .in('student_id', ids),
       db.from('dorm_assignments')
         .select('student_id, dorms(building_name, room_number)')

@@ -28,7 +28,7 @@ export function LifeRisk() {
     if (ids.length === 0) { setRows([]); setLoading(false); return; }
     const { data } = await db
       .from('students_info')
-      .select('student_id, total_risk_score, risk_level, profiles(full_name)')
+      .select('student_id, total_risk_score, risk_level, profiles!student_id(full_name)')
       .in('student_id', ids);
     const list: RiskRow[] = ((data || []) as any[]).map(i => ({
       id: i.student_id,

@@ -25,7 +25,7 @@ export default function TransportAssignmentModal({ isOpen, onClose, onSuccess }:
     // 只列有档案的在读学生（students_info），与全员 roster 口径不同，故保留本地名单
     const { data } = await supabase
       .from('students_info')
-      .select('student_id, profiles(full_name)');
+      .select('student_id, profiles!student_id(full_name)');
 
     setStudents(data || []);
   };
