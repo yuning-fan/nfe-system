@@ -174,7 +174,7 @@ export default function Documents() {
     async function fetchStudents() {
       const { data } = await db
         .from('students_info')
-        .select('student_id, school_name, profiles(full_name)')
+        .select('student_id, school_name, profiles!student_id(full_name)')
         .order('student_id');
       const list = (data as Student[]) || [];
       setStudents(list);

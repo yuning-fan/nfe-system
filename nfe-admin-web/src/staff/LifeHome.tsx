@@ -32,7 +32,7 @@ export default function LifeHome() {
     }
 
     const [{ data: infos }, { count: overnight }, { data: medRows }] = await Promise.all([
-      db.from('students_info').select('student_id, risk_level, profiles(full_name)').in('student_id', ids),
+      db.from('students_info').select('student_id, risk_level, profiles!student_id(full_name)').in('student_id', ids),
       db.from('leave_applications').select('*', { count: 'exact', head: true })
         .eq('leave_type', 'overnight_stay').eq('status', 'pending').in('student_id', ids),
       db.from('medications').select('id').eq('is_active', true).not('daily_time', 'is', null).in('student_id', ids),

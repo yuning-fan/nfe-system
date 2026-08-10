@@ -136,6 +136,14 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       const dormsSet = new Set((dormsData || []).map(d => d.student_id));
       const timetableSet = new Set((timetableData || []).map(t => t.student_id));
 
+      // 员工姓名表：nz_advisor_id / life_teacher_id 是 FK，导出与列表要显示姓名
+      const { data: staffData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .neq('role', 'student');
+      const staffMap: Record<string, string> = {};
+      for (const st of staffData || []) staffMap[st.id] = st.full_name;
+
       const normalized = (profileData || []).map(p => {
         const info = infoMap[p.id] || {};
         const cur = currentPhaseMap[p.id] || null;
@@ -157,6 +165,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           all_phases: allPhases,     // 全部阶段 + 各阶段费用
           visa_expiry: visaMap[p.id] || null,
           available_hours: hoursMap[p.id] ?? null,
+          nz_advisor_name: info.nz_advisor_id ? (staffMap[info.nz_advisor_id] || null) : null,
+          life_teacher_name: info.life_teacher_id ? (staffMap[info.life_teacher_id] || null) : null,
         };
       });
 

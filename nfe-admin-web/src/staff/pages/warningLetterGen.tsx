@@ -66,7 +66,7 @@ export function WarningLetterGen() {
   const [body, setBody] = useState('');
 
   const load = useCallback(async () => {
-    const { data } = await db.from('students_info').select('student_id, school_attendance_rate, profiles(full_name)');
+    const { data } = await db.from('students_info').select('student_id, school_attendance_rate, profiles!student_id(full_name)');
     setStudents(((data || []) as any[]).map(i => ({
       id: i.student_id,
       name: Array.isArray(i.profiles) ? i.profiles[0]?.full_name : i.profiles?.full_name,

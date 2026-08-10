@@ -59,7 +59,7 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
         .from('transport_passengers')
         .select(`
           *,
-          students_info!inner(profiles(full_name))
+          students_info!inner(profiles!student_id(full_name))
         `);
       if (error) throw error;
       
@@ -99,7 +99,7 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
         .select(`
           id, student_id,
           dorms(building_name, room_number),
-          students_info!inner(profiles(full_name))
+          students_info!inner(profiles!student_id(full_name))
         `)
         .eq('is_active', true);
       if (error) throw error;

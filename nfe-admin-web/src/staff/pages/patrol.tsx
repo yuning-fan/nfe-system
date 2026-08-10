@@ -38,7 +38,7 @@ export function PatrolStudents() {
     setLoading(true);
     const since15 = new Date(Date.now() - RISK_WINDOW_DAYS * 86400000).toISOString();
     const [{ data: infos }, { data: dorms }, { data: viols }, { data: fus }] = await Promise.all([
-      db.from('students_info').select('student_id, school_name, risk_level, profiles(full_name)'),
+      db.from('students_info').select('student_id, school_name, risk_level, profiles!student_id(full_name)'),
       db.from('dorm_assignments').select('student_id, dorms(building_name, room_number)').eq('is_active', true),
       db.from('violation_logs').select('student_id, created_at'),
       db.from('study_follow_ups').select('student_id, category, needs_followup, created_at').order('created_at', { ascending: false }),

@@ -8,6 +8,7 @@ import { FEE_TYPE_LABELS, FEE_TYPES, type FeeType } from '../../store/useFeeStor
 import { derivePhaseStatus } from '../../lib/phaseStatus';
 import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS, normalizeRiskLevel } from '../../lib/riskLabels';
 import { downloadXlsx, type CellValue } from '../../lib/xlsx';
+import ExportFieldsModal from './ExportFieldsModal';
 
 const RISK = (r: string) => {
   const level = normalizeRiskLevel(r);
@@ -76,7 +77,8 @@ const OVERALL_FEE_TEXT: Record<string, string> = { paid: '已缴清', partial: '
 
 const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellValue }[] = [
   { title: '姓名', width: 12, value: s => s.profiles?.full_name },
-  { title: '英文名', width: 14, value: s => s.english_name },
+  { title: '拼音英文名', width: 14, value: s => s.english_name },
+  { title: '英文名', width: 12, value: s => s.preferred_english_name },
   { title: '性别', width: 6, value: s => s.gender === 'male' ? '男' : s.gender === 'female' ? '女' : '' },
   { title: '出生日期', width: 12, value: s => s.date_of_birth },
   { title: '电话', width: 14, value: s => s.profiles?.phone },
@@ -85,6 +87,8 @@ const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellVal
   { title: '就读学校', width: 18, value: s => s.school_name },
   { title: '市场来源', width: 12, value: s => s.market_source },
   { title: '顾问', width: 10, value: s => s.advisor },
+  { title: '新西兰顾问/学管', width: 16, value: s => s.nz_advisor_name },
+  { title: '新西兰生活老师', width: 16, value: s => s.life_teacher_name },
   { title: '渠道', width: 8, value: s => SOURCE_LABEL[s.current_phase?.source] ?? '' },
   { title: '当前课程/阶段', width: 24, value: s => s.current_phase?.programs?.name },
   { title: '开学日期', width: 12, value: s => s.current_phase?.start_date },
@@ -101,6 +105,25 @@ const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellVal
   { title: '签证到期', width: 12, value: s => s.visa_expiry },
   { title: '入学清单待办', width: 12, value: s => onboardingMissing(s) },
 ];
+
+// 导出字段分组（仅影响勾选面板的排布，不影响导出列序——列序始终按 EXPORT_COLUMNS）
+const EXPORT_ALL_TITLES = EXPORT_COLUMNS.map(c => c.title);
+const GROUP_DEFS: { name: string; titles: string[] }[] = [
+  { name: '基本信息', titles: ['姓名', '拼音英文名', '英文名', '性别', '出生日期', '电话', '城市'] },
+  { name: '学校与来源', titles: ['来源学校', '就读学校', '市场来源', '渠道'] },
+  { name: '负责人', titles: ['顾问', '新西兰顾问/学管', '新西兰生活老师'] },
+  { name: '课程与状态', titles: ['当前课程/阶段', '开学日期', '开学季', '在读状态', '服务截止日期', '风险等级'] },
+  { name: '证件与入学', titles: ['抵新日期', '签证到期', '入学清单待办'] },
+];
+// 未归组的（各项费用、可用课时等）统一进「费用与课时」，避免新增列时漏掉
+const EXPORT_GROUPS = (() => {
+  const grouped = new Set(GROUP_DEFS.flatMap(g => g.titles));
+  const rest = EXPORT_ALL_TITLES.filter(t => !grouped.has(t));
+  const defs = GROUP_DEFS
+    .map(g => ({ name: g.name, titles: g.titles.filter(t => EXPORT_ALL_TITLES.includes(t)) }))
+    .filter(g => g.titles.length > 0);
+  return rest.length ? [...defs, { name: '费用与课时', titles: rest }] : defs;
+})();
 
 export default function StudentList() {
   const navigate = useNavigate();
@@ -149,16 +172,25 @@ export default function StudentList() {
   const [viewRows, setViewRows] = useState<any[]>([]);
   useEffect(() => { setViewRows(dataSource); }, [dataSource]);
 
+  // 点导出先选字段；确认后才生成文件
+  const [exportOpen, setExportOpen] = useState(false);
   const handleExport = () => {
     if (!viewRows.length) { message.warning('当前没有可导出的学生'); return; }
+    setExportOpen(true);
+  };
+
+  const doExport = (titles: string[]) => {
+    const cols = EXPORT_COLUMNS.filter(c => titles.includes(c.title));
+    if (!cols.length) { message.warning('请至少选择一个字段'); return; }
     const today = new Date().toLocaleDateString('sv');  // sv 语言环境即 YYYY-MM-DD
     downloadXlsx(`学生信息_${today}.xlsx`, {
       sheetName: '学生信息',
-      headers: EXPORT_COLUMNS.map(c => c.title),
-      colWidths: EXPORT_COLUMNS.map(c => c.width),
-      rows: viewRows.map(s => EXPORT_COLUMNS.map(c => c.value(s))),
+      headers: cols.map(c => c.title),
+      colWidths: cols.map(c => c.width),
+      rows: viewRows.map(s => cols.map(c => c.value(s))),
     });
-    message.success(`已导出 ${viewRows.length} 名学生`);
+    setExportOpen(false);
+    message.success(`已导出 ${viewRows.length} 名学生 × ${cols.length} 列`);
   };
 
   const feeColumn = (t: FeeType): ColumnsType<any>[number] => ({
@@ -346,6 +378,15 @@ export default function StudentList() {
         onChange={(_p, _f, _s, extra) => setViewRows(extra.currentDataSource)}
         scroll={{ x: 1370 }}
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 名学生` }}
+      />
+
+      <ExportFieldsModal
+        open={exportOpen}
+        allTitles={EXPORT_ALL_TITLES}
+        groups={EXPORT_GROUPS}
+        count={viewRows.length}
+        onCancel={() => setExportOpen(false)}
+        onConfirm={doExport}
       />
     </>
   );

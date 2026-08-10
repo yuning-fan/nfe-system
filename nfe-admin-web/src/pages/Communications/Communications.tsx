@@ -73,7 +73,7 @@ export default function Communications({ restrictStudentIds }: { restrictStudent
   const restrictKey = restrictStudentIds ? restrictStudentIds.join(',') : null;
   useEffect(() => {
     async function fetchStudents() {
-      let q = db.from('students_info').select('student_id, profiles(full_name)').order('student_id');
+      let q = db.from('students_info').select('student_id, profiles!student_id(full_name)').order('student_id');
       if (restrictStudentIds) q = q.in('student_id', restrictStudentIds.length ? restrictStudentIds : ['00000000-0000-0000-0000-000000000000']);
       const { data } = await q;
       const list = (data as Student[]) || [];
