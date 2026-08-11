@@ -61,7 +61,11 @@ alter view public.v_student_current_enrollment set (security_invoker = true);
 
 -- ---------- 3. 总览导出视图 ----------
 -- 对齐 动态表格_nfe.xlsx 的列；住宿三列（居住类型/学生公寓/公寓编号）本轮不做，待排房定稿。
-create or replace view public.v_student_overview as
+-- 用 drop + create 而非 create or replace：后者不允许改列名/列序（ERROR 42P16），
+-- 本视图的列集合仍在调整期，drop 重建才能保证脚本可重复执行。
+drop view if exists public.v_student_overview;
+
+create view public.v_student_overview as
 select
   p.id                                  as student_id,
   p.full_name                           as "姓名",
@@ -70,9 +74,13 @@ select
   s.english_name                        as "拼音英文名",
   s.date_of_birth                       as "出生时间",
   ce.program_stage                      as "课程动态",
-  -- 市场来源：优先用已填的 market_source；为空时按报名来源兜底推导
+  s.market_source                       as "市场来源明细",
+  -- 归类成 名校/绿通 两类：「X转Y」取 Y 为当前归属（如 名校转绿通→绿通、绿通转名校→名校）；
+  -- market_source 为空时按报名来源兜底推导。入库保留明细，此处只做展示归类，改规则不用重导数据。
   coalesce(
-    s.market_source,
+    case when split_part(s.market_source, '转', -1) like '%绿通%' then '绿通'
+         when s.market_source like '%绿通%' and s.market_source not like '%转%' then '绿通'
+         when s.market_source is not null then '名校' end,
     case ce.source when 'green_channel' then '绿通' when 'agent' then '名校' end
   )                                     as "市场来源",
   (s.market_source is null and ce.source is not null) as "市场来源为推导值",

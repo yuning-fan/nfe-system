@@ -46,7 +46,7 @@
 | 晚归未报备 | `violation_logs`(type=晚归) | 每次 | −5 |
 | 自习违规（"表现不佳"） | `violation_logs` | 每条（=1h 内 2 次） | −5 |
 | 严重违纪 | `violation_logs` | 每条 | −10 |
-| 成绩低于阈值 | 成绩记录 | 每科 | −6 |
+| 科目低于过线分 | 成绩记录 | **每科**（按加权均分判定，非按记录条数） | −6 |
 | 证件临期 | `student_documents` expiry_date | ≤30 / 14 / 7 天 | −5 / −10 / −20 |
 | 欠费 | `student_fees` | 到期未缴 | −10 |
 | 警告信累计 | `warning_letters` | 第 1 / 2 / 3 封 | −10 / −20 / **直接红** |
@@ -91,7 +91,7 @@
 | 生活老师 | 晚归登记 | 晚归未报备 | −5 | `violation_logs` |
 | 生活老师 | 查寝（异常，可开关、扣分可配） | 查寝异常 | 可配置 | `daily_checks` type=dorm_check |
 | 辅导老师 | 上课记录（标缺席） | 辅导课出勤 | −8 | `daily_checks` type=tutoring（需加枚举） |
-| 学管老师 | 学业跟进 / 违纪处理 | 成绩低于阈值 / 严重违纪 | −6 / −10 | 成绩记录 / `violation_logs` |
+| 学管老师 | 学业跟进 / 违纪处理 | 科目低于过线分 / 严重违纪 | −6 / −10 | 成绩记录 / `violation_logs` |
 | 系统自动 | 无需人录 | 证件临期 / 欠费 / 警告信累计 | 按 §2.1 | 已有表 |
 | 学管 / admin | 只读汇总看板 + 警告信审批 + 人工微调 | — | — | — |
 
@@ -121,7 +121,7 @@
 - [x] 辅导 · 上课记录缺勤——**已改道完成**（2026-06-26 Phase 19）：不走 `daily_checks(check_type='tutoring')`，改由销课时的 `schedules.status='absent'` 直接计分（撤销重销即自动消分，避免双写）。引擎侧见 `riskEngine.ts` 1b) 辅导课缺勤；`tutoring` 枚举保留但引擎跳过该类型。§3.5 表中「落表 daily_checks type=tutoring」口径随之作废。
 
 ### Step 3 · 风险自动算分引擎（核心）✅ 引擎已建 2026-06-24
-- [x] 算分引擎 `src/lib/riskEngine.ts`（前端、录入即时触发）：按 §2 口径，15 天窗口统计 `daily_checks`(absent，分 night_study/morning/tutoring/dorm_check) / `violation_logs`(扣分汇总) / 警告信累计 / 证件临期 / 欠费 / 成绩低于阈值 → 算 `total_risk_score` → 映射等级（≥85 绿 / 60-84 黄 / <60 红）→ 硬触发（连续缺勤≥3天 / 第3封警告 / 证件≤7天）直接红。
+- [x] 算分引擎 `src/lib/riskEngine.ts`（前端、录入即时触发）：按 §2 口径，15 天窗口统计 `daily_checks`(absent，分 night_study/morning/tutoring/dorm_check) / `violation_logs`(扣分汇总) / 警告信累计 / 证件临期 / 欠费 / 科目低于过线分（**累计口径，不受 15 天窗口限制**）→ 算 `total_risk_score` → 映射等级（≥85 绿 / 60-84 黄 / <60 红）→ 硬触发（连续缺勤≥3天 / 第3封警告 / 证件≤7天）直接红。
 - [x] 等级变化写 `log_risk_changes`（trigger_type=`system_auto`）。
 - [x] 接通现有录入：违规登记保存/存档（`ViolationLog`）、查寝/点名提交（`useDailyCheckStore`）、警告信审批（`useRiskStore.approveWarning` 改为交引擎重算）后即时调用 `recomputeRisk`。
 - [x] 迁移 `20260624120000_check_type_tutoring.sql`：`check_type` 加 `tutoring`。
@@ -141,3 +141,30 @@
 - §2.1 各项**扣分数值与等级阈值**（85/60 分界）是否合理，后续按真实数据校准。
 - 成绩"低于阈值"的分数线口径（按科目/加权）。
 - 算分触发方式：定时（每日跑）vs 事件触发（录入即重算）vs 手动按钮——一期建议先手动/每日。
+
+---
+
+## 2026-08-11 口径修正：成绩项改为「按科目」判定
+
+**原规则**：统计 15 天内 `score < 60`（`grade_threshold`）的**成绩记录条数**，每条扣 6 分。
+
+**问题**：成绩细化到考核节点级后严重失真。一名学生一科有 4–5 个节点，5 科就有 ~20 条记录，
+任何低分各扣 6 分 → 陈祺 10 条低分扣满 60 分直接判红，但她实际只有 3 科未达标。
+**粒度越细惩罚越重**，而标签写的又是「N 科 < 60」，名实不符。
+
+**新规则**（`lib/riskEngine.ts` §6）：
+- 判定单位：**科目**，不是记录条数
+- 阈值：**该科自己的 `program_subjects.pass_mark`**（EAP=65，其余=50），不再统一用 60
+  —— 统一阈值对两边都不准
+- 计算：该科**已出成绩加权均分** `= Σ(weight×score) / Σweight`，低于 pass_mark 才计一次 −6
+- **取消 15 天窗口**，改累计口径 —— 科目是否达标是累计状态，不是「近期事件」。
+  原窗口逻辑会让持续不及格的科目在 15 天无新成绩后自动「消失」
+- `weight_percent = 0` 的诊断项（如 Physics Test 0）不参与
+
+**效果**：陈祺 40🔴 → 82🟡（EAP/Biology/Chemistry 三科确实未达标，预警属实但不该到红灯）；
+陈亦凡 40🔴 → 94🟢（仅 EAP 一科未达标）。
+
+**`grade_threshold` 配置项**退化为兜底值，仅在科目未设 `pass_mark` 时使用。
+
+> ⚠️ 风险分**存库**（`students_info.risk_level` / `total_risk_score`），改引擎不会自动更新存量。
+> 需在 `/risk` 页点「重算全体风险分」（`recomputeAll()`）。

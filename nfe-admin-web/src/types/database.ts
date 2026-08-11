@@ -39,7 +39,9 @@ export interface StudentEnrollment {
 
 export interface StudentInfo {
   student_id: string;
-  english_name: string | null;
+  nfe_no: number | null;                  // NFE 内部学号，按进项目先后编；展示为 NFE-000001
+  english_name: string | null;            // 拼音英文名
+  preferred_english_name: string | null;  // 学生来后自取的英文名
   gender: 'male' | 'female' | null;
   date_of_birth: string | null;
   passport_number: string | null;
@@ -59,6 +61,12 @@ export interface StudentInfo {
   home_address: string | null;
   payment_note: string | null;
   health_notes: string | null;
+  city: string | null;                    // 生源城市
+  market_source: string | null;           // 市场来源明细（名校/绿通/二代转名校…）
+  advisor: string | null;                 // 国内顾问（文本，不登录系统）
+  nz_advisor_id: string | null;           // 新西兰学管 → profiles.id
+  life_teacher_id: string | null;         // 生活老师 → profiles.id
+  school_attendance_rate: number | null;  // 学校官方出勤率
   risk_level: RiskLevel;
   total_risk_score: number;
   enrollment_id: number | null;

@@ -75,7 +75,12 @@ const SOURCE_LABEL: Record<string, string> = { green_channel: '绿通', agent: '
 const FEE_STATE_TEXT: Record<string, string> = { paid: '已缴', unpaid: '未缴', none: '未登记' };
 const OVERALL_FEE_TEXT: Record<string, string> = { paid: '已缴清', partial: '部分', unpaid: '未缴费', none: '未登记' };
 
+// 学号：库里存整数，导出与展示统一格式化为 NFE-000001
+export const fmtNfeNo = (n: number | null | undefined) =>
+  n == null ? '' : `NFE-${String(n).padStart(6, '0')}`;
+
 const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellValue }[] = [
+  { title: '学号', width: 12, value: s => fmtNfeNo(s.nfe_no) },
   { title: '姓名', width: 12, value: s => s.profiles?.full_name },
   { title: '拼音英文名', width: 14, value: s => s.english_name },
   { title: '英文名', width: 12, value: s => s.preferred_english_name },
@@ -109,7 +114,7 @@ const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellVal
 // 导出字段分组（仅影响勾选面板的排布，不影响导出列序——列序始终按 EXPORT_COLUMNS）
 const EXPORT_ALL_TITLES = EXPORT_COLUMNS.map(c => c.title);
 const GROUP_DEFS: { name: string; titles: string[] }[] = [
-  { name: '基本信息', titles: ['姓名', '拼音英文名', '英文名', '性别', '出生日期', '电话', '城市'] },
+  { name: '基本信息', titles: ['学号', '姓名', '拼音英文名', '英文名', '性别', '出生日期', '电话', '城市'] },
   { name: '学校与来源', titles: ['来源学校', '就读学校', '市场来源', '渠道'] },
   { name: '负责人', titles: ['顾问', '新西兰顾问/学管', '新西兰生活老师'] },
   { name: '课程与状态', titles: ['当前课程/阶段', '开学日期', '开学季', '在读状态', '服务截止日期', '风险等级'] },

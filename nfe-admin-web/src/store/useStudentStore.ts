@@ -9,10 +9,13 @@ export interface ProgramOption {
   duration_months: number | null;
 }
 
+export interface StaffOption { id: string; full_name: string; role: string }
+
 interface StudentStore {
   students: StudentInfo[];
   currentStudent: StudentInfo | null;
   programs: ProgramOption[];
+  staff: StaffOption[];              // 非学生账号，供学管/生活老师选择器用
   isLoading: boolean;
   error: string | null;
   fetchStudents: () => Promise<void>;
@@ -20,6 +23,7 @@ interface StudentStore {
   fetchStudentById: (id: string) => Promise<void>;
   updateStudent: (id: string, payload: Record<string, any>) => Promise<boolean>;
   fetchPrograms: () => Promise<void>;
+  fetchStaff: () => Promise<void>;
   updateEnrollment: (studentId: string, payload: Record<string, any>) => Promise<boolean>;
   clearCurrentStudent: () => void;
 }
@@ -28,6 +32,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
   students: [],
   currentStudent: null,
   programs: [],
+  staff: [],
   isLoading: false,
   error: null,
 
@@ -191,6 +196,16 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     if ((data as any)?.error) return { ok: false, error: (data as any).error };
     await get().fetchStudents();
     return { ok: true };
+  },
+
+  fetchStaff: async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .neq('role', 'student')
+      .eq('status', 1)
+      .order('full_name');
+    set({ staff: (data || []) as StaffOption[] });
   },
 
   fetchStudentById: async (id: string) => {

@@ -24,10 +24,18 @@ const editSectionStyle: CSSProperties = {
   marginTop: 4,
 };
 
+// 下拉备选值取自库中现有数据；datalist 允许手填新值，故不构成硬约束
+const MARKET_SOURCE_OPTIONS = ['名校', '绿通', '二代转名校', '名校转住宿', '名校转绿通',
+  '绿通转名校', '绿通转市场', '高端+住宿'];
+const ADVISOR_OPTIONS = ['Tracy', '陈希越', 'Dora', '二代', 'Cathy'];
+
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent, updateStudent } = useStudentStore();
+  const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent, updateStudent, staff, fetchStaff } = useStudentStore();
+  // 学管/生活老师选择器数据源：全部非学生账号（角色尚未理顺，故不按 role 过滤）
+  useEffect(() => { fetchStaff(); }, [fetchStaff]);
+  const staffName = (id?: string | null) => (id ? (staff.find(m => m.id === id)?.full_name || '—') : '—');
   const { markWarningSigned } = useRiskStore();
   
   // Tab state
@@ -95,11 +103,17 @@ export default function StudentDetail() {
       insurance_status: insd?.status || 'valid',
       insurance_expiry: insd?.expiry_date || '',
       english_name: student?.english_name || '',
+      preferred_english_name: student?.preferred_english_name || '',
       gender: student?.gender || '',
       date_of_birth: student?.date_of_birth || '',
       passport_number: student?.passport_number || '',
       school_name: student?.school_name || '',
       source_school: student?.source_school || '',
+      city: student?.city || '',
+      market_source: student?.market_source || '',
+      advisor: student?.advisor || '',
+      nz_advisor_id: student?.nz_advisor_id || '',
+      life_teacher_id: student?.life_teacher_id || '',
       english_level: student?.english_level || '',
       target_university: student?.target_university || '',
       up_student_id: student?.up_student_id || '',
@@ -330,7 +344,10 @@ export default function StudentDetail() {
     : (profile?.full_name?.charAt(0) || 'U');
 
   // Display ID (slice UUID for now)
-  const displayId = `NFE-${student.student_id.slice(0, 6).toUpperCase()}`;
+  // 编号优先用 nfe_no（按进项目先后编的内部学号）；尚未编号的回落到 uuid 派生值
+  const displayId = student.nfe_no != null
+    ? `NFE-${String(student.nfe_no).padStart(6, '0')}`
+    : `NFE-${student.student_id.slice(0, 6).toUpperCase()}`;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column' }}>
@@ -404,8 +421,14 @@ export default function StudentDetail() {
             <input className="input" value={editForm.full_name} onChange={e => setEditForm({ ...editForm, full_name: e.target.value })} />
           </div>
           <div className="form-group">
-            <label className="form-label">英文名</label>
+            <label className="form-label">拼音英文名</label>
             <input className="input" value={editForm.english_name} onChange={e => setEditForm({ ...editForm, english_name: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">英文名（自取）</label>
+            <input className="input" placeholder="学生来后自己取的英文名"
+              value={editForm.preferred_english_name}
+              onChange={e => setEditForm({ ...editForm, preferred_english_name: e.target.value })} />
           </div>
           <div className="form-group">
             <label className="form-label">性别</label>
@@ -429,6 +452,44 @@ export default function StudentDetail() {
           <div className="form-group">
             <label className="form-label">生源校</label>
             <input className="input" value={editForm.source_school} onChange={e => setEditForm({ ...editForm, source_school: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">城市</label>
+            <input className="input" placeholder="如 杭州 / 宁波 / 苏州"
+              value={editForm.city} onChange={e => setEditForm({ ...editForm, city: e.target.value })} />
+          </div>
+          {/* 市场来源：常用值下拉 + 允许手填新值（list/datalist 原生实现，无需额外组件） */}
+          <div className="form-group">
+            <label className="form-label">市场来源</label>
+            <input className="input" list="market-source-options" placeholder="选择或输入"
+              value={editForm.market_source} onChange={e => setEditForm({ ...editForm, market_source: e.target.value })} />
+            <datalist id="market-source-options">
+              {MARKET_SOURCE_OPTIONS.map(o => <option key={o} value={o} />)}
+            </datalist>
+          </div>
+          <div className="form-group">
+            <label className="form-label">国内顾问</label>
+            <input className="input" list="advisor-options" placeholder="选择或输入"
+              value={editForm.advisor} onChange={e => setEditForm({ ...editForm, advisor: e.target.value })} />
+            <datalist id="advisor-options">
+              {ADVISOR_OPTIONS.map(o => <option key={o} value={o} />)}
+            </datalist>
+          </div>
+          <div className="form-group">
+            <label className="form-label">新西兰学管</label>
+            <select className="input" value={editForm.nz_advisor_id}
+              onChange={e => setEditForm({ ...editForm, nz_advisor_id: e.target.value })}>
+              <option value="">未指定</option>
+              {staff.map(m => <option key={m.id} value={m.id}>{m.full_name}（{m.role}）</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">生活老师</label>
+            <select className="input" value={editForm.life_teacher_id}
+              onChange={e => setEditForm({ ...editForm, life_teacher_id: e.target.value })}>
+              <option value="">未指定</option>
+              {staff.map(m => <option key={m.id} value={m.id}>{m.full_name}（{m.role}）</option>)}
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">就读学校</label>
@@ -600,7 +661,8 @@ export default function StudentDetail() {
               <div className="card">
                 <div className="group-head"><IconId size={16} />身份识别</div>
                 <div className="field"><span className="field-k">编号</span><span className="field-v">{displayId}</span></div>
-                <div className="field"><span className="field-k">姓名 / 英文名</span><span className="field-v">{profile?.full_name} / {student.english_name || '—'}</span></div>
+                <div className="field"><span className="field-k">姓名 / 拼音</span><span className="field-v">{profile?.full_name} / {student.english_name || '—'}</span></div>
+                <div className="field"><span className="field-k">英文名</span><span className="field-v">{student.preferred_english_name || '—'}</span></div>
                 <div className="field"><span className="field-k">性别</span><span className="field-v">{genderLabel}</span></div>
                 <div className="field"><span className="field-k">出生日期</span><span className="field-v">{student.date_of_birth || '—'}</span></div>
                 <div className="field"><span className="field-k">年龄</span><span className="field-v">
@@ -615,15 +677,12 @@ export default function StudentDetail() {
               <div className="card">
                 <div className="group-head"><IconSchool size={16} />来源与归属</div>
                 <div className="field"><span className="field-k">生源校</span><span className="field-v">{student.source_school || '—'}</span></div>
-                <div className="field"><span className="field-k">课程</span><span className="field-v">{timetableSubjects.length > 0 ? timetableSubjects.join(' / ') : '—'}</span></div>
+                <div className="field"><span className="field-k">城市</span><span className="field-v">{student.city || '—'}</span></div>
                 <div className="field"><span className="field-k">来源</span><span className="field-v">{enrollment?.source === 'green_channel' ? '绿通' : enrollment?.source === 'agent' ? '散客' : '—'}</span></div>
-                <div className="field"><span className="field-k">阶段</span><span className="field-v">{program?.name || '—'}</span></div>
-                <div className="field"><span className="field-k">缴费备注</span><span className="field-v">{student.payment_note || '—'}</span></div>
-
-                {/* 在读状态：与报名/阶段同属一组，合并展示以平衡卡片高度 */}
-                <div className="group-head" style={{ marginTop: 16 }}><IconCalendarStats size={16} />在读状态</div>
-                <div className="field"><span className="field-k">项目周期</span><span className="field-v">{enrollment?.start_date || '—'} 至 {enrollment?.end_date || '—'}</span></div>
-                <div className="field"><span className="field-k">在读状态</span><span className="field-v"><span className={`pill ${statusInfo.cls}`}>{statusInfo.label}</span></span></div>
+                <div className="field"><span className="field-k">市场来源</span><span className="field-v">{student.market_source || '—'}</span></div>
+                <div className="field"><span className="field-k">国内顾问</span><span className="field-v">{student.advisor || '—'}</span></div>
+                <div className="field"><span className="field-k">新西兰学管</span><span className="field-v">{staffName(student.nz_advisor_id)}</span></div>
+                <div className="field"><span className="field-k">生活老师</span><span className="field-v">{staffName(student.life_teacher_id)}</span></div>
               </div>
 
               {/* 留学目标（独立成卡：字段较多，并入他卡会撑高整行） */}
@@ -638,9 +697,15 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">奖学金要求</span><span className="field-v">{student.scholarship_requirement || '无'}</span></div>
               </div>
 
-              {/* 地址 */}
+              {/* 在读状态 + 地址：同卡展示，用于平衡第二行卡片高度 */}
               <div className="card">
-                <div className="group-head"><IconMapPin size={16} />地址</div>
+                <div className="group-head"><IconCalendarStats size={16} />在读状态</div>
+                <div className="field"><span className="field-k">阶段</span><span className="field-v">{program?.name || '—'}</span></div>
+                <div className="field"><span className="field-k">课程</span><span className="field-v">{timetableSubjects.length > 0 ? timetableSubjects.join(' / ') : '—'}</span></div>
+                <div className="field"><span className="field-k">项目周期</span><span className="field-v">{enrollment?.start_date || '—'} 至 {enrollment?.end_date || '—'}</span></div>
+                <div className="field"><span className="field-k">在读状态</span><span className="field-v"><span className={`pill ${statusInfo.cls}`}>{statusInfo.label}</span></span></div>
+
+                <div className="group-head" style={{ marginTop: 16 }}><IconMapPin size={16} />地址</div>
                 <div className="field"><span className="field-k">学生电话</span><span className="field-v">{profile?.phone || '—'}</span></div>
                 <div className="field"><span className="field-k">新西兰住址</span><span className="field-v">
                   {activeDorm ? (
@@ -677,6 +742,7 @@ export default function StudentDetail() {
 
                 <div className="group-head" style={{ marginTop: 16 }}><IconWallet size={16} />服务与费用</div>
                 <div className="field"><span className="field-k">可用课时</span><span className="field-v">{totalAvailableHours} 课时 <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>（只读）</span></span></div>
+                <div className="field"><span className="field-k">缴费备注</span><span className="field-v">{student.payment_note || '—'}</span></div>
               </div>
 
               {/* 证件与状态 */}
