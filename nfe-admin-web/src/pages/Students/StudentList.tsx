@@ -79,6 +79,12 @@ const OVERALL_FEE_TEXT: Record<string, string> = { paid: '已缴清', partial: '
 export const fmtNfeNo = (n: number | null | undefined) =>
   n == null ? '' : `NFE-${String(n).padStart(6, '0')}`;
 
+// 列表默认排序：在项目中的（在读 → 待入学）排最前，其余（已完成/退学/暂停/无报名）排后，组内按学号。
+const STATUS_RANK: Record<string, number> = { active: 0, pending: 1 };
+const statusRank = (s: any) => STATUS_RANK[derivePhaseStatus(s.current_phase).key] ?? 2;
+// 无学号的排到最末，不与 NFE-000001 抢头位
+const nfeNoOf = (s: any) => s.nfe_no ?? Number.MAX_SAFE_INTEGER;
+
 const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellValue }[] = [
   { title: '学号', width: 12, value: s => fmtNfeNo(s.nfe_no) },
   { title: '姓名', width: 12, value: s => s.profiles?.full_name },
@@ -165,11 +171,13 @@ export default function StudentList() {
   // 顶部全局搜索（姓名/英文名/生源校）
   const dataSource = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(s =>
+    const rows = !q ? students : students.filter(s =>
       (s.profiles?.full_name ?? '').toLowerCase().includes(q) ||
       (s.english_name ?? '').toLowerCase().includes(q) ||
       (s.source_school ?? '').toLowerCase().includes(q));
+    // 默认排序：在项目中的（在读 → 待入学）排前，其余在后；组内按学号。点表头 sorter 可覆盖。
+    return [...rows].sort((a, b) =>
+      statusRank(a) - statusRank(b) || nfeNoOf(a) - nfeNoOf(b));
   }, [students, search]);
 
   // 导出取表格「当前视图」：搜索 + 列筛选 + 排序后的全部行（不止当前页）。
