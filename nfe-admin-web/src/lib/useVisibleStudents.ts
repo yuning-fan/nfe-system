@@ -22,12 +22,3 @@ export function useVisibleStudents(): VisibleScope {
 
   return scope;
 }
-
-/** 按可见范围过滤一批带 student_id 的行；ids 为 null 时原样返回 */
-export function scopeRows<T extends Record<string, any>>(
-  rows: T[], ids: string[] | null, key: keyof T = 'student_id' as keyof T,
-): T[] {
-  if (!ids) return rows;
-  const set = new Set(ids);
-  return rows.filter(r => set.has(r[key]));
-}

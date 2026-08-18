@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { IconX, IconLoader2, IconBook } from '@tabler/icons-react';
 import { message } from 'antd';
 import { supabase } from '../../lib/supabase';
+import { getVisibleStudentIds } from '../../lib/guardedStudents';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useAcademicStore } from '../../store/useAcademicStore';
 
 interface StudentOption {
@@ -22,8 +24,11 @@ export default function EnrollmentModal({ isOpen, onClose }: EnrollmentModalProp
 
   useEffect(() => {
     if (isOpen) {
-      supabase.from('students_info').select('student_id, profiles!inner(full_name)')
-        .then(({ data }) => {
+      // 名单走共享 roster（已按登录者可见范围收窄），不再自查全表
+      getVisibleStudentIds(useAuthStore.getState().profile?.id).then(async visibleIds => {
+          let q = supabase.from('students_info').select('student_id, profiles!inner(full_name)');
+          if (visibleIds) q = q.in('student_id', visibleIds.length ? visibleIds : ['00000000-0000-0000-0000-000000000000']);
+          const { data } = await q;
           const formatted = (data || []).map((s: any) => ({
             ...s,
             profiles: Array.isArray(s.profiles) ? s.profiles[0] : s.profiles

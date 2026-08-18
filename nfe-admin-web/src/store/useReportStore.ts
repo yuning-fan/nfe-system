@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { getVisibleStudentIds } from '../lib/guardedStudents';
 import { message } from 'antd';
 import { useAuthStore } from './useAuthStore';
 import { computeRisk } from '../lib/riskEngine';
@@ -151,10 +152,13 @@ export const useReportStore = create<ReportStore>((set, get) => ({
   fetchReports: async () => {
     set({ isLoading: true });
     try {
-      const { data, error } = await supabase
+      const visibleIds = await getVisibleStudentIds(useAuthStore.getState().profile?.id);
+      let q = supabase
         .from('reports')
         .select('*, student:profiles!reports_student_id_fkey(full_name, avatar_url)')
         .order('generated_at', { ascending: false });
+      if (visibleIds) q = q.in('student_id', visibleIds.length ? visibleIds : ['00000000-0000-0000-0000-000000000000']);
+      const { data, error } = await q;
       if (error) throw error;
       const rows = (data || []).map((r: any) => ({ ...r, content: { ...emptyContent(), ...(r.content || {}) } }));
       set({ reports: rows as ReportRecord[] });
@@ -171,8 +175,11 @@ export const useReportStore = create<ReportStore>((set, get) => ({
       const user = useAuthStore.getState().user;
       const isAcademic = reportType === 'monthly';
       const label = isAcademic ? '学术月报' : '出勤双周报';
+      // 生成范围也按可见范围兜底：没显式选人时不能扫全体
+      const visibleIds = await getVisibleStudentIds(user?.id);
       let q = supabase.from('profiles').select('id, full_name').eq('role', 'student');
       if (studentIds && studentIds.length) q = q.in('id', studentIds);
+      else if (visibleIds) q = q.in('id', visibleIds.length ? visibleIds : ['00000000-0000-0000-0000-000000000000']);
       const { data: students, error: sErr } = await q;
       if (sErr) throw sErr;
       if (!students || students.length === 0) { message.warning('暂无在读学生'); return false; }

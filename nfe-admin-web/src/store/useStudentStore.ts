@@ -179,8 +179,10 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       // 可见范围收窄：admin 看全体，学管只看名下（nz_advisor_id），生活老师按公寓。
       // 过滤放在这里是因为列表页与学管工作台共用本 store，改一处两边同时生效。
       const visibleIds = await getVisibleStudentIds(useAuthStore.getState().profile?.id);
-      const scoped = visibleIds
-        ? (normalized as any[]).filter(s => visibleIds.includes(s.id))
+      // 注意主键字段名是 student_id 不是 id（这里曾误写成 s.id，导致学管过滤后恒为空）
+      const visibleSet = visibleIds ? new Set(visibleIds) : null;
+      const scoped = visibleSet
+        ? (normalized as any[]).filter(s => visibleSet.has(s.student_id))
         : normalized;
 
       set({ students: scoped as any, isLoading: false });

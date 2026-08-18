@@ -1,5 +1,6 @@
 // 学管 · 学校警告信登记（外部红线）：登记 + 上传扫描件；累计 3 封 → 达劝退评估（亮红）
 import { useEffect, useState, useCallback } from 'react';
+import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { recomputeRisk } from '../../lib/riskEngine';
@@ -30,17 +31,21 @@ export function SchoolWarnings() {
   const [rows, setRows] = useState<Letter[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ student_id: '', category: 'attendance', occurred_on: '', reason: '', attachment_url: '' });
 
   const load = useCallback(async () => {
+    if (!scopeReady) return;
     setLoading(true);
-    const { data } = await db.from('warning_letters')
+    let q = db.from('warning_letters')
       .select('id, student_id, category, occurred_on, evidence_content, attachment_url, status, student:profiles!warning_letters_student_id_fkey(full_name)')
       .eq('source', 'school').neq('status', 'rejected').order('id', { ascending: false });
+    if (scopeIds) q = q.in('student_id', scopeIds.length ? scopeIds : ['00000000-0000-0000-0000-000000000000']);
+    const { data } = await q;
     setRows((data as Letter[]) || []);
     setLoading(false);
-  }, []);
+  }, [scopeIds, scopeReady]);
   useEffect(() => { load(); }, [load]);
 
   const name = (s: Letter['student']) => (Array.isArray(s) ? s[0]?.full_name : s?.full_name) || '—';

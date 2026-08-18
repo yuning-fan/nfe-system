@@ -1,6 +1,7 @@
 // 学管 · 内部警告信生成（出勤版，两级：提醒信 / 正式警告信）
 // 选学生 + 级别 → 自动填 姓名/出勤率/日期 → 在线编辑 → 导出 Word(.doc)
 import { useEffect, useState, useCallback } from 'react';
+import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { supabase } from '../../lib/supabase';
 import { message, Select } from 'antd';
 import { IconFileDownload } from '@tabler/icons-react';
@@ -59,6 +60,7 @@ function exportDoc(title: string, body: string) {
 }
 
 export function WarningLetterGen() {
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
   const [students, setStudents] = useState<{ id: string; name: string; rate: number | null }[]>([]);
   const [sid, setSid] = useState<string | undefined>();
   const [level, setLevel] = useState<1 | 2>(1);
@@ -66,13 +68,16 @@ export function WarningLetterGen() {
   const [body, setBody] = useState('');
 
   const load = useCallback(async () => {
-    const { data } = await db.from('students_info').select('student_id, school_attendance_rate, profiles!student_id(full_name)');
+    if (!scopeReady) return;              // 等可见范围就绪，别先闪出全体
+    let q = db.from('students_info').select('student_id, school_attendance_rate, profiles!student_id(full_name)');
+    if (scopeIds) q = q.in('student_id', scopeIds.length ? scopeIds : ['00000000-0000-0000-0000-000000000000']);
+    const { data } = await q;
     setStudents(((data || []) as any[]).map(i => ({
       id: i.student_id,
       name: Array.isArray(i.profiles) ? i.profiles[0]?.full_name : i.profiles?.full_name,
       rate: i.school_attendance_rate,
     })).filter(s => s.name).sort((a, b) => a.name.localeCompare(b.name, 'zh')));
-  }, []);
+  }, [scopeIds, scopeReady]);
   useEffect(() => { load(); }, [load]);
 
   const regen = (studentId?: string, lv?: 1 | 2) => {

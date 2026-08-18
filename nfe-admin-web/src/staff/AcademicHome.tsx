@@ -1,5 +1,6 @@
 // 学管工作台首页 · 待处理聚合
 import { useEffect, useState, useCallback } from 'react';
+import { useVisibleStudents } from '../lib/useVisibleStudents';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { IconLoader2, IconAlertTriangle, IconCalendarStats, IconShieldX, IconChevronRight } from '@tabler/icons-react';
@@ -15,9 +16,13 @@ interface Counts {
 }
 
 export default function AcademicHome() {
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
   const [c, setC] = useState<Counts | null>(null);
 
   const load = useCallback(async () => {
+    if (!scopeReady) return;
+    // 风险计数只算名下学生（admin 的 scopeIds 为 null，不加条件）
+    const scoped = (q: any) => (scopeIds ? q.in('student_id', scopeIds) : q);
     const headCount = async (tbl: string, build: (q: any) => any) => {
       const q = build(db.from(tbl).select('*', { count: 'exact', head: true }));
       const { count } = await q;
@@ -27,11 +32,11 @@ export default function AcademicHome() {
       headCount('schedules', (q: any) => q.eq('status', 'pending_approval')),
       headCount('schedule_changes', (q: any) => q.eq('status', 'pending')),
       headCount('warning_letters', (q: any) => q.eq('status', 'pending_approval')),
-      headCount('students_info', (q: any) => q.eq('risk_level', 'red')),
-      headCount('students_info', (q: any) => q.eq('risk_level', 'yellow')),
+      headCount('students_info', (q: any) => scoped(q.eq('risk_level', 'red'))),
+      headCount('students_info', (q: any) => scoped(q.eq('risk_level', 'yellow'))),
     ]);
     setC({ pendingSchedules, pendingReschedules, pendingWarnings, red, yellow });
-  }, []);
+  }, [scopeIds, scopeReady]);
   useEffect(() => { load(); }, [load]);
 
   if (!c) return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><IconLoader2 className="spinner" size={28} style={{ color: 'var(--color-primary)' }} /></div>;
