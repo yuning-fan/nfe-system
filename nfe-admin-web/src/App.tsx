@@ -51,15 +51,16 @@ export default function App() {
       {/* 登录页面 */}
       <Route path="/login" element={<Login />} />
 
-      {/* 员工端工作台（静态壳，4 角色：patrol/life/tutor/academic；角色门禁后续再加） */}
+      {/* 员工端工作台（4 角色：patrol/life/tutor/academic）。角色门禁在 StaffLayout 内校验 */}
       <Route path="/staff" element={<Navigate to="/staff/patrol" replace />} />
       <Route path="/staff/:role" element={<RequireAuth><StaffLayout /></RequireAuth>}>
         <Route index element={<StaffHome />} />
+        <Route path="student/:id" element={<StudentDetail />} />
         <Route path=":sub" element={<StaffSubPage />} />
       </Route>
 
       {/* 受保护的后台路由 */}
-      <Route path="/" element={<RequireAuth><MainLayout /></RequireAuth>}>
+      <Route path="/" element={<RequireAuth console><MainLayout /></RequireAuth>}>
         {/* 默认子路由，指向首页驾驶舱 */}
         <Route index element={<Dashboard />} />
         

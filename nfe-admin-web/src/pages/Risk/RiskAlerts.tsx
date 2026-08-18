@@ -1,4 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
+import { studentDetailPath } from '../../lib/roleHome';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
@@ -31,6 +34,7 @@ interface RiskChangeLog {
 
 export default function RiskAlerts() {
   const navigate = useNavigate();
+  const role = useAuthStore(st => st.profile?.role);
   
   // Local state for dashboard
   const [redStudents, setRedStudents] = useState<RiskStudent[]>([]);
@@ -51,6 +55,8 @@ export default function RiskAlerts() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<{ id: string; name: string; score: number } | null>(null);
   const [recomputing, setRecomputing] = useState(false);
+
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
 
   // 扣分明细查询
   const [bdStudent, setBdStudent] = useState<string | undefined>();
@@ -82,35 +88,39 @@ export default function RiskAlerts() {
   };
 
   const fetchDashboardData = useCallback(async () => {
+    if (!scopeReady) return;              // 范围没查出来前别查，否则首帧会闪出全体
     setIsLoading(true);
 
-    const { data: red } = await supabase
+    // 可见范围：admin 的 scopeIds 为 null（不加 .in 条件），学管为名下学生
+    const scoped = (q: any) => (scopeIds ? q.in('student_id', scopeIds) : q);
+
+    const { data: red } = await scoped(supabase
       .from('students_info')
       .select('*, profiles!student_id(*), student_enrollments(status, programs(name))')
-      .eq('risk_level', 'red');
+      .eq('risk_level', 'red'));
 
-    const { data: yellow } = await supabase
+    const { data: yellow } = await scoped(supabase
       .from('students_info')
       .select('*, profiles!student_id(*), student_enrollments(status, programs(name))')
-      .eq('risk_level', 'yellow');
+      .eq('risk_level', 'yellow'));
 
-    const { count: greenCnt } = await supabase
+    const { count: greenCnt } = await scoped(supabase
       .from('students_info')
       .select('*', { count: 'exact', head: true })
-      .eq('risk_level', 'green');
+      .eq('risk_level', 'green'));
 
-    const { data: logs } = await supabase
+    const { data: logs } = await scoped(supabase
       .from('log_risk_changes')
       .select('*, student:profiles!log_risk_changes_student_id_fkey(full_name), operator:profiles!log_risk_changes_operator_id_fkey(full_name)')
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(10));
 
     setRedStudents((red as unknown as RiskStudent[]) || []);
     setYellowStudents((yellow as unknown as RiskStudent[]) || []);
     setGreenCount(greenCnt || 0);
     setChangeLogs((logs as RiskChangeLog[]) || []);
     setIsLoading(false);
-  }, []);
+  }, [scopeIds, scopeReady]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -350,7 +360,7 @@ export default function RiskAlerts() {
                     <button className="btn" onClick={() => handleRevoke(w)} disabled={isStoreLoading} style={{ color: 'var(--color-danger)' }}>
                       <IconX size={16} style={{ marginRight: 4 }} /> 撤销
                     </button>
-                    <span className="link" onClick={() => navigate(`/students/${w.student_id}`)} style={{ alignSelf: 'center' }}>查看档案</span>
+                    <span className="link" onClick={() => navigate(studentDetailPath(role, w.student_id))} style={{ alignSelf: 'center' }}>查看档案</span>
                   </div>
                 </div>
               );
@@ -416,7 +426,7 @@ export default function RiskAlerts() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                    <span className="link" onClick={() => navigate(`/students/${s.student_id}`)}>查看档案</span>
+                    <span className="link" onClick={() => navigate(studentDetailPath(role, s.student_id))}>查看档案</span>
                     <button className="btn" onClick={() => handleOpenWarningModal(s)} style={{ padding: '3px 10px', fontSize: 11, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
                       触发三步走警告
                     </button>
@@ -455,7 +465,7 @@ export default function RiskAlerts() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                    <span className="link" onClick={() => navigate(`/students/${s.student_id}`)}>查看档案</span>
+                    <span className="link" onClick={() => navigate(studentDetailPath(role, s.student_id))}>查看档案</span>
                     <button className="btn" onClick={() => handleOpenWarningModal(s)} style={{ padding: '3px 10px', fontSize: 11 }}>触发警告</button>
                   </div>
                 </div>

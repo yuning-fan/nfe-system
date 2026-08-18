@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { IconLock, IconMail, IconLoader2, IconAlertCircle } from '@tabler/icons-react';
+import { homePathForRole } from '../../lib/roleHome';
 import './Login.css';
 
 export default function Login() {
@@ -30,8 +31,13 @@ export default function Login() {
         : error.message);
       setLoading(false);
     } else {
-      // Successfully logged in, navigate to where they came from
-      navigate(from, { replace: true });
+      // 登录成功：优先回到被拦截前想去的页面，否则按角色落地
+      // （admin → 控制台，学管 → /staff/academic，其余 → 各自工作台）
+      if (from !== '/') { navigate(from, { replace: true }); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: prof } = await supabase
+        .from('profiles').select('role').eq('id', user?.id ?? '').maybeSingle();
+      navigate(homePathForRole((prof as any)?.role), { replace: true });
     }
   };
 

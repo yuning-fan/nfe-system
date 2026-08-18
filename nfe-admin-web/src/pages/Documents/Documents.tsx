@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { supabase } from '../../lib/supabase';
 import { getDownloadUrl, uploadFile } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -73,6 +74,7 @@ function deriveStatus(expiry: string | null): { label: string; cls: string } {
 
 export default function Documents() {
   const user = useAuthStore(s => s.user);
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
   const [students, setStudents] = useState<Student[]>([]);
   const [selected, setSelected] = useState<Student | null>(null);
   const [search, setSearch] = useState('');
@@ -110,11 +112,13 @@ export default function Documents() {
   }, []);
 
   const fetchAllDocs = useCallback(async () => {
-    const { data } = await db.from('student_documents').select('*');
+    let q = db.from('student_documents').select('*');
+    if (scopeIds) q = q.in('student_id', scopeIds.length ? scopeIds : ['00000000-0000-0000-0000-000000000000']);
+    const { data } = await q;
     const map: Record<string, DocRow[]> = {};
     for (const d of (data as DocRow[]) || []) { (map[d.student_id] ||= []).push(d); }
     setAllDocs(map);
-  }, []);
+  }, [scopeIds]);
 
   // 上传弹窗
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -171,18 +175,21 @@ export default function Documents() {
   };
 
   useEffect(() => {
+    if (!scopeReady) return;              // 等可见范围就绪
     async function fetchStudents() {
-      const { data } = await db
+      let q = db
         .from('students_info')
         .select('student_id, school_name, profiles!student_id(full_name)')
         .order('student_id');
+      if (scopeIds) q = q.in('student_id', scopeIds.length ? scopeIds : ['00000000-0000-0000-0000-000000000000']);
+      const { data } = await q;
       const list = (data as Student[]) || [];
       setStudents(list);
       if (list.length > 0) setSelected(list[0]);
       setIsLoading(false);
     }
     fetchStudents();
-  }, []);
+  }, [scopeIds, scopeReady]);
 
   const fetchDocs = useCallback(async (studentId: string) => {
     setDocsLoading(true);

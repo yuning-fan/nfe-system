@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useRiskStore } from '../../store/useRiskStore';
@@ -43,6 +44,7 @@ const blankForm = { student_id: '', violation_type: '缺席自习', reason: '', 
 
 export default function ViolationLog() {
   const user = useAuthStore(s => s.user);
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
   const issueWarning = useRiskStore(s => s.issueWarning);
 
   const [rows, setRows] = useState<Violation[]>([]);
@@ -58,14 +60,17 @@ export default function ViolationLog() {
   const [warnFor, setWarnFor] = useState<{ id: string; name: string } | null>(null);
 
   const fetchRows = useCallback(async () => {
+    if (!scopeReady) return;              // 等可见范围就绪
     setLoading(true);
-    const { data } = await db
+    let q = db
       .from('violation_logs')
       .select('*, student:profiles!violation_logs_student_id_fkey(full_name), reporter:profiles!violation_logs_reporter_id_fkey(full_name)')
       .order('created_at', { ascending: false });
+    if (scopeIds) q = q.in('student_id', scopeIds.length ? scopeIds : ['00000000-0000-0000-0000-000000000000']);
+    const { data } = await q;
     setRows((data as Violation[]) || []);
     setLoading(false);
-  }, []);
+  }, [scopeIds, scopeReady]);
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
 

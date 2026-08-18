@@ -4,25 +4,43 @@ import { Modal, Checkbox } from 'antd';
 
 const LS_KEY = 'nfe.studentExport.columns';
 
+// 存两份：selected 是勾中的列，known 是保存那一刻存在过的全部列。
+// 必须分开——只存 selected 的话，「用户取消勾选的列」和「代码后来新加的列」长得一模一样
+// （都不在 selected 里），新增列默认选中的逻辑就会把取消项全勾回来，选择等于没记住。
+interface SavedColumns { selected: string[]; known: string[] }
+
+function readSaved(): SavedColumns | null {
+  const raw = localStorage.getItem(LS_KEY);
+  if (!raw) return null;
+  const parsed = JSON.parse(raw);
+  // 兼容旧格式（纯数组）：无从得知当时有哪些列，就认作「全都见过」，保住用户已有的取消项
+  if (Array.isArray(parsed)) return { selected: parsed as string[], known: [] as string[] };
+  if (parsed && Array.isArray(parsed.selected) && Array.isArray(parsed.known)) return parsed as SavedColumns;
+  return null;
+}
+
 /** 读取上次选择；与当前列集合取交集，保证增删列后旧配置不失效 */
 export function loadSelectedColumns(allTitles: string[]): string[] {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return allTitles;
-    const saved = JSON.parse(raw) as string[];
-    if (!Array.isArray(saved)) return allTitles;
-    const keep = saved.filter(t => allTitles.includes(t));
-    // 新增的列默认选中：老配置里没见过的一律补进来
-    const added = allTitles.filter(t => !saved.includes(t));
-    const merged = allTitles.filter(t => keep.includes(t) || added.includes(t));
+    const saved = readSaved();
+    if (!saved) return allTitles;
+    const keep = new Set(saved.selected.filter(t => allTitles.includes(t)));
+    // 新增的列默认选中：只有「保存时还不存在」的列才算新增（旧格式 known 为空，视作无新增）
+    if (saved.known.length) {
+      const knownSet = new Set(saved.known);
+      allTitles.filter(t => !knownSet.has(t)).forEach(t => keep.add(t));
+    }
+    const merged = allTitles.filter(t => keep.has(t));
     return merged.length ? merged : allTitles;
   } catch {
     return allTitles;
   }
 }
 
-export function saveSelectedColumns(titles: string[]) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(titles)); } catch { /* 隐私模式下 localStorage 不可用，忽略 */ }
+export function saveSelectedColumns(titles: string[], allTitles: string[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ selected: titles, known: allTitles } satisfies SavedColumns));
+  } catch { /* 隐私模式下 localStorage 不可用，忽略 */ }
 }
 
 export interface FieldGroup { name: string; titles: string[] }
@@ -50,7 +68,7 @@ export default function ExportFieldsModal({
   const confirm = () => {
     // 按 allTitles 的原始顺序输出，保证列序稳定，与勾选先后无关
     const ordered = allTitles.filter(t => selSet.has(t));
-    saveSelectedColumns(ordered);
+    saveSelectedColumns(ordered, allTitles);
     onConfirm(ordered);
   };
 

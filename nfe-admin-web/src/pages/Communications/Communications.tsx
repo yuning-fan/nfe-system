@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { Modal, Select, message } from 'antd';
 import {
   IconPlus, IconLoader2, IconMessage2,
@@ -54,9 +55,12 @@ function formatTime(ts: string) {
 
 const blankForm = { contact_type: 'parent', channel: 'phone', content: '' };
 
-// restrictStudentIds：传入时仅显示这些学生（生活老师限名下公寓）；不传 = 全体（学管默认）
+// restrictStudentIds：传入时仅显示这些学生（生活老师限名下公寓）。
+// 不传时不再是「全体」——回落到登录者自身的可见范围（admin 全体 / 学管名下）。
 export default function Communications({ restrictStudentIds }: { restrictStudentIds?: string[] } = {}) {
   const user = useAuthStore(s => s.user);
+  const { ids: scopeIds, ready: scopeReady } = useVisibleStudents();
+  const effectiveRestrict = restrictStudentIds ?? scopeIds ?? undefined;
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [logs, setLogs] = useState<CommLog[]>([]);
@@ -70,11 +74,12 @@ export default function Communications({ restrictStudentIds }: { restrictStudent
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const restrictKey = restrictStudentIds ? restrictStudentIds.join(',') : null;
+  const restrictKey = effectiveRestrict ? effectiveRestrict.join(',') : null;
   useEffect(() => {
+    if (!restrictStudentIds && !scopeReady) return;   // 等可见范围就绪，避免首帧闪出全体
     async function fetchStudents() {
       let q = db.from('students_info').select('student_id, profiles!student_id(full_name)').order('student_id');
-      if (restrictStudentIds) q = q.in('student_id', restrictStudentIds.length ? restrictStudentIds : ['00000000-0000-0000-0000-000000000000']);
+      if (effectiveRestrict) q = q.in('student_id', effectiveRestrict.length ? effectiveRestrict : ['00000000-0000-0000-0000-000000000000']);
       const { data } = await q;
       const list = (data as Student[]) || [];
       setStudents(list);
@@ -83,7 +88,7 @@ export default function Communications({ restrictStudentIds }: { restrictStudent
     }
     fetchStudents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restrictKey]);
+  }, [restrictKey, scopeReady]);
 
   const fetchLogs = async (studentId: string) => {
     const { data } = await db

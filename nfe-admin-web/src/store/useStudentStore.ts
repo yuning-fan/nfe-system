@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
+import { getVisibleStudentIds } from '../lib/guardedStudents';
 import type { StudentInfo } from '../types/database';
 
 export interface ProgramOption {
@@ -175,7 +176,14 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         };
       });
 
-      set({ students: normalized as any, isLoading: false });
+      // 可见范围收窄：admin 看全体，学管只看名下（nz_advisor_id），生活老师按公寓。
+      // 过滤放在这里是因为列表页与学管工作台共用本 store，改一处两边同时生效。
+      const visibleIds = await getVisibleStudentIds(useAuthStore.getState().profile?.id);
+      const scoped = visibleIds
+        ? (normalized as any[]).filter(s => visibleIds.includes(s.id))
+        : normalized;
+
+      set({ students: scoped as any, isLoading: false });
     } catch (error: any) {
       console.error('Error fetching students:', error);
       set({ error: error.message, isLoading: false });
@@ -211,6 +219,13 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
   fetchStudentById: async (id: string) => {
     set({ isLoading: true, error: null, currentStudent: null });
     try {
+      // 越权拦截：手输 /students/<别人的学生id> 时不给数据。
+      // 注意这只是前端拦截，数据库放行 —— 严格隔离仍需 RLS（阶段 4）。
+      const visibleIds = await getVisibleStudentIds(useAuthStore.getState().profile?.id);
+      if (visibleIds && !visibleIds.includes(id)) {
+        set({ error: '无权查看该学生', isLoading: false, currentStudent: null });
+        return;
+      }
       // Step 1: Get profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')

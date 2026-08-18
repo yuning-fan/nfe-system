@@ -2,12 +2,19 @@ import { NavLink, Outlet, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { IconLogout } from '@tabler/icons-react';
 import { STAFF_ROLES } from './staffConfig';
+import { canAccessStaffView, homePathForRole } from '../lib/roleHome';
+import { Navigate } from 'react-router-dom';
 
 // 员工端工作台布局 —— 按 URL 角色（/staff/:role）渲染对应侧栏（静态壳）
 export default function StaffLayout() {
   const { role = 'patrol' } = useParams();
   const cfg = STAFF_ROLES[role] || STAFF_ROLES.patrol;
   const { profile, signOut } = useAuthStore();
+
+  // 越权拦截：视角取自 URL，必须与登录身份对得上，否则任何人手输 /staff/life 就进得去
+  if (profile && !canAccessStaffView(profile.role, role)) {
+    return <Navigate to={homePathForRole(profile.role)} replace />;
+  }
   const userName = profile?.full_name || '教职工';
   const avatarChar = userName.charAt(0).toUpperCase();
   const base = `/staff/${role}`;

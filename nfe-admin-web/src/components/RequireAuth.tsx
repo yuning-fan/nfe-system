@@ -1,10 +1,14 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
+import { canAccessConsole, homePathForRole } from '../lib/roleHome';
+import { Navigate } from 'react-router-dom';
 import { IconLoader2 } from '@tabler/icons-react';
 
-export default function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { session, isLoading } = useAuthStore();
+/** console=true 的路由仅 admin 可进；非 admin 一律遣返各自工作台。
+ *  只在侧栏藏入口是不够的——路由这层不拦，手输地址照样打得开。 */
+export default function RequireAuth({ children, console: consoleOnly }: { children: React.ReactNode; console?: boolean }) {
+  const { session, isLoading, profile } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -26,6 +30,10 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
 
   if (!session) {
     return null; // Will redirect in useEffect
+  }
+
+  if (consoleOnly && profile && !canAccessConsole(profile.role)) {
+    return <Navigate to={homePathForRole(profile.role)} replace />;
   }
 
   return children;

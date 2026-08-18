@@ -71,7 +71,7 @@ export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
       { to: 'docs', label: '签证/保险/文件', icon: I(IconCertificate), desc: '学生文件上传与查看' },
       { to: 'comms', label: '家校沟通', icon: I(IconMessage2), desc: '学业类沟通记录' },
       { to: 'violations', label: '违规记录', icon: I(IconAlertOctagon), desc: '登记违规/严重违纪/学术不端（可上传证明），自动扣风险分' },
-      { to: 'risk', label: '风险预警', icon: I(IconAlertTriangle), desc: '全体学生风险评分（只读）' },
+      { to: 'risk', label: '风险预警', icon: I(IconAlertTriangle), desc: '名下学生风险评分（只读）' },
       { to: 'school-warnings', label: '学校警告信', icon: I(IconAlertOctagon), desc: '登记学校警告信+上传，3封达劝退评估' },
       { to: 'warning-gen', label: '警告信生成', icon: I(IconReport), desc: '生成内部出勤警告信（提醒/正式），可编辑导出 Word' },
       { to: 'reports', label: '报告生成', icon: I(IconReport), desc: '生成双周报告、审核后推送家长' },

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { studentDetailPath } from '../../lib/roleHome';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { Table, Input, Modal, Select, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -79,9 +81,11 @@ const OVERALL_FEE_TEXT: Record<string, string> = { paid: '已缴清', partial: '
 export const fmtNfeNo = (n: number | null | undefined) =>
   n == null ? '' : `NFE-${String(n).padStart(6, '0')}`;
 
-// 列表默认排序：在项目中的（在读 → 待入学）排最前，其余（已完成/退学/暂停/无报名）排后，组内按学号。
-const STATUS_RANK: Record<string, number> = { active: 0, pending: 1 };
-const statusRank = (s: any) => STATUS_RANK[derivePhaseStatus(s.current_phase).key] ?? 2;
+// 列表与导出的默认排序：在读 → 待入学 → 已完成 → 退学/暂停（同档）→ 其他（无报名记录），组内按学号。
+const STATUS_RANK: Record<string, number> = {
+  active: 0, pending: 1, completed: 2, withdrawn: 3, suspended: 3,
+};
+const statusRank = (s: any) => STATUS_RANK[derivePhaseStatus(s.current_phase).key] ?? 4;
 // 无学号的排到最末，不与 NFE-000001 抢头位
 const nfeNoOf = (s: any) => s.nfe_no ?? Number.MAX_SAFE_INTEGER;
 
@@ -138,6 +142,7 @@ const EXPORT_GROUPS = (() => {
 
 export default function StudentList() {
   const navigate = useNavigate();
+  const role = useAuthStore(st => st.profile?.role);
   const { students, programs, isLoading, error, fetchStudents, fetchPrograms, createStudent } = useStudentStore();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -175,7 +180,8 @@ export default function StudentList() {
       (s.profiles?.full_name ?? '').toLowerCase().includes(q) ||
       (s.english_name ?? '').toLowerCase().includes(q) ||
       (s.source_school ?? '').toLowerCase().includes(q));
-    // 默认排序：在项目中的（在读 → 待入学）排前，其余在后；组内按学号。点表头 sorter 可覆盖。
+    // 默认排序：按状态分档（见 STATUS_RANK），同档按学号。点表头 sorter 可覆盖。
+    // 排序放这里而非表格列，是为了让导出（viewRows 由 dataSource 派生）跟页面同序。
     return [...rows].sort((a, b) =>
       statusRank(a) - statusRank(b) || nfeNoOf(a) - nfeNoOf(b));
   }, [students, search]);
@@ -316,7 +322,7 @@ export default function StudentList() {
     },
     {
       title: '操作', key: 'action', fixed: 'right', width: 90,
-      render: (_: any, s: any) => <span className="link" onClick={() => navigate(`/students/${s.student_id}`)}>查看档案</span>,
+      render: (_: any, s: any) => <span className="link" onClick={() => navigate(studentDetailPath(role, s.student_id))}>查看档案</span>,
     },
   ];
 

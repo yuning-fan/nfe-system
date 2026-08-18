@@ -109,3 +109,28 @@ export async function getStudentIdsByBuilding(buildingName: string): Promise<str
     .eq('is_active', true);
   return Array.from(new Set(((assigns || []) as any[]).map(a => a.student_id).filter(Boolean)));
 }
+
+// ---------------------------------------------------------------------------
+// 可见学生范围（学生维度）—— 与上面的公寓维度分开，别混用。
+//
+//   admin    → null（全体，调用方不过滤；未分配学管的历史学生也只有 admin 看得到）
+//   manager  → students_info.nz_advisor_id = 自己（学管只见名下学生）
+//   其余角色  → 沿用公寓链路（生活老师等）
+//
+// 返回 null 表示「不设限」，与「空数组＝一个都看不到」是两回事，调用方务必区分：
+//   const ids = await getVisibleStudentIds(uid);
+//   if (ids) query = query.in('student_id', ids);   // null 时不加这一句
+// ---------------------------------------------------------------------------
+const GLOBAL_STUDENT_ROLES = ['admin'];
+
+export async function getVisibleStudentIds(staffId: string | null | undefined): Promise<string[] | null> {
+  if (!staffId) return [];
+  const { data: prof } = await db.from('profiles').select('role').eq('id', staffId).maybeSingle();
+  const role = prof?.role;
+  if (role && GLOBAL_STUDENT_ROLES.includes(role)) return null;   // 全体
+  if (role === 'manager') {
+    const { data } = await db.from('students_info').select('student_id').eq('nz_advisor_id', staffId);
+    return ((data || []) as any[]).map(r => r.student_id).filter(Boolean);
+  }
+  return getGuardedStudentIds(staffId);   // 生活老师等走公寓
+}

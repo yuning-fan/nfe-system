@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { getVisibleStudentIds } from '../lib/guardedStudents';
 import { useAuthStore } from './useAuthStore';
 import { recomputeRisk } from '../lib/riskEngine';
 
@@ -169,13 +170,17 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   fetchEnrollments: async () => {
     set({ isLoading: true });
     try {
-      const { data: enrollments, error: enrErr } = await supabase
+      // 可见范围：admin 为 null（不加条件），学管只见名下学生的报名
+      const visibleIds = await getVisibleStudentIds(useAuthStore.getState().profile?.id);
+      let enrQ = supabase
         .from('student_enrollments')
         .select(`
           *,
           profiles:profiles!student_enrollments_student_id_fkey(full_name),
           programs!inner(name)
         `);
+      if (visibleIds) enrQ = enrQ.in('student_id', visibleIds.length ? visibleIds : ['00000000-0000-0000-0000-000000000000']);
+      const { data: enrollments, error: enrErr } = await enrQ;
       if (enrErr) throw enrErr;
       
       const { data: selections } = await supabase
