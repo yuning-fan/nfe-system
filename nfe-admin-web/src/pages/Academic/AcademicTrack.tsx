@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   IconBook, IconPlus, IconX, IconLoader2 
 } from '@tabler/icons-react';
-import { message, Modal, Input, Select } from 'antd';
+import { message, Input, Select } from 'antd';
 import { useAcademicStore } from '../../store/useAcademicStore';
 import EnrollmentModal from './EnrollmentModal';
+import TimetableEditor from './TimetableEditor';
 import SubjectManagement from './SubjectManagement';
 import MilestoneManagement from './MilestoneManagement';
 import CourseHoursManagement from './CourseHoursManagement';
@@ -21,7 +22,7 @@ export default function AcademicTrack() {
   const { 
     enrollments, selections, timetable, programSubjects, isLoading,
     fetchProgramsAndSubjects, fetchEnrollments, fetchTimetable,
-    addElective, removeElective, generateTimetable, backfillCoreSubjects
+    addElective, removeElective,  backfillCoreSubjects
   } = useAcademicStore();
 
   const handleBackfillCore = async (enrollment: any) => {
@@ -80,16 +81,8 @@ export default function AcademicTrack() {
     }
   };
 
-  const handleGenerateTimetable = (enrollmentId: number) => {
-    Modal.confirm({
-      title: '重新生成课表',
-      content: '重新生成课表将覆盖已有课表，确认生成吗？',
-      onOk: async () => {
-        const success = await generateTimetable(enrollmentId);
-        if (success) message.success('课表生成成功！');
-      }
-    });
-  };
+  // 课表逐人手排，编辑器里一节一节增删改
+  const [ttFor, setTtFor] = useState<any | null>(null);
 
   return (
     <>
@@ -107,7 +100,7 @@ export default function AcademicTrack() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div>
               <h2 style={{ fontSize: 18, marginBottom: 4 }}><IconBook size={20} style={{ verticalAlign: 'middle', marginRight: 8 }} /> 教务选课与建档</h2>
-              <p style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>为新生建立项目档案，配置必修与选修科目，并一键生成基础课表</p>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>为新生建立项目档案，配置必修与选修科目；预科阶段可再生成课表（大学阶段只记选课与节点）</p>
             </div>
             <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
               <IconPlus size={16} style={{ marginRight: 4 }} /> 新建学生报名档案
@@ -137,6 +130,8 @@ export default function AcademicTrack() {
                 );
 
                 const hasTimetable = timetable.some(t => t.enrollment_id === enrollment.id);
+                // 奥大（大学阶段）只管选课与考核节点，不排课表、不纳入出勤
+                const isUniversity = enrollment.programs?.track === 'university';
 
                 return (
                   <div key={enrollment.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -147,9 +142,13 @@ export default function AcademicTrack() {
                         <span className="pill p-gray">{enrollment.programs?.name}</span>
                         <span className="pill p-green">状态: {enrollment.status}</span>
                       </div>
-                      <button className="btn btn-primary" onClick={() => handleGenerateTimetable(enrollment.id)}>
-                        {hasTimetable ? '重新生成奥大课表' : '一键生成奥大课表'}
-                      </button>
+                      {isUniversity ? (
+                        <span className="pill p-gray" title="大学阶段只记录选课与考核节点">本阶段不排课表</span>
+                      ) : (
+                        <button className="btn btn-primary" onClick={() => setTtFor(enrollment)}>
+                          {hasTimetable ? '编辑课表' : '排课表'}
+                        </button>
+                      )}
                     </div>
 
                     <div className="g2">
@@ -203,10 +202,10 @@ export default function AcademicTrack() {
                       </div>
                     </div>
 
-                    {/* Timetable visualizer */}
-                    {hasTimetable && (
+                    {/* Timetable visualizer（奥大不显示） */}
+                    {hasTimetable && !isUniversity && (
                       <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border-tertiary)', paddingTop: 16 }}>
-                        <div style={{ fontWeight: 500, marginBottom: 12 }}>生成的奥大周课表</div>
+                        <div style={{ fontWeight: 500, marginBottom: 12 }}>周课表</div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           {[1,2,3,4,5].map(day => {
                             const dayName = ['周一', '周二', '周三', '周四', '周五'][day - 1];
@@ -244,6 +243,20 @@ export default function AcademicTrack() {
             </div>
           )}
         </div>
+      )}
+
+      {ttFor && (
+        <TimetableEditor
+          open={!!ttFor}
+          onClose={() => setTtFor(null)}
+          enrollment={ttFor}
+          subjectOptions={selections
+            .filter(s => s.enrollment_id === ttFor.id && s.status !== 'dropped')
+            .map(s => ({
+              value: s.program_subject_id,
+              label: (Array.isArray(s.program_subjects) ? s.program_subjects[0] : s.program_subjects)?.subject_name || `科目 #${s.program_subject_id}`,
+            }))}
+        />
       )}
 
       {activeTab === 'subjects' && <SubjectManagement />}

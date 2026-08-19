@@ -80,6 +80,12 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .from('school_timetable')
         .select('student_id');
 
+      // 入学清单的「选课」一项看这里，不再看课表 —— 奥大学生不排课但要选课
+      const { data: selectionData } = await supabase
+        .from('student_subject_selections')
+        .select('student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id)')
+        .neq('status', 'dropped');
+
       // Step 6: 所有报名阶段（按 student_id 取全部，挑当前在读那段）
       const { data: enrollAll } = await supabase
         .from('student_enrollments')
@@ -141,6 +147,11 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       }
       const dormsSet = new Set((dormsData || []).map(d => d.student_id));
       const timetableSet = new Set((timetableData || []).map(t => t.student_id));
+      const selectionSet = new Set(
+        ((selectionData || []) as any[])
+          .map(r => (Array.isArray(r.student_enrollments) ? r.student_enrollments[0] : r.student_enrollments)?.student_id)
+          .filter(Boolean),
+      );
 
       // 员工姓名表：nz_advisor_id / life_teacher_id 是 FK，导出与列表要显示姓名
       const { data: staffData } = await supabase
@@ -166,6 +177,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           student_documents: docsMap[p.id] || [],
           dorm_assignments: dormsSet.has(p.id) ? [{}] : [],
           school_timetable: timetableSet.has(p.id) ? [{}] : [],
+          has_selections: selectionSet.has(p.id),
           current_phase: cur,        // 当前在读阶段（id/program/source/start_date/status/programs.name）
           current_fees: curFees,     // 当前阶段的服务费用
           all_phases: allPhases,     // 全部阶段 + 各阶段费用
@@ -255,7 +267,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .maybeSingle();
 
       // Step 3: Get extra aggregates
-      const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes] = await Promise.all([
+      const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes, selectionsRes] = await Promise.all([
         supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
         supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('id', { ascending: false }),
         supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
@@ -265,6 +277,13 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         supabase.from('grade_records').select('*').eq('student_id', id),
         supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, term_no, week_no, milestone_type'),
         supabase.from('program_subjects').select('id, subject_name, pass_mark'),
+        // 选课记录：学生「有哪些科目」的权威来源。
+        // 原先是从 school_timetable 反推的，那样一来不排课的学生（如奥大）就等于没科目。
+        supabase
+          .from('student_subject_selections')
+          .select('id, status, selection_type, enrollment_id, program_subject_id, program_subjects!student_subject_selections_program_subject_id_fkey(subject_name), student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id)')
+          .eq('student_enrollments.student_id', id)
+          .neq('status', 'dropped'),
       ]);
 
       const merged = {
@@ -281,6 +300,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         grade_records: gradesRes.data || [],
         assessment_nodes: nodesRes.data || [],
         program_subjects_meta: subjectsRes.data || [],
+        subject_selections: selectionsRes.data || [],
       };
 
       set({ currentStudent: merged as any, isLoading: false });

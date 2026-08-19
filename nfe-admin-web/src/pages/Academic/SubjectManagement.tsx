@@ -30,8 +30,7 @@ export default function SubjectManagement() {
     difficulty_level: 'standard',
     hours_per_week: 4,
     sessions_per_week: 2,
-    max_students: 20,
-    default_schedule: [] as { day_of_week: number; start_time: string; end_time: string; room: string }[]
+    max_students: 20
   });
 
   const handleEdit = (subject: any) => {
@@ -43,8 +42,7 @@ export default function SubjectManagement() {
       difficulty_level: subject.difficulty_level,
       hours_per_week: subject.hours_per_week,
       sessions_per_week: subject.sessions_per_week,
-      max_students: subject.max_students || 20,
-      default_schedule: subject.default_schedule || []
+      max_students: subject.max_students || 20
     });
     setEditingId(subject.id);
     setIsModalOpen(true);
@@ -107,8 +105,7 @@ export default function SubjectManagement() {
             difficulty_level: 'standard',
             hours_per_week: 4,
             sessions_per_week: 2,
-            max_students: 20,
-            default_schedule: []
+            max_students: 20
           });
           setIsModalOpen(true);
         }}>
@@ -228,68 +225,6 @@ export default function SubjectManagement() {
             </div>
           </div>
 
-          <div style={{ marginTop: 8, padding: 12, background: 'var(--color-bg-secondary)', borderRadius: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <label className="form-label" style={{ marginBottom: 0 }}>固定上课排期 (用于自动生成课表)</label>
-              <button 
-                className="btn btn-primary" 
-                style={{ padding: '2px 8px', fontSize: 12, minHeight: 24 }}
-                onClick={() => setFormData({ ...formData, default_schedule: [...formData.default_schedule, { day_of_week: 1, start_time: '09:00', end_time: '11:00', room: '' }] })}
-              >
-                <IconPlus size={12} /> 添加排期
-              </button>
-            </div>
-            {formData.default_schedule.map((schedule, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <select 
-                  className="input" 
-                  style={{ flex: 1 }}
-                  value={schedule.day_of_week} 
-                  onChange={e => {
-                    const newSchedule = [...formData.default_schedule];
-                    newSchedule[idx].day_of_week = parseInt(e.target.value);
-                    setFormData({ ...formData, default_schedule: newSchedule });
-                  }}
-                >
-                  <option value={1}>周一</option>
-                  <option value={2}>周二</option>
-                  <option value={3}>周三</option>
-                  <option value={4}>周四</option>
-                  <option value={5}>周五</option>
-                </select>
-                <input 
-                  className="input" type="time" style={{ width: 100 }}
-                  value={schedule.start_time} 
-                  onChange={e => {
-                    const newSchedule = [...formData.default_schedule];
-                    newSchedule[idx].start_time = e.target.value;
-                    setFormData({ ...formData, default_schedule: newSchedule });
-                  }} 
-                />
-                <span>-</span>
-                <input 
-                  className="input" type="time" style={{ width: 100 }}
-                  value={schedule.end_time} 
-                  onChange={e => {
-                    const newSchedule = [...formData.default_schedule];
-                    newSchedule[idx].end_time = e.target.value;
-                    setFormData({ ...formData, default_schedule: newSchedule });
-                  }} 
-                />
-                <IconTrash 
-                  size={16} 
-                  style={{ color: 'var(--color-danger)', cursor: 'pointer' }} 
-                  onClick={() => {
-                    const newSchedule = formData.default_schedule.filter((_, i) => i !== idx);
-                    setFormData({ ...formData, default_schedule: newSchedule });
-                  }} 
-                />
-              </div>
-            ))}
-            {formData.default_schedule.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', textAlign: 'center', padding: '10px 0' }}>无固定排期</div>
-            )}
-          </div>
         </div>
       </Modal>
     </div>

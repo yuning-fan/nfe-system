@@ -252,8 +252,13 @@ export default function StudentDetail() {
   // Dorm address helper
   const activeDorm = (student.dorm_assignments || [])[0];
 
-  // Subjects from school_timetable
-  const timetableSubjects = [...new Set((student.school_timetable || []).map((t: any) => t.program_subjects?.subject_name).filter(Boolean))];
+  // 学生的科目来自「选课」，不是课表 —— 课表只管时间，不排课的学生（奥大）照样有科目。
+  // 老数据里有选课为空但课表已生成的情况，故课表作为兜底来源合并进来。
+  const one = (v: any) => (Array.isArray(v) ? v[0] : v);
+  const timetableSubjects = [...new Set([
+    ...(student.subject_selections || []).map((s: any) => one(s.program_subjects)?.subject_name),
+    ...(student.school_timetable || []).map((t: any) => t.program_subjects?.subject_name),
+  ].filter(Boolean))];
 
   // Onboarding checklist — detect missing/incomplete items pre-enrollment
   const onboardingChecklist = [

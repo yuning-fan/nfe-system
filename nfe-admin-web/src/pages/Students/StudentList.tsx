@@ -58,7 +58,8 @@ const onboardingMissing = (s: any): number => {
     !docs.find((d: any) => d.doc_type === 'guardianship'),
     !s.arrival_date,
     !s.dorm_assignments?.length,
-    !s.school_timetable?.length,
+    // 看「选课」而非「课表」：课表只管时间，奥大学生不排课但一样算完成入学
+    !s.has_selections,
   ].filter(Boolean).length;
 };
 

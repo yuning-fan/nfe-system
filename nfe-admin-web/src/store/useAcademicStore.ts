@@ -20,7 +20,6 @@ interface ProgramSubject {
   sessions_per_week: number;
   max_students?: number;
   pass_mark?: number;
-  default_schedule?: { day_of_week: number; start_time: string; end_time: string; room: string }[];
 }
 
 interface Enrollment {
@@ -37,6 +36,7 @@ interface SubjectSelection {
   enrollment_id: number;
   program_subject_id: number;
   selection_type: string;
+  status?: string;               // pending_confirm / confirmed / dropped
   program_subjects?: ProgramSubject;
 }
 
@@ -47,6 +47,8 @@ interface TimetableEntry {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  room?: string | null;
+  program_subject_id?: number;
   program_subjects?: { subject_name: string };
 }
 
@@ -106,7 +108,14 @@ interface AcademicStore {
   backfillCoreSubjects: (enrollmentId: number, programId: number) => Promise<{ ok: boolean; added: number; noCore?: boolean }>;
   addElective: (enrollmentId: number, subjectId: number) => Promise<boolean>;
   removeElective: (selectionId: number) => Promise<boolean>;
-  generateTimetable: (enrollmentId: number) => Promise<boolean>;
+  saveTimetable: (
+    enrollmentId: number,
+    studentId: string,
+    rows: {
+      program_subject_id: number; day_of_week: number; start_time: string; end_time: string;
+      room: string | null; effective_from: string; effective_until: string;
+    }[],
+  ) => Promise<boolean>;
   fetchTimetable: (studentId?: string) => Promise<void>;
   
   // Milestones
@@ -177,7 +186,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
         .select(`
           *,
           profiles:profiles!student_enrollments_student_id_fkey(full_name),
-          programs!inner(name)
+          programs!inner(name, track)
         `);
       if (visibleIds) enrQ = enrQ.in('student_id', visibleIds.length ? visibleIds : ['00000000-0000-0000-0000-000000000000']);
       const { data: enrollments, error: enrErr } = await enrQ;
@@ -187,7 +196,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
         .from('student_subject_selections')
         .select(`
           *,
-          program_subjects!inner(subject_name, subject_category, hours_per_week, sessions_per_week, default_schedule)
+          program_subjects!inner(subject_name, subject_category, hours_per_week, sessions_per_week)
         `);
 
       const formattedEnrollments = (enrollments || []).map((e: any) => ({
@@ -304,85 +313,45 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
     }
   },
 
-  generateTimetable: async (enrollmentId) => {
+  // 课表按学生逐节手排，不再由科目模板批量生成。
+  // 原 generateTimetable 从 program_subjects.default_schedule 复制时间，导致同项目所有人课表一模一样；
+  // 实际每个学生的上课时间都不同，故整段删除，改由 TimetableEditor 逐节增删改。
+  saveTimetable: async (enrollmentId, studentId, rows) => {
     set({ isLoading: true });
     try {
-      // 1. Get enrollment details
-      const enrollment = get().enrollments.find(e => e.id === enrollmentId);
-      if (!enrollment) throw new Error('Enrollment not found');
-
-      // 2. Get confirmed subjects
-      const confirmedSelections = get().selections.filter(s => s.enrollment_id === enrollmentId);
-      
       const user = useAuthStore.getState().user;
-      
-      // 3. Generate mock schedule (2 sessions per week per subject)
-      // Hardcoded days/times for MVP simplicity
-      const inserts: any[] = [];
-      let currentDay = 1; // Monday
-      let currentHour = 9;
+      // 整表替换：先删该报名下的全部课节，再写入当前编辑结果（含清空的情况）
+      const { error: delErr } = await supabase.from('school_timetable').delete().eq('enrollment_id', enrollmentId);
+      if (delErr) throw delErr;
 
-      for (const sel of confirmedSelections) {
-        const defaultSchedule = sel.program_subjects?.default_schedule;
-
-        if (defaultSchedule && defaultSchedule.length > 0) {
-          // Use real schedule defined by the academic department
-          for (const session of defaultSchedule) {
-            inserts.push({
-              student_id: enrollment.student_id,
-              enrollment_id: enrollment.id,
-              program_subject_id: sel.program_subject_id,
-              day_of_week: session.day_of_week,
-              start_time: session.start_time,
-              end_time: session.end_time,
-              room: session.room || null,
-              effective_from: new Date().toISOString().split('T')[0],
-              effective_until: new Date(Date.now() + 8 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              generated_by: user?.id,
-              is_confirmed: true
-            });
-          }
-        } else {
-          // Fallback to fake generation if no default schedule exists
-          const sessions = sel.program_subjects?.sessions_per_week || 2;
-          const duration = (sel.program_subjects?.hours_per_week || 4) / sessions;
-
-          for (let i = 0; i < sessions; i++) {
-            inserts.push({
-              student_id: enrollment.student_id,
-              enrollment_id: enrollment.id,
-              program_subject_id: sel.program_subject_id,
-              day_of_week: currentDay,
-              start_time: `${currentHour.toString().padStart(2, '0')}:00`,
-              end_time: `${(currentHour + Math.floor(duration)).toString().padStart(2, '0')}:00`,
-              effective_from: new Date().toISOString().split('T')[0],
-              effective_until: new Date(Date.now() + 8 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              generated_by: user?.id,
-              is_confirmed: true
-            });
-            
-            currentDay++;
-            if (currentDay > 5) {
-              currentDay = 1;
-              currentHour += 2;
-            }
-          }
-        }
+      if (rows.length) {
+        const { error: insErr } = await supabase.from('school_timetable').insert(
+          rows.map(r => ({
+            student_id: studentId,
+            enrollment_id: enrollmentId,
+            program_subject_id: r.program_subject_id,
+            day_of_week: r.day_of_week,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            room: r.room || null,
+            effective_from: r.effective_from,
+            effective_until: r.effective_until,
+            generated_by: user?.id,
+            is_confirmed: true,
+          })),
+        );
+        if (insErr) throw insErr;
       }
 
-      // First delete existing timetable for this enrollment
-      await supabase.from('school_timetable').delete().eq('enrollment_id', enrollmentId);
-      
-      // Insert new
-      await supabase.from('school_timetable').insert(inserts);
-
       await get().fetchTimetable();
+      set({ isLoading: false });
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
       return false;
     }
   },
+
 
   fetchMilestones: async () => {
     set({ isLoading: true });
@@ -609,6 +578,10 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       `);
       if (studentId) {
         query = query.eq('student_id', studentId);
+      } else {
+        // 不指定学生时按登录者可见范围收窄（admin 为 null 即全体）
+        const visibleIds = await getVisibleStudentIds(useAuthStore.getState().profile?.id);
+        if (visibleIds) query = query.in('student_id', visibleIds.length ? visibleIds : ['00000000-0000-0000-0000-000000000000']);
       }
       
       const { data } = await query;

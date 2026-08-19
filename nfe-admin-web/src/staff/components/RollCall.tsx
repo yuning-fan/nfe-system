@@ -6,6 +6,7 @@ import { useDailyCheckStore, type DailyCheckType } from '../../store/useDailyChe
 import { useAuthStore } from '../../store/useAuthStore';
 import { recomputeRisk } from '../../lib/riskEngine';
 import { getGuardedStudentIds } from '../../lib/guardedStudents';
+import { derivePhaseStatus } from '../../lib/phaseStatus';
 import { message, Modal } from 'antd';
 import { IconLoader2, IconChevronRight, IconChevronDown, IconTrash } from '@tabler/icons-react';
 import { Section } from '../ui';
@@ -19,7 +20,7 @@ interface HistRow { date: string; present: number; absent: number; leave: number
 const ST_LABEL: Record<St, string> = { present: '在场', absent: '缺席', leave: '请假' };
 const ST_CLS: Record<St, string> = { present: 'p-green', absent: 'p-red', leave: 'p-amber' };
 
-// scope: 'all' = 全体在读（晚自习）；'today_school' = 今日有课的学生（早上出勤，按 school_timetable）；
+// scope: 'all' = 预科在读学生（晚自习；奥大不纳入出勤）；'today_school' = 今日有课的学生（早上出勤，按 school_timetable）；
 //        'my_dorm' = 当前登录生活老师名下公寓的在住学生（查寝）
 export default function RollCall({ checkType, title, hint, scope = 'all' }: { checkType: DailyCheckType; title: string; hint?: string; scope?: 'all' | 'today_school' | 'my_dorm' }) {
   const submit = useDailyCheckStore(s => s.submitDailyChecks);
@@ -61,8 +62,24 @@ export default function RollCall({ checkType, title, hint, scope = 'all' }: { ch
         list = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
       }
     } else {
-      const { data } = await db.from('profiles').select('id, full_name').eq('role', 'student').order('full_name');
-      list = (data || []).map((p: any) => ({ id: p.id, name: p.full_name }));
+      // 晚自习：只含「预科在读」学生。
+      // 两处收窄：① 大学阶段（奥大）不纳入出勤管理；② 原先拉的是全部 role='student'，
+      // 已完成/退学的也在名单里 —— 注释写着「全体在读」但代码并没有按报名状态过滤。
+      // 一人可能有多条报名（预科 + 预缴的奥大），只要有一条「非大学阶段且当前在读」就算。
+      const { data: enr } = await db
+        .from('student_enrollments')
+        .select('student_id, start_date, end_date, status, programs!inner(track), profiles!student_enrollments_student_id_fkey(full_name)');
+      const one = (v: any) => (Array.isArray(v) ? v[0] : v);
+      const byStudent = new Map<string, string>();
+      for (const e of ((enr || []) as any[])) {
+        if (!e.student_id) continue;
+        if (one(e.programs)?.track === 'university') continue;
+        if (derivePhaseStatus(e).key !== 'active') continue;
+        const name = one(e.profiles)?.full_name;
+        if (name) byStudent.set(e.student_id, name);
+      }
+      list = Array.from(byStudent, ([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh'));
     }
     setStudents(list);
     const init: Record<string, { status: St; notes: string }> = {};

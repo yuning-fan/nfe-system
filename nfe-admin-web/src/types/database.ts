@@ -77,6 +77,7 @@ export interface StudentInfo {
   dorm_assignments?: any[];
   warning_letters?: any[];
   school_timetable?: any[];
+  subject_selections?: any[];   // 选课记录：学生「有哪些科目」的权威来源（课表只管时间）
   student_documents?: any[];
   course_assets?: any[];
   student_credentials?: any[];

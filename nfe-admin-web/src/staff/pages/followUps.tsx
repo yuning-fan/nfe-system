@@ -102,13 +102,23 @@ export function StudyFollowUps() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // 单条弹窗：选中学生后拉他的课表科目做下拉候选
+  // 单条弹窗：选中学生后拉他的科目做下拉候选。
+  // 取自「选课」而非课表 —— 不排课的学生（奥大）也要能选到科目。
+  // 老数据里有选课为空但课表已生成的，故课表作为兜底合并。
   useEffect(() => {
     if (!form.student_id) { setSubjectOpts([]); return; }
     (async () => {
-      const { data } = await db.from('school_timetable').select('program_subjects(subject_name)').eq('student_id', form.student_id);
-      const subs = Array.from(new Set(((data || []) as any[]).map(r => one(r.program_subjects)?.subject_name).filter(Boolean))) as string[];
-      setSubjectOpts(subs);
+      const [selRes, ttRes] = await Promise.all([
+        db.from('student_subject_selections')
+          .select('program_subjects!student_subject_selections_program_subject_id_fkey(subject_name), student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id)')
+          .eq('student_enrollments.student_id', form.student_id)
+          .neq('status', 'dropped'),
+        db.from('school_timetable').select('program_subjects(subject_name)').eq('student_id', form.student_id),
+      ]);
+      const names = [...((selRes.data || []) as any[]), ...((ttRes.data || []) as any[])]
+        .map(r => one(r.program_subjects)?.subject_name)
+        .filter(Boolean) as string[];
+      setSubjectOpts(Array.from(new Set(names)));
     })();
   }, [form.student_id]);
 
