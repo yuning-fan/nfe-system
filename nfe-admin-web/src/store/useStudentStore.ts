@@ -12,6 +12,29 @@ export interface ProgramOption {
 
 export interface StaffOption { id: string; full_name: string; role: string }
 
+// 把「当前阶段」排到数组首位——档案页各处都取 [0]。
+// 口径与「学业跟进」页一致：在读区间内 > 未来最近开学 > 最近一条；withdrawn 垫底。
+function pickCurrentFirst(list: any[]): any[] {
+  if (list.length < 2) return list;
+  const today = new Date().toISOString().slice(0, 10);
+  const rank = (e: any) => {
+    if (e.status === 'withdrawn') return 4;
+    const started = !e.start_date || e.start_date <= today;
+    const notEnded = !e.end_date || today <= e.end_date;
+    if (e.status !== 'completed' && started && notEnded) return 0;   // 在读
+    if (e.status !== 'completed' && !started) return 1;              // 未来开学
+    return 2;                                                        // 已结束
+  };
+  return list.slice().sort((a, b) => {
+    const d = rank(a) - rank(b);
+    if (d !== 0) return d;
+    // 同档内：未来阶段取最早开学，其余取最近的
+    const asc = rank(a) === 1;
+    return asc ? (a.start_date || '').localeCompare(b.start_date || '')
+               : (b.start_date || '').localeCompare(a.start_date || '');
+  });
+}
+
 interface StudentStore {
   students: StudentInfo[];
   currentStudent: StudentInfo | null;
@@ -267,16 +290,22 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .maybeSingle();
 
       // Step 3: Get extra aggregates
-      const [dormRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes, selectionsRes] = await Promise.all([
+      const [dormRes, enrollRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes, selectionsRes] = await Promise.all([
         supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
+        // 阶段（enrollment）按 student_id 直查。原先靠 students_info 内嵌，
+        // 而那条内嵌走的是 students_info.enrollment_id 外键——该列 68 人里 29 人为 NULL，
+        // 于是档案页一律显示「未分配阶段」，学业 tab 也关联不上科目。
+        supabase.from('student_enrollments')
+          .select('id, source, program_id, start_date, end_date, status, programs(id, name, track)')
+          .eq('student_id', id).order('start_date', { ascending: true }),
         supabase.from('warning_letters').select('*, warning_letter_violations(*)').eq('student_id', id).order('id', { ascending: false }),
         supabase.from('school_timetable').select('*, program_subjects(*)').eq('student_id', id).order('day_of_week').order('start_time'),
         supabase.from('student_documents').select('*').eq('student_id', id).order('expiry_date', { ascending: true }),
         supabase.from('student_hour_pools').select('*').eq('student_id', id),
         supabase.from('student_credentials').select('*').eq('student_id', id),
         supabase.from('grade_records').select('*').eq('student_id', id),
-        supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, term_no, week_no, milestone_type'),
-        supabase.from('program_subjects').select('id, subject_name, pass_mark'),
+        supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, due_time, note, mode, is_major, term_no, week_no, milestone_type'),
+        supabase.from('program_subjects').select('id, subject_name, pass_mark, year, semester, description'),
         // 选课记录：学生「有哪些科目」的权威来源。
         // 原先是从 school_timetable 反推的，那样一来不排课的学生（如奥大）就等于没科目。
         supabase
@@ -290,7 +319,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         student_id: id,
         ...(infoData || {}),
         profiles: profileData,
-        student_enrollments: infoData?.student_enrollments || [],
+        // 当前阶段排在最前：在读区间内 > 未来最近开学 > 最近一条（与「学业跟进」页口径一致）
+        student_enrollments: pickCurrentFirst(enrollRes.data || []),
         dorm_assignments: dormRes.data || [],
         warning_letters: warningRes.data || [],
         school_timetable: timetableRes.data || [],

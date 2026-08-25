@@ -105,6 +105,8 @@ BEGIN
     ('DANCE 101','Assessment 1: Study in Creativity (SIC)','SIC Part 3', 25.0,'assignment','non_secure','2026-09-18','17:00','反思性写作；Canvas 上传'),
     ('DANCE 101','Assessment 1: Study in Creativity (SIC)','SIC Part 4', 25.0,'assignment','non_secure','2026-09-18','17:00','反思性写作；与 Part 3 同日提交'),
     ('DANCE 101','Assessment 2: Solo/Duet Choreography','Feedback Showing（中期反馈展示）', NULL,'assignment','secure','2026-09-14','15:00','含在 Assessment 2 的 10% 内，不单独计权重'),
+    -- 正式表演单独建子项：否则父节点因「有子项」被当成评估组，9/21 这场就从 DDL 清单里漏掉了
+    ('DANCE 101','Assessment 2: Solo/Duet Choreography','Solo/Duet Choreography 现场表演', 100.0,'assignment','secure','2026-09-21','15:00','课堂内现场表演；Assessment 2 的全部计分部分'),
 
     ('EDUC 114','Quizzes（4 次）','Quiz 1: Treaty of Waitangi in Education', 25.0,'assignment','non_secure','2026-08-06','23:59','⚠️ 大纲写 Wed，8/6 实为 Thu；时间大纲未明写'),
     ('EDUC 114','Quizzes（4 次）','Quiz 2: Māori Language in Education',     25.0,'assignment','non_secure','2026-08-20','23:59','⚠️ 大纲写 Wed，8/20 实为 Thu；时间大纲未明写'),

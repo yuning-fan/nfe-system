@@ -5,6 +5,7 @@ import { useRiskStore } from '../../store/useRiskStore';
 import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
 import GradebookCard from './GradebookCard';
+import AssessmentNodesCard from './AssessmentNodesCard';
 import FollowUpTimelineCard from './FollowUpTimelineCard';
 import { supabase } from '../../lib/supabase';
 import { uploadFile, getDownloadUrl } from '../../lib/r2';
@@ -874,10 +875,26 @@ export default function StudentDetail() {
                       );
                     })}
                   </div>
+                ) : (student.subject_selections || []).length > 0 ? (
+                  // 奥大阶段通常不在系统里排课，但选课记录是有的——列出来，别只甩一句「暂无排课」
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {(student.subject_selections || []).map((sel: any) => (
+                        <span key={sel.id} className="pill p-blue" style={{ fontSize: 12 }}>
+                          {sel.program_subjects?.subject_name || `科目 #${sel.program_subject_id}`}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 10 }}>
+                      共 {(student.subject_selections || []).length} 门已选科目；系统内暂无课表排课记录。
+                    </div>
+                  </div>
                 ) : (
                   <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', padding: '20px 0', textAlign: 'center' }}>暂无排课记录</div>
                 )}
               </div>
+
+              <AssessmentNodesCard student={student} />
 
               <GradebookCard student={student} />
 
