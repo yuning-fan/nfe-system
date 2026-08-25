@@ -30,7 +30,9 @@ export default function SubjectManagement() {
     difficulty_level: 'standard',
     hours_per_week: 4,
     sessions_per_week: 2,
-    max_students: 20
+    max_students: 20,
+    year: '',            // 开课学年，奥大 paper 分学期用；预科留空
+    semester: ''         // S1 / S2 / SS
   });
 
   const handleEdit = (subject: any) => {
@@ -42,7 +44,9 @@ export default function SubjectManagement() {
       difficulty_level: subject.difficulty_level,
       hours_per_week: subject.hours_per_week,
       sessions_per_week: subject.sessions_per_week,
-      max_students: subject.max_students || 20
+      max_students: subject.max_students || 20,
+      year: subject.year ? String(subject.year) : '',
+      semester: subject.semester || ''
     });
     setEditingId(subject.id);
     setIsModalOpen(true);
@@ -71,7 +75,9 @@ export default function SubjectManagement() {
       program_id: parseInt(formData.program_id),
       hours_per_week: Number(formData.hours_per_week),
       sessions_per_week: Number(formData.sessions_per_week),
-      max_students: Number(formData.max_students)
+      max_students: Number(formData.max_students),
+      year: formData.year ? Number(formData.year) : null,
+      semester: formData.semester || null
     };
 
     let success;
@@ -105,7 +111,9 @@ export default function SubjectManagement() {
             difficulty_level: 'standard',
             hours_per_week: 4,
             sessions_per_week: 2,
-            max_students: 20
+            max_students: 20,
+            year: '',
+            semester: ''
           });
           setIsModalOpen(true);
         }}>
@@ -119,6 +127,7 @@ export default function SubjectManagement() {
             <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', fontSize: 13 }}>
               <th style={{ padding: '12px 8px' }}>所属项目</th>
               <th style={{ padding: '12px 8px' }}>科目名称</th>
+              <th style={{ padding: '12px 8px' }}>学年/学期</th>
               <th style={{ padding: '12px 8px' }}>类型</th>
               <th style={{ padding: '12px 8px' }}>每周课时</th>
               <th style={{ padding: '12px 8px' }}>每周节数</th>
@@ -133,6 +142,9 @@ export default function SubjectManagement() {
                 <tr key={subject.id} style={{ borderBottom: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
                   <td style={{ padding: '12px 8px' }}>{programName}</td>
                   <td style={{ padding: '12px 8px', fontWeight: 500 }}>{subject.subject_name}</td>
+                  <td style={{ padding: '12px 8px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                    {subject.year || subject.semester ? `${subject.year || ''} ${subject.semester || ''}`.trim() : '—'}
+                  </td>
                   <td style={{ padding: '12px 8px' }}>
                     <span className={`pill ${subject.subject_category === 'core' ? 'p-red' : 'p-blue'}`}>
                       {subject.subject_category === 'core' ? '必修' : '选修'}
@@ -163,7 +175,7 @@ export default function SubjectManagement() {
             })}
             {programSubjects.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>
                   暂无科目数据
                 </td>
               </tr>
@@ -191,7 +203,23 @@ export default function SubjectManagement() {
           
           <div className="form-group">
             <label className="form-label">科目名称</label>
-            <input className="input" placeholder="如：EAP, 数学-微积分" value={formData.subject_name} onChange={e => setFormData({ ...formData, subject_name: e.target.value })} />
+            <input className="input" placeholder="如：EAP、数学-微积分、GEOG 205" value={formData.subject_name} onChange={e => setFormData({ ...formData, subject_name: e.target.value })} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">开课学年</label>
+              <input className="input" type="number" placeholder="如 2026；不分学期留空" value={formData.year} onChange={e => setFormData({ ...formData, year: e.target.value })} />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">开课学期</label>
+              <select className="input" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })}>
+                <option value="">不分学期</option>
+                <option value="S1">S1（2–6 月）</option>
+                <option value="S2">S2（7–11 月）</option>
+                <option value="SS">SS（暑期）</option>
+              </select>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 16 }}>

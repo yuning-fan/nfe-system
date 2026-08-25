@@ -1,4 +1,4 @@
-import { IconReport, IconSpeakerphone, IconSchool, IconConfetti, IconDatabase, IconUserCog, IconListDetails, IconSettings, IconClock } from '@tabler/icons-react';
+import { IconReport, IconSpeakerphone, IconSchool, IconConfetti, IconDatabase, IconUserCog, IconSettings, IconClock } from '@tabler/icons-react';
 
 export function PlaceholderPage({ title, icon: Icon, desc }: { title: string, icon: any, desc: string }) {
   return (
@@ -37,10 +37,6 @@ export function Library() {
 
 export function Accounts() {
   return <PlaceholderPage title="员工账号管理" icon={IconUserCog} desc="管理系统账号与权限分配" />;
-}
-
-export function SystemLogs() {
-  return <PlaceholderPage title="系统操作日志" icon={IconListDetails} desc="查看关键操作记录与审计日志" />;
 }
 
 export function Settings() {

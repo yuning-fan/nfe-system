@@ -87,7 +87,7 @@ avatars/        ← 头像（profiles.avatar_url）
 
 - [ ] **Realtime 推送接入**：`notifications` 表已建，但代码里没有 `supabase.channel().subscribe()` 调用。当前通知只能刷新页面查看，无主动推送。升 Pro 后可低成本接入。
 
-- [ ] **`log_audit_operations` 归档策略**：该表会随着操作积累无限增长，上线一段时间后需制定归档或定期清理策略（如保留最近 12 个月）。
+- [ ] **`audit_logs` 归档策略**：该表会随着操作积累无限增长，上线一段时间后需制定归档或定期清理策略（A 层核心表保留 12 个月、B 层高频表保留 3 个月）。原 `log_audit_operations` 已于 2026-08-21 drop 并由 `audit_logs` 取代。
 
 - [ ] **Supabase 计算实例监控**：观察查询性能，如出现慢查询再考虑升级计算实例（当前 Pro 默认 2 核足够 MVP 阶段）。
 

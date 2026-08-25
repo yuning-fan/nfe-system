@@ -20,6 +20,9 @@ interface ProgramSubject {
   sessions_per_week: number;
   max_students?: number;
   pass_mark?: number;
+  year?: number | null;        // 开课学年（奥大 paper 分学期，预科留空）
+  semester?: string | null;    // S1 / S2 / SS
+  description?: string | null;
 }
 
 interface Enrollment {
@@ -68,6 +71,8 @@ export interface AcademicMilestone {
   week_no?: number | null;
   mode?: string | null;             // secure / non_secure / hybrid
   is_major?: boolean | null;
+  due_time?: string | null;         // 当天截止时间，空=按 23:59 理解
+  note?: string | null;             // 提交形式 / 大纲待确认事项
   program_subjects?: { subject_name: string };
 }
 

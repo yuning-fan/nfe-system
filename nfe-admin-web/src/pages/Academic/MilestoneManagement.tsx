@@ -17,7 +17,9 @@ const MODE_OPTS = [
 ];
 const modeLabel = (m?: string | null) => MODE_OPTS.find(o => o.value === m)?.label.split(' ')[0] || '—';
 
-const blank = { milestone_type: 'exam', title: '', due_date: '', weight_percent: undefined as number | undefined, term_no: undefined as number | undefined, week_no: undefined as number | undefined, mode: 'secure', is_major: false, parent_id: undefined as number | undefined };
+const blank = { milestone_type: 'exam', title: '', due_date: '', due_time: '', weight_percent: undefined as number | undefined, term_no: undefined as number | undefined, week_no: undefined as number | undefined, mode: 'secure', is_major: false, parent_id: undefined as number | undefined, note: '' };
+// 截止时间留空按 23:59 理解；库里存 time，展示时截掉秒
+const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
 
 export default function MilestoneManagement() {
   const { milestones, programs, programSubjects, fetchMilestones, fetchProgramsAndSubjects, createMilestone, updateMilestone, deleteMilestone, updateProgramSubject, isLoading } = useAcademicStore();
@@ -59,9 +61,9 @@ export default function MilestoneManagement() {
   const openEdit = (m: any) => {
     setEditId(m.id);
     setForm({
-      milestone_type: m.milestone_type, title: m.title, due_date: m.due_date || '',
+      milestone_type: m.milestone_type, title: m.title, due_date: m.due_date || '', due_time: hhmm(m.due_time),
       weight_percent: m.weight_percent ?? undefined, term_no: m.term_no ?? undefined, week_no: m.week_no ?? undefined,
-      mode: m.mode || 'secure', is_major: !!m.is_major, parent_id: m.parent_id ?? undefined,
+      mode: m.mode || 'secure', is_major: !!m.is_major, parent_id: m.parent_id ?? undefined, note: m.note || '',
     });
     setOpen(true);
   };
@@ -74,12 +76,14 @@ export default function MilestoneManagement() {
       milestone_type: form.milestone_type,
       title: form.title.trim(),
       due_date: form.due_date || null,
+      due_time: form.due_time || null,
       weight_percent: form.weight_percent ?? null,
       term_no: form.term_no ?? null,
       week_no: form.week_no ?? null,
       mode: form.mode || null,
       is_major: form.is_major,
       parent_id: form.parent_id ?? null,
+      note: form.note.trim() || null,
     };
     const ok = editId ? await updateMilestone(editId, payload) : await createMilestone(payload);
     if (ok) { message.success(editId ? '已更新' : '已新增'); setOpen(false); }
@@ -108,8 +112,14 @@ export default function MilestoneManagement() {
       <td style={{ padding: '10px 8px' }}>{typeLabel(m.milestone_type)}</td>
       <td style={{ padding: '10px 8px' }}>{m.weight_percent != null ? `${m.weight_percent}%` : '—'}</td>
       <td style={{ padding: '10px 8px' }}>{m.term_no ? `T${m.term_no}` : ''}{m.week_no ? ` W${m.week_no}` : ''}{!m.term_no && !m.week_no ? '—' : ''}</td>
-      <td style={{ padding: '10px 8px' }}>{m.due_date || '—'}</td>
+      <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
+        {m.due_date || '—'}
+        {m.due_time && <span style={{ color: 'var(--color-text-secondary)', marginLeft: 4 }}>{hhmm(m.due_time)}</span>}
+      </td>
       <td style={{ padding: '10px 8px' }}>{modeLabel(m.mode)}</td>
+      <td style={{ padding: '10px 8px', maxWidth: 260, fontSize: 12, color: 'var(--color-text-secondary)' }} title={m.note || ''}>
+        {m.note ? (m.note.length > 40 ? m.note.slice(0, 40) + '…' : m.note) : '—'}
+      </td>
       <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
         {!isChild && <span className="link" style={{ marginRight: 10 }} onClick={() => openAdd(m.id)}><IconPlus size={13} style={{ verticalAlign: 'middle' }} />子项</span>}
         <span className="link" style={{ marginRight: 10 }} onClick={() => openEdit(m)}><IconPencil size={13} style={{ verticalAlign: 'middle' }} />编辑</span>
@@ -150,13 +160,13 @@ export default function MilestoneManagement() {
             <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', fontSize: 13 }}>
               <th style={{ padding: '12px 8px' }}>节点名称</th><th style={{ padding: '12px 8px' }}>类型</th>
               <th style={{ padding: '12px 8px' }}>权重</th><th style={{ padding: '12px 8px' }}>学期/周</th>
-              <th style={{ padding: '12px 8px' }}>日期</th><th style={{ padding: '12px 8px' }}>模式</th>
-              <th style={{ padding: '12px 8px' }}>操作</th>
+              <th style={{ padding: '12px 8px' }}>日期/时间</th><th style={{ padding: '12px 8px' }}>模式</th>
+              <th style={{ padding: '12px 8px' }}>备注</th><th style={{ padding: '12px 8px' }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {topNodes.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>该科暂无考核节点，点「新增节点」配置。</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-tertiary)' }}>该科暂无考核节点，点「新增节点」配置。</td></tr>
             ) : topNodes.map(top => [renderRow(top), ...childrenOf(top.id).map(c => renderRow(c, true))])}
           </tbody>
         </table>
@@ -182,6 +192,7 @@ export default function MilestoneManagement() {
             <div style={{ width: 90 }}><label className="form-label">学期</label><InputNumber min={1} max={6} value={form.term_no} onChange={v => setForm(f => ({ ...f, term_no: v ?? undefined }))} style={{ width: '100%' }} /></div>
             <div style={{ width: 90 }}><label className="form-label">周</label><InputNumber min={1} max={20} value={form.week_no} onChange={v => setForm(f => ({ ...f, week_no: v ?? undefined }))} style={{ width: '100%' }} /></div>
             <div style={{ flex: 1 }}><label className="form-label">日期</label><input className="input" type="date" style={{ width: '100%' }} value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} /></div>
+            <div style={{ width: 110 }}><label className="form-label">截止时间</label><input className="input" type="time" style={{ width: '100%' }} value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} placeholder="23:59" /></div>
           </div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
             <div style={{ flex: 1 }}>
@@ -196,6 +207,11 @@ export default function MilestoneManagement() {
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, paddingBottom: 6 }}>
               <input type="checkbox" checked={form.is_major} onChange={e => setForm(f => ({ ...f, is_major: e.target.checked }))} /> 主要考核
             </label>
+          </div>
+          <div>
+            <label className="form-label">备注</label>
+            <Input.TextArea rows={2} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+              placeholder="提交形式 / 大纲待确认事项，如「Canvas 上传；⚠️ 是否 in-class 待确认」" />
           </div>
         </div>
       </Modal>
