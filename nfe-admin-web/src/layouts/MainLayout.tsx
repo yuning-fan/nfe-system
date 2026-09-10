@@ -1,7 +1,8 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  IconLayoutDashboard, 
-  IconUsers, 
+import {
+  IconLayoutDashboard,
+  IconCalendarStats,
+  IconUsers,
   IconBuilding, 
   IconCar, 
   IconBook, 
@@ -31,6 +32,7 @@ const pageTitles: Record<string, { title: string; sub: string }> = {
   '/housing': { title: '住宿管理', sub: '公寓 · 房间 · 入住管理' },
   '/dorm-check': { title: '查寝管理', sub: '夜间住宿清点' },
   '/transport': { title: '接送管理', sub: '今日 · 3条路线' },
+  '/weekly': { title: '周看板', sub: '本周 DDL · 考核截止 / 证件到期 / 生日' },
   '/academic': { title: '学业跟进', sub: '课表 · 排课 · 成绩' },
   '/risk': { title: '风险预警', sub: '风险评分 · 三步走警告信' },
 };
@@ -63,6 +65,9 @@ export default function MainLayout() {
         <div className="nav-scroll">
           <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <IconLayoutDashboard stroke={1.5} />首页驾驶舱
+          </NavLink>
+          <NavLink to="/weekly" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <IconCalendarStats stroke={1.5} />周看板
           </NavLink>
           <NavLink to="/students" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <IconUsers stroke={1.5} />学生管理

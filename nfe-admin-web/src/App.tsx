@@ -8,6 +8,7 @@ import HousingManagement from './pages/Housing/HousingManagement';
 import DormCheck from './pages/DormCheck/DormCheck';
 import TransportManagement from './pages/Transport/TransportManagement';
 import AcademicTrack from './pages/Academic/AcademicTrack';
+import { WeeklyBoard } from './staff/pages/weeklyBoard';
 import RiskAlerts from './pages/Risk/RiskAlerts';
 import Communications from './pages/Communications/Communications';
 import Documents from './pages/Documents/Documents';
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="dorm-check" element={<DormCheck />} />
         <Route path="transport" element={<TransportManagement />} />
         <Route path="academic" element={<AcademicTrack />} />
+        <Route path="weekly" element={<WeeklyBoard />} />
         <Route path="risk" element={<RiskAlerts />} />
         <Route path="comms" element={<Communications />} />
         <Route path="docs" element={<Documents />} />

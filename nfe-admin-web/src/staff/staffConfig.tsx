@@ -66,6 +66,7 @@ export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
     label: '学管视角',
     nav: [
       HOME, STUDENTS,
+      { to: 'weekly', label: '周看板', icon: I(IconCalendar), desc: '本周名下学生的 DDL：考核截止 / 证件到期，逾期提醒' },
       { to: 'academic', label: '学业跟进', icon: I(IconBook), desc: '出勤核算、成绩录入、补课安排、学术节点看板' },
       { to: 'courses', label: '课程管理', icon: I(IconBook), desc: '辅导课目录维护（1对1 / 班科），排课时从这里选课程' },
       { to: 'docs', label: '签证/保险/文件', icon: I(IconCertificate), desc: '学生文件上传与查看' },

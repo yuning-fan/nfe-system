@@ -16,6 +16,7 @@ import { LifeComms } from './pages/lifeComms';
 import { LifeRisk } from './pages/lifeRisk';
 import TransportManagement from '../pages/Transport/TransportManagement';
 import { SchoolWarnings } from './pages/schoolWarnings';
+import { WeeklyBoard } from './pages/weeklyBoard';
 import { WarningLetterGen } from './pages/warningLetterGen';
 import { StaffLibrary } from './pages/common';
 // 学管：复用 admin 已有的功能页（真功能）
@@ -57,6 +58,7 @@ const REGISTRY: Record<string, ReactNode> = {
   'life/library': <StaffLibrary />,
   // 学管（真功能：复用 admin 功能页）
   'academic/students': <StudentList />,
+  'academic/weekly': <WeeklyBoard />,
   'academic/academic': <AcademicTrack />,
   'academic/courses': <CourseManagement />,
   'academic/docs': <Documents />,
