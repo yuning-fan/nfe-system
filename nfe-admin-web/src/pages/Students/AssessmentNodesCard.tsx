@@ -2,6 +2,7 @@
 // 节点挂在 program_subjects 上（不挂学生），所以这里用选课记录来圈定「这个学生要看哪几门」。
 import { useMemo, useState } from 'react';
 import { IconTarget, IconAlertTriangle } from '@tabler/icons-react';
+import { intakeLabel } from '../../lib/intakeDates';
 
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
 const typeLabel = (t: string) => ({ exam: '考试', assignment: '作业', report_due: '报告' } as any)[t] || t;
@@ -96,6 +97,11 @@ export default function AssessmentNodesCard({ student }: { student: any }) {
                 <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
                   {n.due_date} {hhmm(n.due_time) || '23:59'}
                 </span>
+                {n.date_source === 'unverified' && (
+                  <span className="pill p-amber" style={{ fontSize: 10 }}
+                    title={`该科默认日期按 ${intakeLabel(meta.find(x => x.id === n.program_subject_id)?.node_dates_intake)} 录入，该生属于 ${intakeLabel(n.intake_start)}，尚未单独设置本批次日期`}>日期待核</span>
+                )}
+                {n.date_source === 'intake' && <span className="pill p-blue" style={{ fontSize: 10 }}>{intakeLabel(n.intake_start)}</span>}
                 {n.note && n.note.includes('⚠️') && (
                   <IconAlertTriangle size={14} style={{ color: '#854F0B' }} title={n.note} />
                 )}
@@ -124,6 +130,11 @@ export default function AssessmentNodesCard({ student }: { student: any }) {
                   过线 {m?.pass_mark ?? 50} · 权重合计 {sum}%{Math.round(sum) === 100 ? ' ✓' : ' ⚠️'}
                 </span>
               </div>
+              {subjNodes.some(n => n.date_source === 'unverified') && (
+                <div style={{ fontSize: 12, color: '#854F0B', marginBottom: 8 }}>
+                  ⚠️ 本科节点日期按 {intakeLabel(m?.node_dates_intake)} 录入，该生属于 {intakeLabel(subjNodes[0]?.intake_start)}；标「日期待核」的节点尚未设置本批次日期，DDL 仅供参考。
+                </div>
+              )}
               {m?.description && (
                 <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8, lineHeight: 1.6 }}>{m.description}</div>
               )}

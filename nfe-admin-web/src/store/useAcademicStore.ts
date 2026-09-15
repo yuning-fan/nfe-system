@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getVisibleStudentIds } from '../lib/guardedStudents';
 import { useAuthStore } from './useAuthStore';
 import { recomputeRisk } from '../lib/riskEngine';
+import type { IntakeDate } from '../lib/intakeDates';
 
 interface Program {
   id: number;
@@ -23,6 +24,7 @@ interface ProgramSubject {
   year?: number | null;        // 开课学年（奥大 paper 分学期，预科留空）
   semester?: string | null;    // S1 / S2 / SS
   description?: string | null;
+  node_dates_intake?: string | null; // 节点默认日期对应的入学批次（start_date）；空=不区分批次
 }
 
 interface Enrollment {
@@ -129,6 +131,10 @@ interface AcademicStore {
   createMilestone: (payload: Partial<AcademicMilestone>) => Promise<boolean>;
   updateMilestone: (id: number, payload: Partial<AcademicMilestone>) => Promise<boolean>;
   deleteMilestone: (id: number) => Promise<boolean>;
+  // 分批次日期（milestone_intake_dates）：同科不同入学批次的 DDL
+  intakeDates: IntakeDate[];
+  fetchIntakeDates: () => Promise<void>;
+  saveIntakeDates: (milestoneId: number, rows: { intake_start: string; due_date: string; due_time: string | null }[]) => Promise<boolean>;
   
   // Program Subjects Management
   createProgramSubject: (payload: Partial<ProgramSubject>) => Promise<boolean>;
@@ -158,6 +164,7 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
   selections: [],
   timetable: [],
   milestones: [],
+  intakeDates: [],
   courses: [],
   hourPools: [],
   gradeRecords: [],
@@ -411,6 +418,42 @@ export const useAcademicStore = create<AcademicStore>((set, get) => ({
       return true;
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
+      return false;
+    }
+  },
+
+  fetchIntakeDates: async () => {
+    try {
+      // 新表尚未进 database.types，走 any
+      const { data, error } = await (supabase as any).from('milestone_intake_dates')
+        .select('milestone_id, intake_start, due_date, due_time, note');
+      if (error) throw error;
+      set({ intakeDates: data || [] });
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  // 该节点的批次日期以本次提交为准：有日期的 upsert，日期留空或未提交的批次删除（= 沿用默认日期）
+  saveIntakeDates: async (milestoneId, rows) => {
+    try {
+      const db = supabase as any;
+      const valid = rows.filter(r => r.intake_start && r.due_date);
+      if (valid.length) {
+        const { error } = await db.from('milestone_intake_dates').upsert(
+          valid.map(r => ({ milestone_id: milestoneId, intake_start: r.intake_start, due_date: r.due_date, due_time: r.due_time || null })),
+          { onConflict: 'milestone_id,intake_start' },
+        );
+        if (error) throw error;
+      }
+      let delQ = db.from('milestone_intake_dates').delete().eq('milestone_id', milestoneId);
+      if (valid.length) delQ = delQ.not('intake_start', 'in', `(${valid.map(r => r.intake_start).join(',')})`);
+      const { error: delErr } = await delQ;
+      if (delErr) throw delErr;
+      await get().fetchIntakeDates();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message });
       return false;
     }
   },

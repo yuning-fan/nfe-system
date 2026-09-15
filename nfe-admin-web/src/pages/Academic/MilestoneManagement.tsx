@@ -1,6 +1,8 @@
 // 考核节点配置（按科目）—— 名称/类型/权重%/学期-周/日期/模式/是否主要/父节点(子项)
 import { useState, useEffect } from 'react';
 import { useAcademicStore } from '../../store/useAcademicStore';
+import { supabase } from '../../lib/supabase';
+import { intakeLabel } from '../../lib/intakeDates';
 import { IconTarget, IconPlus, IconTrash, IconPencil, IconDeviceFloppy } from '@tabler/icons-react';
 import { Modal, message, Select, Input, InputNumber } from 'antd';
 
@@ -22,7 +24,7 @@ const blank = { milestone_type: 'exam', title: '', due_date: '', due_time: '', w
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '');
 
 export default function MilestoneManagement() {
-  const { milestones, programs, programSubjects, fetchMilestones, fetchProgramsAndSubjects, createMilestone, updateMilestone, deleteMilestone, updateProgramSubject, isLoading } = useAcademicStore();
+  const { milestones, programs, programSubjects, fetchMilestones, fetchProgramsAndSubjects, createMilestone, updateMilestone, deleteMilestone, updateProgramSubject, intakeDates, fetchIntakeDates, saveIntakeDates, isLoading } = useAcademicStore();
 
   const [programId, setProgramId] = useState<number | undefined>();
   const [subjectId, setSubjectId] = useState<number | undefined>();
@@ -30,8 +32,31 @@ export default function MilestoneManagement() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...blank });
   const [passMark, setPassMark] = useState<number | undefined>();
+  // 该科在读学生的入学批次；弹窗里按批次单独设置的日期（key = intake_start）
+  const [cohorts, setCohorts] = useState<{ start: string; names: string[] }[]>([]);
+  const [intakeForm, setIntakeForm] = useState<Record<string, { due_date: string; due_time: string }>>({});
 
-  useEffect(() => { fetchMilestones(); fetchProgramsAndSubjects(); }, [fetchMilestones, fetchProgramsAndSubjects]);
+  useEffect(() => { fetchMilestones(); fetchProgramsAndSubjects(); fetchIntakeDates(); }, [fetchMilestones, fetchProgramsAndSubjects, fetchIntakeDates]);
+  // 选课 → 报名 start_date 归并出该科在读批次（退课 / 已完成 / 退学不算）
+  useEffect(() => {
+    if (!subjectId) { setCohorts([]); return; }
+    (async () => {
+      const { data } = await (supabase as any).from('student_subject_selections')
+        .select('status, student_enrollments!student_subject_selections_enrollment_id_fkey!inner(start_date, status, profiles!student_enrollments_student_id_fkey(full_name))')
+        .eq('program_subject_id', subjectId);
+      const map = new Map<string, string[]>();
+      for (const x of (data || []) as any[]) {
+        if (x.status === 'dropped') continue;
+        const en = Array.isArray(x.student_enrollments) ? x.student_enrollments[0] : x.student_enrollments;
+        if (!en?.start_date || en.status === 'withdrawn' || en.status === 'completed') continue;
+        const p = Array.isArray(en.profiles) ? en.profiles[0] : en.profiles;
+        const arr = map.get(en.start_date) || [];
+        if (p?.full_name) arr.push(p.full_name);
+        map.set(en.start_date, arr);
+      }
+      setCohorts(Array.from(map, ([start, names]) => ({ start, names })).sort((a, b) => a.start.localeCompare(b.start)));
+    })();
+  }, [subjectId]);
   useEffect(() => {
     if (!programId && programs.length) setProgramId(programs[0].id);
   }, [programs, programId]);
@@ -52,10 +77,17 @@ export default function MilestoneManagement() {
   const topNodes = subjectNodes.filter(m => !m.parent_id);
   const childrenOf = (pid: number) => subjectNodes.filter(m => m.parent_id === pid);
   const topWeightSum = topNodes.reduce((s, n) => s + (Number(n.weight_percent) || 0), 0);
+  const baseIntake = programSubjects.find(p => p.id === subjectId)?.node_dates_intake ?? null;
+  const otherCohorts = cohorts.filter(c => c.start !== baseIntake);
+  // 弹窗要列的批次：在读的非默认批次 ∪ 该节点已有单独日期的批次（否则保存时会把后者静默删掉）
+  const modalIntakes = editId
+    ? Array.from(new Set([...otherCohorts.map(c => c.start), ...intakeDates.filter(x => x.milestone_id === editId).map(x => x.intake_start)])).sort()
+    : [];
 
   const openAdd = (parentId?: number) => {
     setEditId(null);
     setForm({ ...blank, parent_id: parentId });
+    setIntakeForm({});
     setOpen(true);
   };
   const openEdit = (m: any) => {
@@ -65,6 +97,8 @@ export default function MilestoneManagement() {
       weight_percent: m.weight_percent ?? undefined, term_no: m.term_no ?? undefined, week_no: m.week_no ?? undefined,
       mode: m.mode || 'secure', is_major: !!m.is_major, parent_id: m.parent_id ?? undefined, note: m.note || '',
     });
+    setIntakeForm(Object.fromEntries(intakeDates.filter(x => x.milestone_id === m.id)
+      .map(x => [x.intake_start, { due_date: x.due_date, due_time: hhmm(x.due_time) }])));
     setOpen(true);
   };
 
@@ -86,6 +120,10 @@ export default function MilestoneManagement() {
       note: form.note.trim() || null,
     };
     const ok = editId ? await updateMilestone(editId, payload) : await createMilestone(payload);
+    if (ok && editId) {
+      const rows = Object.entries(intakeForm).map(([intake_start, v]) => ({ intake_start, due_date: v.due_date, due_time: v.due_time || null }));
+      if (!(await saveIntakeDates(editId, rows))) { message.error('节点已保存，但批次日期保存失败'); return; }
+    }
     if (ok) { message.success(editId ? '已更新' : '已新增'); setOpen(false); }
     else message.error('保存失败');
   };
@@ -103,6 +141,12 @@ export default function MilestoneManagement() {
     message[ok ? 'success' : 'error'](ok ? '过线分已保存' : '保存失败');
   };
 
+  const saveBaseIntake = async (v?: string) => {
+    if (!subjectId) return;
+    const ok = await updateProgramSubject(subjectId, { node_dates_intake: v ?? null });
+    message[ok ? 'success' : 'error'](ok ? '已保存默认日期对应批次' : '保存失败');
+  };
+
   const renderRow = (m: any, isChild = false) => (
     <tr key={m.id} style={{ borderBottom: '1px solid var(--color-border-tertiary)', fontSize: 14 }}>
       <td style={{ padding: '10px 8px', paddingLeft: isChild ? 28 : 8, fontWeight: isChild ? 400 : 500 }}>
@@ -115,6 +159,11 @@ export default function MilestoneManagement() {
       <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
         {m.due_date || '—'}
         {m.due_time && <span style={{ color: 'var(--color-text-secondary)', marginLeft: 4 }}>{hhmm(m.due_time)}</span>}
+        {intakeDates.filter(x => x.milestone_id === m.id).map(x => (
+          <div key={x.intake_start} style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+            {intakeLabel(x.intake_start)}：{x.due_date}{x.due_time ? ` ${hhmm(x.due_time)}` : ''}
+          </div>
+        ))}
       </td>
       <td style={{ padding: '10px 8px' }}>{modeLabel(m.mode)}</td>
       <td style={{ padding: '10px 8px', maxWidth: 260, fontSize: 12, color: 'var(--color-text-secondary)' }} title={m.note || ''}>
@@ -152,7 +201,24 @@ export default function MilestoneManagement() {
         <span style={{ fontSize: 12, color: Math.round(topWeightSum) === 100 ? 'var(--color-success)' : 'var(--color-danger)' }}>
           顶层权重合计 {topWeightSum}%{Math.round(topWeightSum) === 100 ? ' ✓' : '（应=100%）'}
         </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>默认日期对应</span>
+          <Select allowClear style={{ width: 150 }} placeholder="不区分批次" value={baseIntake || undefined} onChange={saveBaseIntake}
+            options={Array.from(new Set([...cohorts.map(c => c.start), ...(baseIntake ? [baseIntake] : [])])).sort().map(d => ({ label: intakeLabel(d), value: d }))} />
+        </span>
       </div>
+
+      {baseIntake && otherCohorts.length > 0 && (
+        <div style={{ fontSize: 12, color: '#854F0B', marginBottom: 10 }}>
+          该科还有 {otherCohorts.map(c => `${intakeLabel(c.start)}（${c.names.join('、')}）`).join('、')} 在读。表中日期按 {intakeLabel(baseIntake)}；
+          其他批次请点「编辑」单独设置，未设置的在 DDL 里显示「日期待核」。
+        </div>
+      )}
+      {!baseIntake && cohorts.length > 1 && (
+        <div style={{ fontSize: 12, color: '#854F0B', marginBottom: 10 }}>
+          该科有 {cohorts.length} 个入学批次在读（{cohorts.map(c => intakeLabel(c.start)).join('、')}），建议先在「默认日期对应」选定表中日期属于哪个批次。
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
@@ -213,6 +279,28 @@ export default function MilestoneManagement() {
             <Input.TextArea rows={2} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
               placeholder="提交形式 / 大纲待确认事项，如「Canvas 上传；⚠️ 是否 in-class 待确认」" />
           </div>
+          {modalIntakes.length > 0 && (
+            <div>
+              <label className="form-label">按入学批次单独设置日期（留空 = 沿用上面的日期{baseIntake ? `，即 ${intakeLabel(baseIntake)}` : ''}）</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {modalIntakes.map(start => {
+                  const names = cohorts.find(c => c.start === start)?.names || [];
+                  return (
+                    <div key={start} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ width: 150, fontSize: 12 }} title={names.join('、')}>{intakeLabel(start)}{names.length ? `（${names.length}人）` : '（无在读）'}</span>
+                      <input className="input" type="date" style={{ flex: 1 }} value={intakeForm[start]?.due_date || ''}
+                        onChange={e => setIntakeForm(f => ({ ...f, [start]: { due_date: e.target.value, due_time: f[start]?.due_time || '' } }))} />
+                      <input className="input" type="time" style={{ width: 110 }} value={intakeForm[start]?.due_time || ''}
+                        onChange={e => setIntakeForm(f => ({ ...f, [start]: { due_date: f[start]?.due_date || '', due_time: e.target.value } }))} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {!editId && cohorts.length > 1 && (
+            <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>该科有多个入学批次在读，新增后点「编辑」可按批次单独设置日期。</div>
+          )}
         </div>
       </Modal>
     </div>

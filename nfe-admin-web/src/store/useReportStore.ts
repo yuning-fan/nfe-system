@@ -5,6 +5,7 @@ import { message } from 'antd';
 import { useAuthStore } from './useAuthStore';
 import { computeRisk } from '../lib/riskEngine';
 import { computeSubject } from '../lib/gradeCalc';
+import { resolveNodeDate, type IntakeDate } from '../lib/intakeDates';
 import type { Json } from '../types/database.types';
 
 
@@ -112,11 +113,22 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
   const c = emptyContent();
   const endTs = `${end}T23:59:59`;
   try {
-    const [{ data: grades }, { data: nodes }, { data: subjMeta }] = await Promise.all([
+    const anyDb = supabase as any; // milestone_intake_dates / node_dates_intake 尚未进 database.types
+    const [{ data: grades }, { data: nodes }, { data: subjMeta }, { data: intakeDates }, { data: sels }] = await Promise.all([
       supabase.from('grade_records').select('milestone_id, program_subject_id, score, recorded_at').eq('student_id', studentId),
       supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, term_no, week_no, due_date'),
-      supabase.from('program_subjects').select('id, subject_name, pass_mark'),
+      anyDb.from('program_subjects').select('id, subject_name, pass_mark, node_dates_intake'),
+      anyDb.from('milestone_intake_dates').select('milestone_id, intake_start, due_date, due_time'),
+      anyDb.from('student_subject_selections')
+        .select('program_subject_id, student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id, start_date)')
+        .eq('student_enrollments.student_id', studentId),
     ]);
+    // 该生各科所属批次（选课 → 报名 start_date），节点日期按批次取
+    const subjIntake = new Map<number, string>();
+    for (const x of (sels || []) as any[]) {
+      const en = Array.isArray(x.student_enrollments) ? x.student_enrollments[0] : x.student_enrollments;
+      if (en?.start_date && !subjIntake.has(x.program_subject_id)) subjIntake.set(x.program_subject_id, en.start_date);
+    }
     const gr = grades || [];
     const subjectIds = Array.from(new Set(gr.map((g: any) => g.program_subject_id).filter(Boolean)));
     const scoreOf = (nodeId: number) => { const g = gr.find((x: any) => x.milestone_id === nodeId); return g ? Number(g.score) : null; };
@@ -129,7 +141,9 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
         name: meta?.subject_name || '科目', total: r.total, passMark, pass: r.pass,
         nodes: r.rows.map(row => {
           const n = row.node as any;
-          return { title: n.title, weight: row.weight, score: row.score, date: n.due_date || null };
+          const rd = resolveNodeDate(n, subjIntake.get(sid), (intakeDates || []) as IntakeDate[], meta?.node_dates_intake);
+          // 批次不符且未设本批次日期：报告面向家长，宁可不写日期也不写错
+          return { title: n.title, weight: row.weight, score: row.score, date: rd.date_source === 'unverified' ? null : (rd.due_date || null) };
         }),
       };
     });

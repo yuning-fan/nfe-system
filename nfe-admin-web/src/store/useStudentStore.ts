@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
 import { getVisibleStudentIds } from '../lib/guardedStudents';
+import { resolveNodeDate, type IntakeDate } from '../lib/intakeDates';
 import type { StudentInfo } from '../types/database';
 
 export interface ProgramOption {
@@ -290,7 +291,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .maybeSingle();
 
       // Step 3: Get extra aggregates
-      const [dormRes, enrollRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes, selectionsRes] = await Promise.all([
+      const [dormRes, enrollRes, warningRes, timetableRes, docsRes, assetsRes, credsRes, gradesRes, nodesRes, subjectsRes, selectionsRes, intakeRes] = await Promise.all([
         supabase.from('dorm_assignments').select('*, dorms(*)').eq('student_id', id).eq('is_active', true),
         // 阶段（enrollment）按 student_id 直查。原先靠 students_info 内嵌，
         // 而那条内嵌走的是 students_info.enrollment_id 外键——该列 68 人里 29 人为 NULL，
@@ -305,7 +306,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         supabase.from('student_credentials').select('*').eq('student_id', id),
         supabase.from('grade_records').select('*').eq('student_id', id),
         supabase.from('academic_milestones').select('id, title, parent_id, weight_percent, program_subject_id, due_date, due_time, note, mode, is_major, term_no, week_no, milestone_type'),
-        supabase.from('program_subjects').select('id, subject_name, pass_mark, year, semester, description'),
+        (supabase as any).from('program_subjects').select('id, subject_name, pass_mark, year, semester, description, node_dates_intake'),
         // 选课记录：学生「有哪些科目」的权威来源。
         // 原先是从 school_timetable 反推的，那样一来不排课的学生（如奥大）就等于没科目。
         supabase
@@ -313,7 +314,23 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           .select('id, status, selection_type, enrollment_id, program_subject_id, program_subjects!student_subject_selections_program_subject_id_fkey(subject_name), student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id)')
           .eq('student_enrollments.student_id', id)
           .neq('status', 'dropped'),
+        (supabase as any).from('milestone_intake_dates').select('milestone_id, intake_start, due_date, due_time, note'),
       ]);
+
+      // 考核节点日期按该生批次解析：选课 → 报名 start_date → 批次单独日期；无则默认日期，批次不符且未设置 → 待核
+      const enrollStart = new Map<number, string>(((enrollRes.data || []) as any[]).map(e => [e.id, e.start_date]));
+      const subjIntake = new Map<number, string>();
+      for (const s of (selectionsRes.data || []) as any[]) {
+        const st = enrollStart.get(s.enrollment_id);
+        if (st && s.program_subject_id && !subjIntake.has(s.program_subject_id)) subjIntake.set(s.program_subject_id, st);
+      }
+      const baseIntakeOf = new Map<number, string | null>(((subjectsRes.data || []) as any[]).map(s => [s.id, s.node_dates_intake ?? null]));
+      const intakeDates = (intakeRes.data || []) as IntakeDate[];
+      const resolvedNodes = ((nodesRes.data || []) as any[]).map(n => {
+        const intake = subjIntake.get(n.program_subject_id);
+        if (!intake) return n;
+        return { ...n, ...resolveNodeDate(n, intake, intakeDates, baseIntakeOf.get(n.program_subject_id)), intake_start: intake };
+      });
 
       const merged = {
         student_id: id,
@@ -328,7 +345,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         hour_pools: assetsRes.data || [],
         student_credentials: credsRes.data || [],
         grade_records: gradesRes.data || [],
-        assessment_nodes: nodesRes.data || [],
+        assessment_nodes: resolvedNodes,
         program_subjects_meta: subjectsRes.data || [],
         subject_selections: selectionsRes.data || [],
       };

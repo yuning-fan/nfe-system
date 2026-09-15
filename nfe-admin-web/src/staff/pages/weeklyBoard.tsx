@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useVisibleStudents } from '../../lib/useVisibleStudents';
 import { IconLoader2, IconChevronLeft, IconChevronRight, IconTargetArrow, IconId, IconCake } from '@tabler/icons-react';
 import { Section } from '../ui';
+import { resolveNodeDate, type IntakeDate } from '../../lib/intakeDates';
 
 const db = supabase as any;
 
@@ -22,7 +23,7 @@ interface Item {
   date: string;
   kind: '考核' | '证件' | '生日';
   title: string;
-  students: { id: string; name: string }[];   // 考核：涉及学生；证件/生日：单个学生
+  students: { id: string; name: string; unverified?: boolean }[];   // 考核：涉及学生（unverified=批次日期待核）；证件/生日：单个学生
   note?: string;                                // 证件：到期/已过期
 }
 
@@ -47,32 +48,56 @@ export function WeeklyBoard() {
     (profs || []).forEach((p: any) => { nameMap[p.id] = p.full_name; });
     const inScope = (sid: string) => !scope || scope.includes(sid);
 
-    // 1) 考核截止（本周）——按节点聚合，列涉及的名下学生
-    const { data: ms } = await db.from('academic_milestones')
-      .select('id, title, due_date, program_subject_id, program_subjects(subject_name)')
-      .gte('due_date', s).lte('due_date', e);
-    const milestones = ms || [];
-    if (milestones.length) {
-      const psIds = Array.from(new Set(milestones.map((m: any) => m.program_subject_id).filter(Boolean)));
-      const { data: sels } = await db.from('student_subject_selections')
-        .select('program_subject_id, student_enrollments!inner(student_id)')
-        .in('program_subject_id', psIds);
-      const subjStudents: Record<number, string[]> = {};
+    // 1) 考核截止（本周）——节点日期按学生所在入学批次解析（milestone_intake_dates），按「节点 × 实际日期」聚合列涉及学生
+    //    候选节点 = 默认日期落在本周 ∪ 有批次单独日期落在本周；再逐生算实际日期，落在本周才列入
+    const [{ data: baseMs }, { data: weekOverrides }] = await Promise.all([
+      db.from('academic_milestones').select('id').gte('due_date', s).lte('due_date', e),
+      db.from('milestone_intake_dates').select('milestone_id').gte('due_date', s).lte('due_date', e),
+    ]);
+    const candIds = Array.from(new Set([
+      ...(baseMs || []).map((x: any) => x.id),
+      ...(weekOverrides || []).map((x: any) => x.milestone_id),
+    ]));
+    if (candIds.length) {
+      const [{ data: ms }, { data: allOverrides }] = await Promise.all([
+        db.from('academic_milestones')
+          .select('id, title, due_date, due_time, program_subject_id, program_subjects(subject_name, node_dates_intake)')
+          .in('id', candIds),
+        db.from('milestone_intake_dates').select('milestone_id, intake_start, due_date, due_time').in('milestone_id', candIds),
+      ]);
+      const milestones = (ms || []) as any[];
+      const overrides = (allOverrides || []) as IntakeDate[];
+      const psIds = Array.from(new Set(milestones.map(m => m.program_subject_id).filter(Boolean)));
+      const { data: sels } = psIds.length
+        ? await db.from('student_subject_selections')
+            .select('program_subject_id, status, student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id, start_date)')
+            .in('program_subject_id', psIds)
+        : { data: [] };
+      // 科目 → 名下选了这科的学生及其批次
+      const subjStudents: Record<number, { sid: string; intake: string | null }[]> = {};
       (sels || []).forEach((x: any) => {
+        if (x.status === 'dropped') return;
         const en = Array.isArray(x.student_enrollments) ? x.student_enrollments[0] : x.student_enrollments;
         const sid = en?.student_id;
-        if (sid && inScope(sid) && !(subjStudents[x.program_subject_id] || []).includes(sid)) {
-          (subjStudents[x.program_subject_id] ||= []).push(sid);
-        }
+        if (!sid || !inScope(sid)) return;
+        const arr = (subjStudents[x.program_subject_id] ||= []);
+        if (!arr.some(a => a.sid === sid)) arr.push({ sid, intake: en?.start_date ?? null });
       });
+      const grouped: Record<string, Item> = {};
       for (const m of milestones) {
-        const studs = subjStudents[m.program_subject_id] || [];
-        if (studs.length === 0) continue; // 名下没人选这科则不列
-        const subjName = Array.isArray(m.program_subjects) ? m.program_subjects[0]?.subject_name : m.program_subjects?.subject_name;
-        list.push({
-          date: m.due_date, kind: '考核', title: `${subjName || ''} · ${m.title}`,
-          students: studs.map(id => ({ id, name: nameMap[id] || '—' })).sort((a, b) => a.name.localeCompare(b.name, 'zh')),
-        });
+        const subj = Array.isArray(m.program_subjects) ? m.program_subjects[0] : m.program_subjects;
+        for (const st of subjStudents[m.program_subject_id] || []) {
+          const r = resolveNodeDate(m, st.intake, overrides, subj?.node_dates_intake);
+          if (!r.due_date || r.due_date < s || r.due_date > e) continue;
+          const key = `${m.id}|${r.due_date}`;
+          const item = (grouped[key] ||= { date: r.due_date, kind: '考核', title: `${subj?.subject_name || ''} · ${m.title}`, students: [] });
+          item.students.push({ id: st.sid, name: nameMap[st.sid] || '—', unverified: r.date_source === 'unverified' });
+        }
+      }
+      for (const it of Object.values(grouped)) {
+        it.students.sort((x, y) => x.name.localeCompare(y.name, 'zh'));
+        if (it.students.some(x => x.unverified)) it.note = '含日期待核';
+        list.push(it);
       }
     }
 
@@ -126,7 +151,7 @@ export function WeeklyBoard() {
           {i.kind === '考核' && <span style={{ color: 'var(--color-text-tertiary)' }}>涉及 {i.students.length} 人：</span>}
           {i.students.map((st, k) => (
             <span key={st.id}>
-              <span className="link" onClick={() => nav(`/students/${st.id}`)}>{st.name}</span>{k < i.students.length - 1 ? '、' : ''}
+              <span className="link" onClick={() => nav(`/students/${st.id}`)}>{st.name}</span>{st.unverified && <span style={{ color: '#854F0B', fontSize: 11 }}>（日期待核）</span>}{k < i.students.length - 1 ? '、' : ''}
             </span>
           ))}
         </div>
@@ -162,7 +187,7 @@ export function WeeklyBoard() {
       </Section>
 
       <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-        提示：考核截止依据「考核节点」的日期；节点日期未配好会不显示。
+        提示：考核截止依据「考核节点」的日期，并按学生所在入学批次取值；「日期待核」表示该生批次尚未单独设置日期，显示的是默认批次的日期。节点日期未配好会不显示。
       </div>
     </div>
   );
