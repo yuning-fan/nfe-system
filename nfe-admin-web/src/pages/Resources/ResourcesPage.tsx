@@ -7,7 +7,9 @@ import { IconDatabase, IconLoader2, IconFileText, IconTrash, IconSearch, IconPen
 import { message, Modal, Select, InputNumber, Upload } from 'antd';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
-import { SUBJECTS, PROGRAM_STAGES, RESOURCE_TYPES } from '../../lib/resourceTags';
+import { RESOURCE_TYPES } from '../../lib/resourceTags';
+import { useSubjectOptions } from '../../lib/useSubjectOptions';
+import { subjectLabel } from '../../lib/subjectNames';
 import StudentSelect from '../../components/common/StudentSelect';
 
 const db = supabase as any;
@@ -46,11 +48,13 @@ export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // 科目/阶段选项读科目底表与项目表，与科目管理页同名
+  const { subjectGroups, stageOptions } = useSubjectOptions();
 
   // 复用统计：resource_id -> 关联的 student_id 列表
   const [linksByRes, setLinksByRes] = useState<Record<number, string[]>>({});
 
-  // 筛选（支持从 URL 带入，例如学业跟进跳转 /library?subject=物理&stage=预科-Standard）
+  // 筛选（支持从 URL 带入，例如科目管理页跳转 /library?subject=Physics&stage=预科-Standard）
   const [params] = useSearchParams();
   const [fStage, setFStage] = useState<string | undefined>(params.get('stage') || undefined);
   const [fSubject, setFSubject] = useState<string | undefined>(params.get('subject') || undefined);
@@ -277,8 +281,8 @@ export default function ResourcesPage() {
             <IconSearch size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
             <input className="search-bar" style={{ paddingLeft: 30 }} placeholder="搜索标题/描述/知识点…" value={search} onChange={e => { setSearch(e.target.value); resetPage(); }} />
           </div>
-          <Select allowClear placeholder="阶段" style={{ width: 160 }} value={fStage} options={selOpts(PROGRAM_STAGES)} onChange={v => { setFStage(v); resetPage(); }} />
-          <Select allowClear showSearch placeholder="科目" style={{ width: 150 }} value={fSubject} options={selOpts(SUBJECTS)} onChange={v => { setFSubject(v); resetPage(); }} />
+          <Select allowClear placeholder="阶段" style={{ width: 160 }} value={fStage} options={stageOptions} onChange={v => { setFStage(v); resetPage(); }} />
+          <Select allowClear showSearch placeholder="科目" style={{ width: 180 }} value={fSubject} options={subjectGroups} optionFilterProp="label" popupMatchSelectWidth={false} onChange={v => { setFSubject(v); resetPage(); }} />
           <Select allowClear placeholder="类型" style={{ width: 130 }} value={fType} options={selOpts(RESOURCE_TYPES)} onChange={v => { setFType(v); resetPage(); }} />
           <Select allowClear placeholder="年份" style={{ width: 110 }} value={fYear} options={yearHistory.map(y => ({ label: `${y}`, value: y }))} onChange={v => { setFYear(v); resetPage(); }} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--color-text-secondary)' }}>
@@ -334,7 +338,7 @@ export default function ResourcesPage() {
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px' }}>{r.program_stage || '—'}</td>
-                    <td style={{ padding: '12px 16px' }}>{r.subject || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>{r.subject ? subjectLabel(r.subject) : '—'}</td>
                     <td style={{ padding: '12px 16px' }}>{r.resource_type || '—'}</td>
                     <td style={{ padding: '12px 16px' }}>{r.resource_year || '—'}</td>
                     <td style={{ padding: '12px 16px' }}>
@@ -378,11 +382,11 @@ export default function ResourcesPage() {
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label className="form-label">所属阶段</label>
-              <Select allowClear style={{ width: '100%' }} value={form.program_stage || undefined} options={selOpts(PROGRAM_STAGES)} onChange={v => setForm(f => ({ ...f, program_stage: v || '' }))} placeholder="选择阶段" />
+              <Select allowClear style={{ width: '100%' }} value={form.program_stage || undefined} options={stageOptions} onChange={v => setForm(f => ({ ...f, program_stage: v || '' }))} placeholder="选择阶段" />
             </div>
             <div style={{ flex: 1 }}>
               <label className="form-label">科目</label>
-              <Select allowClear showSearch style={{ width: '100%' }} value={form.subject || undefined} options={selOpts(SUBJECTS)} onChange={v => setForm(f => ({ ...f, subject: v || '' }))} placeholder="选择科目" />
+              <Select allowClear showSearch style={{ width: '100%' }} value={form.subject || undefined} options={subjectGroups} optionFilterProp="label" onChange={v => setForm(f => ({ ...f, subject: v || '' }))} placeholder="选择科目" />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>

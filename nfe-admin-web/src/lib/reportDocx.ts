@@ -12,16 +12,9 @@ const HEAD_BG = 'D9E2F3';
 const SUM_BG = 'F2F2F2';
 const FONT = '微软雅黑';
 
-// 科目中文名（表里只存英文名，报告给家长看需中英对照）
-const SUBJECT_CN: Record<string, string> = {
-  EAP: '学术英语', Biology: '生物', Chemistry: '化学', Physics: '物理',
-  Mathematics: '数学', Calculus: '微积分', Statistics: '统计',
-  Economics: '经济', Accounting: '会计', Design: '设计',
-};
-export const cnOf = (name: string) => {
-  const hit = Object.keys(SUBJECT_CN).find(k => name.toLowerCase().includes(k.toLowerCase()));
-  return hit ? SUBJECT_CN[hit] : '';
-};
+// 科目中英对照统一放在 lib/subjectNames.ts（资料库等处共用）
+import { cnOf } from './subjectNames';
+export { cnOf };
 
 const border = {
   top: { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' },
