@@ -17,9 +17,8 @@ BEGIN
   ) THEN
     RAISE EXCEPTION '❌ students_info.nfe_no 不存在。请先执行 supabase/migrations/20260811100000_student_nfe_no.sql';
   END IF;
-  IF NOT EXISTS (select 1 from pg_class where relname='students_nfe_no_seq' and relkind='S') THEN
-    RAISE EXCEPTION '❌ 序列 students_nfe_no_seq 不存在。请先执行 migration。';
-  END IF;
+  -- 2026-09-14 起序列 students_nfe_no_seq 已删除，新号由触发器 trg_assign_nfe_no 取 max+1
+  -- （见 migration 20260914120000_nfe_no_gapless.sql）；本脚本只补空、显式赋号，不再依赖序列。
 
   FOR r IN
     select * from (values
@@ -121,13 +120,6 @@ BEGIN
 
   RAISE NOTICE '✅ 赋号 % / 已有号跳过 % / 找不到 % / 号被占 %',
                v_set, v_skip, v_miss, v_taken;
-
-  -- 序列推到已用最大号之后，新建学生从下一号开始
-  PERFORM setval('public.students_nfe_no_seq',
-                 coalesce((select max(nfe_no) from public.students_info), 0) + 1,
-                 false);
-  RAISE NOTICE '序列已置为下一可用号：%',
-               (select last_value from public.students_nfe_no_seq);
 END $NFE$;
 
 -- ===== 自查：全部编号 =====

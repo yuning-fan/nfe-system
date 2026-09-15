@@ -113,7 +113,10 @@ export async function getStudentIdsByBuilding(buildingName: string): Promise<str
 // ---------------------------------------------------------------------------
 // 可见学生范围（学生维度）—— 与上面的公寓维度分开，别混用。
 //
-//   admin    → null（全体，调用方不过滤；未分配学管的历史学生也只有 admin 看得到）
+//   admin    → null（全体，调用方不过滤；未分配学管的历史学生在控制台侧也只有 admin 看得到）
+//   patrol   → null（全体。巡查的晚自习点名/违规登记/学习跟进是面向全体学生的职责，
+//               且其「我的学生」「晚自习点名」本就展示全体；曾误落入公寓链路，
+//               导致未绑公寓的巡查一个学生都选不到）
 //   manager  → students_info.nz_advisor_id = 自己（学管只见名下学生）
 //   其余角色  → 沿用公寓链路（生活老师等）
 //
@@ -121,7 +124,7 @@ export async function getStudentIdsByBuilding(buildingName: string): Promise<str
 //   const ids = await getVisibleStudentIds(uid);
 //   if (ids) query = query.in('student_id', ids);   // null 时不加这一句
 // ---------------------------------------------------------------------------
-const GLOBAL_STUDENT_ROLES = ['admin'];
+const GLOBAL_STUDENT_ROLES = ['admin', 'patrol'];
 
 export async function getVisibleStudentIds(staffId: string | null | undefined): Promise<string[] | null> {
   if (!staffId) return [];
