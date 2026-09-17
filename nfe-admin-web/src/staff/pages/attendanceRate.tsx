@@ -7,6 +7,7 @@ import { recomputeRisk } from '../../lib/riskEngine';
 import { message } from 'antd';
 import { IconLoader2 } from '@tabler/icons-react';
 import { Section } from '../ui';
+import { fetchPrepActiveStudents } from '../../lib/prepStudents';
 
 const db = supabase as any;
 
@@ -27,9 +28,15 @@ export function AttendanceRateEntry() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: infos } = await db
-      .from('students_info')
-      .select('student_id, school_attendance_rate, profiles!student_id(full_name)');
+    // 只录「预科在读」学生：奥大学生不纳入出勤管理，已完成/退学/未开学的也不录。
+    // 口径见 lib/prepStudents.ts，与晚自习点名同源。
+    const prep = await fetchPrepActiveStudents();
+    const ids = prep.map(p => p.id);
+    const { data: infos } = ids.length
+      ? await db.from('students_info').select('student_id, school_attendance_rate').in('student_id', ids)
+      : { data: [] };
+    const rateOf: Record<string, number | null> = {};
+    for (const i of (infos || []) as any[]) rateOf[i.student_id] = i.school_attendance_rate;
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const { data: checks } = await db
       .from('daily_checks')
@@ -38,14 +45,14 @@ export function AttendanceRateEntry() {
     const absentCnt: Record<string, number> = {};
     for (const c of (checks || []) as any[]) absentCnt[c.student_id] = (absentCnt[c.student_id] || 0) + 1;
 
-    const list: Row[] = ((infos || []) as any[]).map(i => ({
-      student_id: i.student_id,
-      name: Array.isArray(i.profiles) ? i.profiles[0]?.full_name : i.profiles?.full_name,
-      rate: i.school_attendance_rate,
-      input: i.school_attendance_rate != null ? String(i.school_attendance_rate) : '',
+    const list: Row[] = prep.map(p => ({
+      student_id: p.id,
+      name: p.name,
+      rate: rateOf[p.id] ?? null,
+      input: rateOf[p.id] != null ? String(rateOf[p.id]) : '',
       note: '',
-      recentAbsent: absentCnt[i.student_id] || 0,
-    })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh'));
+      recentAbsent: absentCnt[p.id] || 0,
+    }));   // fetchPrepActiveStudents 已按姓名排序
     setRows(list);
     setLoading(false);
   }, []);
