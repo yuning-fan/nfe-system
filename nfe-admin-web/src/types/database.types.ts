@@ -472,6 +472,7 @@ export type Database = {
       }
       daily_checks: {
         Row: {
+          check_date: string
           check_type: Database["public"]["Enums"]["check_type"]
           created_at: string | null
           id: number
@@ -481,6 +482,7 @@ export type Database = {
           student_id: string | null
         }
         Insert: {
+          check_date?: string
           check_type: Database["public"]["Enums"]["check_type"]
           created_at?: string | null
           id?: number
@@ -490,6 +492,7 @@ export type Database = {
           student_id?: string | null
         }
         Update: {
+          check_date?: string
           check_type?: Database["public"]["Enums"]["check_type"]
           created_at?: string | null
           id?: number
@@ -3184,7 +3187,7 @@ export type Database = {
     }
     Enums: {
       approval_status: "pending" | "approved" | "rejected"
-      check_status: "present" | "absent" | "leave"
+      check_status: "present" | "absent" | "leave" | "late"
       check_type: "morning" | "night_study" | "dorm_check" | "tutoring"
       contact_type: "student" | "parent" | "school" | "accommodation"
       course_type: "one_on_one" | "group_class"
@@ -3394,7 +3397,7 @@ export const Constants = {
   public: {
     Enums: {
       approval_status: ["pending", "approved", "rejected"],
-      check_status: ["present", "absent", "leave"],
+      check_status: ["present", "absent", "leave", "late"],
       check_type: ["morning", "night_study", "dorm_check", "tutoring"],
       contact_type: ["student", "parent", "school", "accommodation"],
       course_type: ["one_on_one", "group_class"],

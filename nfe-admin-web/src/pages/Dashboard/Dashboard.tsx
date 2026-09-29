@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import MyTodos from '../../components/common/MyTodos';
+import { nzToday } from '../../lib/nzDate';
 import {
   IconAlertCircle,
   IconChecklist,
@@ -86,7 +87,7 @@ export default function Dashboard() {
           db.from('daily_checks')
             .select('id', { count: 'exact', head: true })
             .eq('status', 'absent')
-            .gte('created_at', todayStr()),
+            .eq('check_date', nzToday()),
         ]);
 
         const si = studentsInfo || [];

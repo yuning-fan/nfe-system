@@ -85,6 +85,7 @@ export function ReportEditor({ report, onCancel, onSave }: {
             <Field label="在场"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.present} onChange={v => setAtt('present', (v as number) ?? 0)} /></Field>
             <Field label="缺席"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.absent} onChange={v => setAtt('absent', (v as number) ?? 0)} /></Field>
             <Field label="请假"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.leave} onChange={v => setAtt('leave', (v as number) ?? 0)} /></Field>
+            <Field label="迟到"><InputNumber min={0} style={{ width: 80 }} value={c.attendance.late ?? 0} onChange={v => setAtt('late', (v as number) ?? 0)} /></Field>
           </div>
         </Block>
           </>
@@ -169,7 +170,7 @@ export function ReportPreview({ report, onClose }: { report: ReportRecord; onClo
         ) : (
           <>
             <PvSection title="出勤情况">
-              官方出勤率 {c.attendance.official_rate != null ? `${c.attendance.official_rate}%` : '—'}（要求 ≥95%）　|　内部 {c.attendance.rate != null ? `${c.attendance.rate}%` : '—'}　|　在场 {c.attendance.present}　缺席 {c.attendance.absent}　请假 {c.attendance.leave}
+              官方出勤率 {c.attendance.official_rate != null ? `${c.attendance.official_rate}%` : '—'}（要求 ≥95%）　|　内部 {c.attendance.rate != null ? `${c.attendance.rate}%` : '—'}　|　在场 {c.attendance.present}　缺席 {c.attendance.absent}　请假 {c.attendance.leave}　迟到 {c.attendance.late ?? 0}
             </PvSection>
             <PvSection title="违规情况">
               {c.violations.length ? c.violations.map((v, i) => <div key={i}>{v.date} {v.type} {v.note}</div>) : '本周期无违规记录'}

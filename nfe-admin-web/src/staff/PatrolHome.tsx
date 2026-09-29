@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconClipboardCheck, IconShieldX, IconNotebook, IconLoader2, IconUsers, IconChevronRight } from '@tabler/icons-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
+import { nzToday } from '../lib/nzDate';
 
 const db = supabase as any;
 
@@ -28,7 +29,7 @@ export default function PatrolHome() {
       operatorId
         ? db.from('warning_letters').select('id, student_id, warning_level, profiles!warning_letters_student_id_fkey(full_name)').eq('issuer_id', operatorId).eq('status', 'pending_approval')
         : Promise.resolve({ data: [] }),
-      db.from('daily_checks').select('status').eq('check_type', 'night_study').gte('created_at', todayStart.toISOString()),
+      db.from('daily_checks').select('status').eq('check_type', 'night_study').eq('check_date', nzToday()),
       db.from('study_follow_ups').select('id, student_id, category, profiles!study_follow_ups_student_id_fkey(full_name)').eq('needs_followup', true),
       db.from('study_follow_ups').select('category').gte('created_at', todayStart.toISOString()),
     ]);

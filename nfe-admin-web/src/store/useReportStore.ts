@@ -17,7 +17,8 @@ export interface ReportViolation { type: string; date: string; note: string; }
 export interface ReportSubject { name: string; total: number | null; passMark: number; pass: boolean | null; nodes: { title: string; weight: number; score: number | null; date?: string | null }[]; }
 export interface ReportFeedback { date: string; subject: string; feedback: string; }
 export interface ReportContent {
-  attendance: { rate: number | null; official_rate?: number | null; present: number; absent: number; leave: number };
+  // late 可选：历史报告的 content 里没有这个字段，读取处一律用 ?? 0
+  attendance: { rate: number | null; official_rate?: number | null; present: number; absent: number; leave: number; late?: number };
   grades: ReportGrade[];
   tutoring: { sessions: number; hours: number; note: string };
   violations: ReportViolation[];
@@ -28,7 +29,7 @@ export interface ReportContent {
 }
 
 export const emptyContent = (): ReportContent => ({
-  attendance: { rate: null, official_rate: null, present: 0, absent: 0, leave: 0 },
+  attendance: { rate: null, official_rate: null, present: 0, absent: 0, leave: 0, late: 0 },
   grades: [],
   tutoring: { sessions: 0, hours: 0, note: '' },
   violations: [],
@@ -90,15 +91,19 @@ async function prefillAttendance(studentId: string, start: string, end: string):
     const { data: info } = await supabase.from('students_info').select('school_attendance_rate').eq('student_id', studentId).single();
     c.attendance.official_rate = info?.school_attendance_rate ?? null;
 
+    // 按 check_date（业务日期）圈报告周期，补录的记录才会落在它本该属于的那一期
     const { data: checks } = await supabase.from('daily_checks').select('status')
       .eq('student_id', studentId).in('check_type', ['night_study', 'morning'])
-      .gte('created_at', start).lte('created_at', endTs);
+      .gte('check_date', start).lte('check_date', end);
     if (checks && checks.length) {
       const present = checks.filter((x: any) => x.status === 'present').length;
       const absent = checks.filter((x: any) => x.status === 'absent').length;
       const leave = checks.filter((x: any) => x.status === 'leave').length;
-      const total = present + absent + leave;
-      c.attendance = { ...c.attendance, present, absent, leave, rate: total ? Math.round((present / total) * 100) : null };
+      const late = checks.filter((x: any) => x.status === 'late').length;
+      const total = present + absent + leave + late;
+      // 迟到算「在场」（人到了），计入分子与分母；报告里另行单列迟到次数
+      const rate = total ? Math.round(((present + late) / total) * 100) : null;
+      c.attendance = { ...c.attendance, present, absent, leave, late, rate };
     }
     const { data: vios } = await supabase.from('violation_logs').select('violation_type, reason, created_at')
       .eq('student_id', studentId).gte('created_at', start).lte('created_at', endTs);

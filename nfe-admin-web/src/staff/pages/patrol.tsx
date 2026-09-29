@@ -152,7 +152,17 @@ export function PatrolStudents() {
 
 export function PatrolRollcall() {
   // 晚自习点名：应到=全体在读，缺席写 daily_checks(night_study)，自动扣分
-  return <RollCall checkType="night_study" title="晚自习点名" hint="18:00 点名 · 应到=预科在读学生（奥大学生不纳入）" />;
+  // allowBackfill：只有晚自习开放补录，往前 20 天（出勤率挂着合约 95% 红线，不宜无限期回改）
+  return (
+    <RollCall
+      checkType="night_study"
+      title="晚自习点名"
+      hint="18:00 点名 · 应到=预科在读学生（奥大学生不纳入）"
+      allowBackfill
+      backfillDays={20}
+      allowLate
+    />
+  );
 }
 
 // 作业核查已并入「学习跟进」（study_follow_ups 的 homework_check 类别），见 pages/followUps.tsx

@@ -8,6 +8,7 @@ export const RISK_WINDOW_DAYS = 15;
 // 扣分默认值（实际以 risk_config 表为准，见 loadConfig；读不到配置时回落这里）
 export const DEDUCT = {
   attendanceAbsent: 8, // 每次缺勤（晚自习/学校上课/辅导课，无医证或未留痕请假）
+  attendanceLate: 2,   // 每次迟到（人到了但晚，比缺勤轻；配置项 deduct_attendance_late）
   gradeBelow: 6,       // 每有一科加权均分低于该科过线分
   feeUnpaid: 10,       // 存在欠费
   docExpiry30: 5,
@@ -24,6 +25,13 @@ export const ATTEND_LABEL: Record<string, string> = {
   morning: '学校上课缺勤',
   tutoring: '辅导课缺勤',
   dorm_check: '查寝异常',
+};
+
+// 迟到标签。目前只有晚自习界面能标迟到，其余类型先留着以防以后开放
+export const LATE_LABEL: Record<string, string> = {
+  night_study: '晚自习迟到',
+  morning: '学校上课迟到',
+  dorm_check: '查寝迟到',
 };
 
 export type RiskLevel = 'green' | 'yellow' | 'red';
@@ -78,6 +86,7 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   const cfg = await loadConfig();
   const C = {
     absent: cfg('deduct_attendance_absent', DEDUCT.attendanceAbsent),
+    late: cfg('deduct_attendance_late', DEDUCT.attendanceLate),
     gradeBelow: cfg('deduct_grade_below', DEDUCT.gradeBelow),
     fee: cfg('deduct_fee_unpaid', DEDUCT.feeUnpaid),
     doc30: cfg('deduct_doc_30', DEDUCT.docExpiry30),
@@ -97,23 +106,33 @@ export async function computeRisk(studentId: string): Promise<RiskResult> {
   };
 
   // 1) 出勤缺勤（daily_checks，按 check_type 分类）
+  // 按 check_date（业务日期）统计，不是 created_at（录入时间）——否则补录的缺勤会算到录入那天
   const { data: checks } = await supabase
     .from('daily_checks')
-    .select('check_type, status, created_at')
+    .select('check_type, status, check_date')
     .eq('student_id', studentId)
-    .eq('status', 'absent')
-    .gte('created_at', since);
+    .in('status', ['absent', 'late'])
+    .gte('check_date', since.slice(0, 10));
   const absentByType: Record<string, number> = {};
+  const lateByType: Record<string, number> = {};
   const morningAbsentDates: string[] = [];
   for (const c of (checks || [])) {
     if (c.check_type === 'tutoring') continue; // 辅导课缺勤改由 schedules 状态统计（见下），避免双写
+    if (c.status === 'late') {
+      // 迟到：人到了，只按迟到扣分；不计入缺勤，也不参与「连续缺勤」硬红线
+      lateByType[c.check_type] = (lateByType[c.check_type] || 0) + 1;
+      continue;
+    }
     absentByType[c.check_type] = (absentByType[c.check_type] || 0) + 1;
-    if (c.check_type === 'morning' && c.created_at) {
-      morningAbsentDates.push(c.created_at.slice(0, 10));
+    if (c.check_type === 'morning' && c.check_date) {
+      morningAbsentDates.push(c.check_date);
     }
   }
   for (const [type, count] of Object.entries(absentByType)) {
     breakdown.push({ label: ATTEND_LABEL[type] || type, points: count * C.absent, detail: `${count} 次 × ${C.absent}` });
+  }
+  for (const [type, count] of Object.entries(lateByType)) {
+    breakdown.push({ label: LATE_LABEL[type] || '迟到', points: count * C.late, detail: `${count} 次 × ${C.late}` });
   }
   // 硬触发：连续缺勤（学校上课）≥ N 天
   if (maxConsecutiveDays(morningAbsentDates) >= C.consecDays) {

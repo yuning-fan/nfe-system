@@ -8,6 +8,7 @@ import { message } from 'antd';
 import { IconLoader2 } from '@tabler/icons-react';
 import { Section } from '../ui';
 import { fetchPrepActiveStudents } from '../../lib/prepStudents';
+import { nzDaysAgo } from '../../lib/nzDate';
 
 const db = supabase as any;
 
@@ -37,11 +38,11 @@ export function AttendanceRateEntry() {
       : { data: [] };
     const rateOf: Record<string, number | null> = {};
     for (const i of (infos || []) as any[]) rateOf[i.student_id] = i.school_attendance_rate;
-    const since = new Date(Date.now() - 14 * 86400000).toISOString();
+    const since = nzDaysAgo(14);
     const { data: checks } = await db
       .from('daily_checks')
       .select('student_id')
-      .eq('check_type', 'morning').eq('status', 'absent').gte('created_at', since);
+      .eq('check_type', 'morning').eq('status', 'absent').gte('check_date', since);
     const absentCnt: Record<string, number> = {};
     for (const c of (checks || []) as any[]) absentCnt[c.student_id] = (absentCnt[c.student_id] || 0) + 1;
 

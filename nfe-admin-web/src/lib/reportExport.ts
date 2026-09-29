@@ -30,7 +30,7 @@ export function exportReportDoc(r: ReportRecord) {
     body += sec('出勤情况',
       `<p>官方出勤率：${c.attendance?.official_rate != null ? c.attendance.official_rate + '%' : '—'}
         （合约要求 ≥95%）　内部点名出勤率：${c.attendance?.rate != null ? c.attendance.rate + '%' : '—'}<br/>
-        在场 ${c.attendance?.present ?? 0}　缺席 ${c.attendance?.absent ?? 0}　请假 ${c.attendance?.leave ?? 0}</p>`);
+        在场 ${c.attendance?.present ?? 0}　缺席 ${c.attendance?.absent ?? 0}　请假 ${c.attendance?.leave ?? 0}　迟到 ${c.attendance?.late ?? 0}</p>`);
     const v = (c.violations || []) as any[];
     body += sec('违规情况', v.length ? v.map(x => `<p style="margin:4px 0;">${esc(x.date)} ${esc(x.type)} ${esc(x.note)}</p>`).join('') : '本期无违规记录。');
   }

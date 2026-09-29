@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './useAuthStore';
 import { recomputeRisk } from '../lib/riskEngine';
+import { nzToday } from '../lib/nzDate';
 
 export type DailyCheckType = 'morning' | 'night_study' | 'dorm_check' | 'tutoring';
-export type DailyCheckStatus = 'present' | 'absent' | 'leave';
+export type DailyCheckStatus = 'present' | 'absent' | 'leave' | 'late';
 
 interface Passenger {
   id: number;
@@ -41,7 +42,7 @@ interface DailyCheckStore {
   loadDormStudents: () => Promise<void>;
   submitDormChecks: (records: { student_id: string; status: DailyCheckStatus; notes?: string }[]) => Promise<boolean>;
   // 通用点名提交：晚自习(night_study) / 早上出勤(morning) / 辅导课(tutoring) / 查寝(dorm_check)
-  submitDailyChecks: (checkType: DailyCheckType, records: { student_id: string; status: DailyCheckStatus; notes?: string }[]) => Promise<boolean>;
+  submitDailyChecks: (checkType: DailyCheckType, records: { student_id: string; status: DailyCheckStatus; notes?: string }[], checkDate?: string) => Promise<boolean>;
 }
 
 export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
@@ -117,28 +118,28 @@ export const useDailyCheckStore = create<DailyCheckStore>((set, get) => ({
     }
   },
 
-  submitDailyChecks: async (checkType, records) => {
+  submitDailyChecks: async (checkType, records, checkDate) => {
     set({ isLoading: true, error: null });
     try {
       const user = useAuthStore.getState().user;
       if (!user) throw new Error('Not authenticated');
 
-      // 当天同类型重复提交 = 覆盖：先删掉今天这些学生的旧记录，再插入（点错重点即可纠正）
-      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      // 同一业务日期、同类型重复提交 = 覆盖：先删该日这些学生的旧记录再插入（点错重点即可纠正）。
+      // 用 check_date 而非 created_at 区间，补录才能落在指定的那一天；不传则按新西兰「今天」。
+      const date = checkDate || nzToday();
       const ids = Array.from(new Set(records.map(r => r.student_id)));
       await supabase
         .from('daily_checks')
         .delete()
         .eq('check_type', checkType)
-        .in('student_id', ids)
-        .gte('created_at', dayStart.toISOString())
-        .lt('created_at', dayEnd.toISOString());
+        .eq('check_date', date)
+        .in('student_id', ids);
 
       const inserts = records.map(r => ({
         student_id: r.student_id,
         staff_id: user.id,
         check_type: checkType,
+        check_date: date,
         status: r.status,
         notes: r.notes || null
       }));

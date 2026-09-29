@@ -16,7 +16,7 @@ async function buildEvidence(studentId: string): Promise<string> {
     lines.push(`· ${(v.created_at || '').slice(5, 10)} ${v.violation_type || '违规'}${v.reason ? '：' + v.reason : ''}`);
   }
   const { data: checks } = await db.from('daily_checks')
-    .select('check_type, status, created_at').eq('student_id', studentId).eq('status', 'absent').gte('created_at', since);
+    .select('check_type, status, check_date').eq('student_id', studentId).eq('status', 'absent').gte('check_date', since.slice(0, 10));
   const cnt: Record<string, number> = {};
   for (const c of (checks || []) as any[]) cnt[c.check_type] = (cnt[c.check_type] || 0) + 1;
   for (const [t, n] of Object.entries(cnt)) lines.push(`· 近${RISK_WINDOW_DAYS}天${ATTEND_LABEL[t] || t} ${n} 次`);
