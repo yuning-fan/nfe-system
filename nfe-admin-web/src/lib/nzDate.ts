@@ -19,3 +19,10 @@ export function nzToday(): string {
 export function nzDaysAgo(n: number): string {
   return NZ_FMT.format(new Date(Date.now() - n * 86400000));
 }
+
+/** 时间戳（timestamptz 字符串）→ 新西兰当地日期 YYYY-MM-DD；空值原样返回 null */
+export function nzDateOf(ts: string | null | undefined): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? null : NZ_FMT.format(d);
+}

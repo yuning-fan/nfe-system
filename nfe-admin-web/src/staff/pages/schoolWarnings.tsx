@@ -10,15 +10,10 @@ import { Section } from '../ui';
 import FileUploadButton from '../../components/common/FileUploadButton';
 import StudentSelect from '../../components/common/StudentSelect';
 import { getDownloadUrl } from '../../lib/r2';
+import { SCHOOL_WARNING_CATEGORIES as CATEGORIES, schoolWarningCatLabel as catLabel } from '../../lib/schoolWarningCategories';
 
 const db = supabase as any;
 
-const CATEGORIES = [
-  { label: '出勤', value: 'attendance' },
-  { label: '学术不端', value: 'academic' },
-  { label: '纪律', value: 'discipline' },
-];
-const catLabel = (v: string) => CATEGORIES.find(c => c.value === v)?.label || v || '—';
 
 interface Letter {
   id: number; student_id: string; category: string | null; occurred_on: string | null;

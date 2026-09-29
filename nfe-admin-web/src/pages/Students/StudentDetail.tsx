@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStudentStore } from '../../store/useStudentStore';
 import { useRiskStore } from '../../store/useRiskStore';
-import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconFileText, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
+import { IconLoader2, IconEdit, IconId, IconSchool, IconCalendarStats, IconTarget, IconMapPin, IconLock, IconShieldCheck, IconUsers, IconBuildingCommunity, IconArrowLeft, IconCheck, IconPencil, IconWallet, IconEye, IconEyeOff, IconHeart, IconBed, IconAlertTriangle, IconCircleCheck, IconCircleX, IconPlane } from '@tabler/icons-react';
 import { message, Modal } from 'antd';
 import GradebookCard from './GradebookCard';
 import AssessmentNodesCard from './AssessmentNodesCard';
@@ -13,6 +13,7 @@ import { RISK_LEVEL_LABEL, RISK_LEVEL_PILL_CLASS, normalizeRiskLevel } from '../
 import DcgPanel from './DcgPanel';
 import PhaseFeePanel from './PhaseFeePanel';
 import { derivePhaseStatus } from '../../lib/phaseStatus';
+import StudentTimeline from './StudentTimeline';
 
 // 编辑弹窗分组标题样式
 const editSectionStyle: CSSProperties = {
@@ -621,7 +622,7 @@ export default function StudentDetail() {
           <div className={`tab ${activeTab === 'dcg' ? 'active' : ''}`} onClick={() => setActiveTab('dcg')}>DCG 监护</div>
           <div className={`tab ${activeTab === 'academic' ? 'active' : ''}`} onClick={() => setActiveTab('academic')}>学业跟进</div>
           <div className={`tab ${activeTab === 'life' ? 'active' : ''}`} onClick={() => setActiveTab('life')}>生活管理</div>
-          <div className={`tab ${activeTab === 'comms' ? 'active' : ''}`} onClick={() => setActiveTab('comms')}>沟通记录</div>
+          <div className={`tab ${activeTab === 'comms' ? 'active' : ''}`} onClick={() => setActiveTab('comms')}>时间线</div>
         </div>
 
         {/* Tab Content: Basic Info */}
@@ -950,7 +951,7 @@ export default function StudentDetail() {
                           </div>
                         </div>
                         <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{wl.evidence_content}</div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>下发日期: {new Date(wl.created_at).toLocaleDateString()}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>下发日期: {wl.occurred_on || (wl.created_at ? new Date(wl.created_at).toLocaleDateString() : '—')}</div>
                       </div>
                     ))}
                   </div>
@@ -962,18 +963,8 @@ export default function StudentDetail() {
           </div>
         )}
 
-        {/* Placeholders for other tabs */}
-        {['comms'].includes(activeTab) && (
-          <div className="tabpage active">
-            <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <IconFileText size={48} style={{ color: 'var(--color-border-hover)', marginBottom: 16 }} />
-              <h3 style={{ color: 'var(--color-text-secondary)' }}>模块开发中</h3>
-              <p style={{ color: 'var(--color-text-tertiary)', fontSize: 13, marginTop: 8 }}>
-                沟通记录等周边模块将在后续接入。
-              </p>
-            </div>
-          </div>
-        )}
+        {/* 时间线：出勤率轨迹 + 各类非学业记录合并（点名只进异常，学业在「学业跟进」） */}
+        {activeTab === 'comms' && <StudentTimeline studentId={student.student_id} />}
       </div>
     </div>
   );
