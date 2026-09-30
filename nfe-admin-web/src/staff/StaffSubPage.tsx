@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { STAFF_ROLES } from './staffConfig';
 import StaffStub from './StaffStub';
 import { PatrolStudents, PatrolRollcall } from './pages/patrol';
+import { PatrolGrades } from './pages/gradeEntry';
 import { AttendanceRateEntry } from './pages/attendanceRate';
 import { StudyFollowUps } from './pages/followUps';
 import { TutorFeedbackView } from './pages/tutorFeedback';
@@ -35,6 +36,7 @@ const REGISTRY: Record<string, ReactNode> = {
   // 巡查（静态壳）
   'patrol/students': <PatrolStudents />,
   'patrol/rollcall': <PatrolRollcall />,
+  'patrol/grades': <PatrolGrades />,
   'patrol/attendance-rate': <AttendanceRateEntry />,
   'patrol/follow-ups': <StudyFollowUps />,
   'patrol/tutor-feedback': <TutorFeedbackView />,

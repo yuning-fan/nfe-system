@@ -2,8 +2,7 @@
 import {
   IconLayoutDashboard, IconUsers, IconClipboardCheck, IconNotebook, IconAlertOctagon,
   IconDatabase, IconBed, IconSun, IconToolsKitchen2, IconPill, IconMessage2,
-  IconAlertTriangle, IconCar, IconCalendar, IconClipboardList, IconBook, IconCertificate, IconReport,
-} from '@tabler/icons-react';
+  IconAlertTriangle, IconCar, IconCalendar, IconClipboardList, IconBook, IconCertificate, IconReport, IconReportAnalytics,} from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
 export interface StaffNavItem {
@@ -30,6 +29,7 @@ export const STAFF_ROLES: Record<string, StaffRoleConfig> = {
     nav: [
       HOME, STUDENTS,
       { to: 'rollcall', label: '晚自习点名', icon: I(IconClipboardCheck), desc: '18:00 应到名单，逐人标记 在场/缺席/请假 + 备注' },
+      { to: 'grades', label: '成绩登记', icon: I(IconReportAnalytics), desc: '晚自习批量录分：按学生 / 按节点两种模式，缺考按 0 分计入总评' },
       { to: 'attendance-rate', label: '出勤率录入', icon: I(IconSun), desc: '每周一录入官方出勤率（核对 life 早上出勤）' },
       { to: 'follow-ups', label: '学习跟进', icon: I(IconNotebook), desc: '作业核查 / 晚自习跟进 / 带背考察 / 个辅记录 / 重难点梳理' },
       { to: 'tutor-feedback', label: '辅导反馈', icon: I(IconClipboardList), desc: '辅导老师课后反馈与作业安排（只读），据此督促学生' },
