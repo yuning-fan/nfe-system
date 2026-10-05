@@ -7,6 +7,9 @@ import HousingAssignmentModal from './HousingAssignmentModal';
 interface DormRoom {
   id: number;
   building_name: string;
+  unit: string | null;        // 单元号，如 13D / 6号；Tiverton 三栋无单元层，为 null
+  unit_info: string | null;   // 单元标注，如「男」「女 · 3.5 卫」
+  is_active: boolean;
   room_number: string;
   capacity: number;
   notes: string | null;
@@ -34,12 +37,26 @@ const statusConfig: Record<string, { label: string; bg: string; borderColor: str
   unavailable:   { label: '不可用', bg: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-tertiary)', textColor: 'var(--color-text-tertiary)' },
 };
 
-// Parse City UniLodge room number like "1F-01-A" → { floor: '1', suite: '01', room: 'A' }
-function parseCityRoom(roomNumber: string) {
-  const m = roomNumber.match(/^(\d+)F-0?(\d+)-([A-Z]+)$/);
-  if (!m) return null;
-  return { floor: m[1], suite: m[2].padStart(2, '0'), room: m[3] };
-}
+// 单元号排序：6号/7号/10号 要按数字排，纯字母序会把 10号 排到 6号 前面。
+// 带数字的按数字，不带的（13D/13E）退回字母序。
+const unitRank = (u: string) => {
+  const m = u.match(/\d+/);
+  return m ? Number(m[0]) : Number.MAX_SAFE_INTEGER;
+};
+const byUnit = (a: string, b: string) => unitRank(a) - unitRank(b) || a.localeCompare(b, 'zh');
+
+// 房间排序：房间1…房间5 按数字，双人间排在单间之后
+const roomRank = (r: string) => {
+  const m = r.match(/房间\s*(\d+)/);
+  if (m) return Number(m[1]);
+  return r.includes('双人间') ? 900 : 500;
+};
+const byRoom = (a: string, b: string) => roomRank(a) - roomRank(b) || a.localeCompare(b, 'zh');
+
+// 可住床位：不可用（生活老师房）与维修中的房间不计入
+const bedCount = (rooms: DormRoom[]) =>
+  rooms.filter((r) => r.room_status !== 'unavailable' && r.room_status !== 'maintenance')
+       .reduce((n, r) => n + r.capacity, 0);
 
 export default function HousingManagement() {
   const [rooms, setRooms] = useState<DormRoom[]>([]);
@@ -91,16 +108,16 @@ export default function HousingManagement() {
     fetchData();
   };
 
-  // Collapse state for City UniLodge floors
-  const [expandedFloors, setExpandedFloors] = useState<Record<string, boolean>>({ '1': true, '2': true });
-  // Collapse state for City UniLodge suites
-  const [expandedSuites, setExpandedSuites] = useState<Record<string, boolean>>({});
+  // 单元折叠状态，键为「公寓|单元」；默认展开
+  const [collapsedUnits, setCollapsedUnits] = useState<Record<string, boolean>>({});
 
   const fetchData = async () => {
     setIsLoading(true);
+    // 只取在用房源；停用的（如已退租的 51B Shoreham）留在库里保历史，但不进页面
     const { data: dormData } = await supabase
       .from('dorms')
       .select('*')
+      .eq('is_active', true)
       .order('building_name')
       .order('room_number');
     const { data: assignData } = await supabase
@@ -238,9 +255,12 @@ export default function HousingManagement() {
         ) : (
           <>
             <div className="room-name" style={{ color: cfg.textColor }}>
-              {room.room_status === 'maintenance' ? '维修中' : '空房'}
+              {room.room_status === 'maintenance' ? '维修中'
+                : room.room_status === 'unavailable' ? '不可用' : '空房'}
             </div>
-            <div className="room-date">可安排入住</div>
+            <div className="room-date">
+              {room.room_status === 'vacant' ? '可安排入住' : '不计入可用床位'}
+            </div>
             {room.room_status === 'vacant' && (
               <div style={{ marginTop: 4 }}>
                 <button
@@ -274,111 +294,75 @@ export default function HousingManagement() {
     );
   };
 
-  // Render City UniLodge with hierarchical floor → suite → room layout
-  const renderCityUniLodge = (buildingRooms: DormRoom[]) => {
-    const occupied = buildingRooms.filter((r) => r.room_status === 'occupied').length;
+  // 带单元层的公寓（Unilodge / 55 Margan）：公寓 → 单元 → 房间
+  const renderUnitBuilding = (buildingName: string, buildingRooms: DormRoom[]) => {
     const allResidents = buildingRooms.flatMap((r) => getAssignments(r.id));
+    // 床位只算可住的：生活老师房、维修房标为 unavailable/maintenance，不进分母
+    const beds = bedCount(buildingRooms);
 
-    // Group by floor then suite
-    const byFloor: Record<string, Record<string, DormRoom[]>> = {};
-    for (const room of buildingRooms) {
-      const parsed = parseCityRoom(room.room_number);
-      if (!parsed) continue;
-      if (!byFloor[parsed.floor]) byFloor[parsed.floor] = {};
-      if (!byFloor[parsed.floor][parsed.suite]) byFloor[parsed.floor][parsed.suite] = [];
-      byFloor[parsed.floor][parsed.suite].push(room);
-    }
-
-    const floorNums = Object.keys(byFloor).sort();
+    const byUnitMap: Record<string, DormRoom[]> = {};
+    for (const room of buildingRooms) (byUnitMap[room.unit || '其他'] ||= []).push(room);
+    const unitNames = Object.keys(byUnitMap).sort(byUnit);
 
     return (
-      <div key="City UniLodge" className="card" style={{ marginBottom: 14 }}>
-        {/* Building header */}
+      <div key={buildingName} className="card" style={{ marginBottom: 14 }}>
         <div className="card-title">
           <IconBuilding size={16} />
-          <span style={{ fontWeight: 600 }}>City UniLodge</span>
+          <span style={{ fontWeight: 600 }}>{buildingName}</span>
           <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 4, display: 'inline-flex', alignItems: 'center' }}>
-            · 监护人：{renderGuardianSelect('City UniLodge')}
+            · 监护人：{renderGuardianSelect(buildingName)}
           </span>
           <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
-            {occupied}/{buildingRooms.length} 房间已入住 · {allResidents.length} 名学生 · 2层 · 10套间 · 50单间
+            {unitNames.length} 个单元 · {buildingRooms.length} 间房 · {allResidents.length}/{beds} 床位
           </span>
         </div>
 
-        {/* Floor sections */}
-        {floorNums.map((floor) => {
-          const floorKey = floor;
-          const isFloorExpanded = expandedFloors[floorKey] !== false; // default expanded
-          const suites = byFloor[floor];
-          const suiteNums = Object.keys(suites).sort();
-          const floorRooms = suiteNums.flatMap(s => suites[s]);
-          const floorOccupied = floorRooms.filter(r => r.room_status === 'occupied').length;
+        {unitNames.map((unitName) => {
+          const key = `${buildingName}|${unitName}`;
+          const expanded = !collapsedUnits[key];
+          const unitRooms = byUnitMap[unitName].slice().sort((a, b) => byRoom(a.room_number, b.room_number));
+          const unitResidents = unitRooms.flatMap((r) => getAssignments(r.id));
+          const unitBeds = bedCount(unitRooms);
+          const info = unitRooms.find((r) => r.unit_info)?.unit_info;
+          const free = unitBeds - unitResidents.length;
 
           return (
-            <div key={floor} style={{ marginBottom: 12 }}>
-              {/* Floor header — clickable to collapse */}
+            <div key={unitName} style={{ marginBottom: 10 }}>
               <div
-                onClick={() => setExpandedFloors(prev => ({ ...prev, [floorKey]: !isFloorExpanded }))}
+                onClick={() => setCollapsedUnits((prev) => ({ ...prev, [key]: expanded }))}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
                   padding: '8px 12px', borderRadius: 8,
                   background: 'var(--color-bg-secondary)',
                   border: '1px solid var(--color-border-tertiary)',
-                  marginBottom: isFloorExpanded ? 10 : 0,
+                  marginBottom: expanded ? 10 : 0,
                   userSelect: 'none',
                 }}
               >
-                {isFloorExpanded
+                {expanded
                   ? <IconChevronDown size={14} style={{ color: 'var(--color-text-tertiary)' }} />
                   : <IconChevronRight size={14} style={{ color: 'var(--color-text-tertiary)' }} />}
-                <span style={{ fontWeight: 600, fontSize: 13 }}>{floor} 层</span>
-                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 4 }}>
-                  {suiteNums.length} 套间 · {floorRooms.length} 单间 · {floorOccupied} 已入住
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{unitName}</span>
+                {info && (
+                  <span className={`pill ${info.startsWith('男') ? 'p-blue' : info.startsWith('女') ? 'p-purple' : 'p-gray'}`} style={{ fontSize: 10 }}>
+                    {info}
+                  </span>
+                )}
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                  {unitResidents.length}/{unitBeds} 床位
+                  {free > 0 && <span style={{ color: '#185FA5' }}> · 空 {free}</span>}
                 </span>
+                {!expanded && unitResidents.length > 0 && (
+                  <span style={{ fontSize: 11, color: '#3B6D11', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    · {unitResidents.map((a) => a.profiles?.full_name).join('、')}
+                  </span>
+                )}
               </div>
-
-              {/* Suite rows */}
-              {isFloorExpanded && suiteNums.map((suite) => {
-                const suiteKey = `${floor}-${suite}`;
-                const isSuiteExpanded = expandedSuites[suiteKey] !== false; // default expanded
-                const suiteRooms = suites[suite].sort((a, b) => a.room_number.localeCompare(b.room_number));
-                const suiteOccupied = suiteRooms.filter(r => r.room_status === 'occupied').length;
-
-                return (
-                  <div key={suite} style={{ marginBottom: 8, paddingLeft: 16 }}>
-                    {/* Suite header */}
-                    <div
-                      onClick={() => setExpandedSuites(prev => ({ ...prev, [suiteKey]: !isSuiteExpanded }))}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-                        padding: '5px 10px', borderRadius: 6,
-                        marginBottom: isSuiteExpanded ? 8 : 0,
-                        userSelect: 'none',
-                        borderLeft: '3px solid var(--color-border)',
-                      }}
-                    >
-                      {isSuiteExpanded
-                        ? <IconChevronDown size={12} style={{ color: 'var(--color-text-tertiary)' }} />
-                        : <IconChevronRight size={12} style={{ color: 'var(--color-text-tertiary)' }} />}
-                      <span style={{ fontWeight: 500, fontSize: 12 }}>套间 {suite}</span>
-                      <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                        {suiteOccupied}/{suiteRooms.length} 在住
-                      </span>
-                      {suiteOccupied > 0 && (
-                        <span style={{ fontSize: 11, color: '#3B6D11', fontWeight: 500 }}>
-                          · {suiteRooms.filter(r => r.room_status === 'occupied').flatMap(r => getAssignments(r.id)).map(a => a.profiles?.full_name).join('、')}
-                        </span>
-                      )}
-                    </div>
-                    {/* Room cards */}
-                    {isSuiteExpanded && (
-                      <div className="room-grid" style={{ paddingLeft: 12 }}>
-                        {suiteRooms.map(room => renderRoomCard(room))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {expanded && (
+                <div className="room-grid" style={{ paddingLeft: 12 }}>
+                  {unitRooms.map((room) => renderRoomCard(room))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -445,12 +429,12 @@ export default function HousingManagement() {
       {filteredBuildings.map((buildingName) => {
         const buildingRooms = rooms.filter((r) => r.building_name === buildingName);
 
-        // City UniLodge gets its own hierarchical render
-        if (buildingName === 'City UniLodge') {
-          return renderCityUniLodge(buildingRooms);
+        // 有单元层的公寓（Unilodge / 55 Margan）走分组渲染
+        if (buildingRooms.some((r) => r.unit)) {
+          return renderUnitBuilding(buildingName, buildingRooms);
         }
 
-        // Standard buildings (Tiverton etc.)
+        // 无单元层的公寓（Tiverton 三栋）：平铺房间
         const occupied = buildingRooms.filter((r) => r.room_status === 'occupied').length;
         const allResidents = buildingRooms.flatMap((r) => getAssignments(r.id));
 

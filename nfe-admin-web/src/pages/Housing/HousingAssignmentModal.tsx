@@ -99,7 +99,7 @@ export default function HousingAssignmentModal({ isOpen, onClose, onSuccess, ava
           <Select showSearch optionFilterProp="children" placeholder="搜索并选择空置房间">
             {availableRooms.map(r => (
               <Select.Option key={r.id} value={r.id}>
-                {r.building_name} - {r.room_number} (容量: {r.capacity})
+                {r.building_name}{r.unit ? ` ${r.unit}` : ''} - {r.room_number} (容量: {r.capacity})
               </Select.Option>
             ))}
           </Select>

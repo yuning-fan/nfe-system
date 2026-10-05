@@ -706,25 +706,34 @@ export type Database = {
           building_name: string
           capacity: number
           id: number
+          is_active: boolean
           notes: string | null
           room_number: string
           room_status: Database["public"]["Enums"]["room_status"] | null
+          unit: string | null
+          unit_info: string | null
         }
         Insert: {
           building_name: string
           capacity: number
           id?: number
+          is_active?: boolean
           notes?: string | null
           room_number: string
           room_status?: Database["public"]["Enums"]["room_status"] | null
+          unit?: string | null
+          unit_info?: string | null
         }
         Update: {
           building_name?: string
           capacity?: number
           id?: number
+          is_active?: boolean
           notes?: string | null
           room_number?: string
           room_status?: Database["public"]["Enums"]["room_status"] | null
+          unit?: string | null
+          unit_info?: string | null
         }
         Relationships: []
       }
