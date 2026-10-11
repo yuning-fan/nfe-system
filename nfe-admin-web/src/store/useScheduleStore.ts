@@ -19,6 +19,8 @@ export interface Schedule {
   end_time: string;
   status: ScheduleStatus;
   material_url: string | null;
+  lesson_content?: string | null;   // 授课内容与重难点（进家长报告）
+  reminders?: string | null;        // 重要提醒（进家长报告）
   feedback_public: string | null;
   feedback_internal: string | null;
   homework_content: string | null;
@@ -104,6 +106,8 @@ interface ScheduleStore {
     feedback_public?: string;
     feedback_internal?: string;
     homework_content?: string;
+    lesson_content?: string;
+    reminders?: string;
   }) => Promise<boolean>;
   cancelSchedule: (scheduleId: number, reason?: string) => Promise<boolean>;
   // 撤销销课：把已完成/缺勤/请假的课退回"待上课"，退回已扣课时并重算风险
@@ -337,6 +341,8 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         feedback_public: payload.feedback_public ?? null,
         feedback_internal: payload.feedback_internal ?? null,
         homework_content: payload.homework_content ?? null,
+        lesson_content: payload.lesson_content || null,
+        reminders: payload.reminders || null,
       }).eq('id', scheduleId);
       if (uErr) throw uErr;
 

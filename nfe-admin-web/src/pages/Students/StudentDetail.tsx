@@ -37,6 +37,18 @@ export default function StudentDetail() {
   const { currentStudent: student, isLoading, error, fetchStudentById, clearCurrentStudent, updateStudent, staff, fetchStaff } = useStudentStore();
   // 学管/生活老师选择器数据源：全部非学生账号（角色尚未理顺，故不按 role 过滤）
   useEffect(() => { fetchStaff(); }, [fetchStaff]);
+  // 奥大专业要求（升学对标用）
+  const [programmes, setProgrammes] = useState<{ id: number; code: string; programme: string; faculty: string; gpa_min: number | null; eap_min: number | null; entry_type: string }[]>([]);
+  useEffect(() => {
+    supabase.from('uoa_programmes').select('id, code, programme, faculty, gpa_min, eap_min, entry_type').order('faculty').order('programme')
+      .then(({ data }) => setProgrammes((data || []) as any));
+  }, []);
+  const programmeLabel = (id?: number | null) => {
+    const p = programmes.find(x => x.id === id);
+    if (!p) return '—';
+    if (p.entry_type === 'no_direct') return `${p.programme}（预科不可直录）`;
+    return `${p.programme}${p.gpa_min != null ? ` · GPA ${p.gpa_min}` : ''}${p.eap_min != null ? ` · EAP ${p.eap_min}%` : ''}`;
+  };
   const staffName = (id?: string | null) => (id ? (staff.find(m => m.id === id)?.full_name || '—') : '—');
   const { markWarningSigned } = useRiskStore();
   
@@ -121,6 +133,8 @@ export default function StudentDetail() {
       up_student_id: student?.up_student_id || '',
       uoa_student_id: student?.uoa_student_id || '',
       target_degree: student?.target_degree || '',
+      target_programme_id: student?.target_programme_id ?? '',
+      target_requirement_note: student?.target_requirement_note || '',
       offer_status: student?.offer_status || '',
       scholarship_requirement: student?.scholarship_requirement || '',
       emergency_contact_name: student?.emergency_contact_name || '',
@@ -534,6 +548,21 @@ export default function StudentDetail() {
             <label className="form-label">目标专业</label>
             <input className="input" placeholder="如 Bachelor of Commerce: Accounting" value={editForm.target_degree} onChange={e => setEditForm({ ...editForm, target_degree: e.target.value })} />
           </div>
+          <div className="form-group">
+            <label className="form-label">对标奥大专业（录取要求）</label>
+            <select className="input" value={editForm.target_programme_id ?? ''} onChange={e => setEditForm({ ...editForm, target_programme_id: e.target.value ? Number(e.target.value) : '' })}>
+              <option value="">未关联</option>
+              {[...new Set(programmes.map(p => p.faculty))].map(f => (
+                <optgroup key={f} label={f}>
+                  {programmes.filter(p => p.faculty === f).map(p => <option key={p.id} value={p.id}>{programmeLabel(p.id)}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">专业要求说明</label>
+            <input className="input" placeholder="如 Calculus ≥ 70%、EAP ≥ 65%" value={editForm.target_requirement_note} onChange={e => setEditForm({ ...editForm, target_requirement_note: e.target.value })} />
+          </div>
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label className="form-label">奖学金要求</label>
             <input className="input" value={editForm.scholarship_requirement} onChange={e => setEditForm({ ...editForm, scholarship_requirement: e.target.value })} />
@@ -699,6 +728,8 @@ export default function StudentDetail() {
                 <div className="field"><span className="field-k">UP 预科学号</span><span className="field-v">{student.up_student_id || '—'}</span></div>
                 <div className="field"><span className="field-k">奥大学号</span><span className="field-v">{student.uoa_student_id || '—'}</span></div>
                 <div className="field"><span className="field-k">目标专业</span><span className="field-v">{student.target_degree || '—'}</span></div>
+                <div className="field"><span className="field-k">对标奥大专业</span><span className="field-v">{programmeLabel(student.target_programme_id)}</span></div>
+                <div className="field"><span className="field-k">专业要求说明</span><span className="field-v">{student.target_requirement_note || '—'}</span></div>
                 <div className="field"><span className="field-k">offer 情况</span><span className="field-v">{student.offer_status || '—'}</span></div>
                 <div className="field"><span className="field-k">英语水平</span><span className="field-v">{student.english_level || '—'}</span></div>
                 <div className="field"><span className="field-k">奖学金要求</span><span className="field-v">{student.scholarship_requirement || '无'}</span></div>

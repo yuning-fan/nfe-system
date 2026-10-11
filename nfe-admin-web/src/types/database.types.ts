@@ -18,11 +18,13 @@ export type Database = {
         Row: {
           course_id: number | null
           due_date: string
+          due_time: string | null
           id: number
           is_grade_recorded: boolean | null
           is_major: boolean
           milestone_type: Database["public"]["Enums"]["milestone_type"]
           mode: string | null
+          note: string | null
           parent_id: number | null
           program_subject_id: number | null
           student_id: string | null
@@ -34,11 +36,13 @@ export type Database = {
         Insert: {
           course_id?: number | null
           due_date: string
+          due_time?: string | null
           id?: number
           is_grade_recorded?: boolean | null
           is_major?: boolean
           milestone_type: Database["public"]["Enums"]["milestone_type"]
           mode?: string | null
+          note?: string | null
           parent_id?: number | null
           program_subject_id?: number | null
           student_id?: string | null
@@ -50,11 +54,13 @@ export type Database = {
         Update: {
           course_id?: number | null
           due_date?: string
+          due_time?: string | null
           id?: number
           is_grade_recorded?: boolean | null
           is_major?: boolean
           milestone_type?: Database["public"]["Enums"]["milestone_type"]
           mode?: string | null
+          note?: string | null
           parent_id?: number | null
           program_subject_id?: number | null
           student_id?: string | null
@@ -255,6 +261,7 @@ export type Database = {
           id: number
           note: string | null
           rate: number | null
+          recorded_on: string | null
           student_id: string | null
         }
         Insert: {
@@ -263,6 +270,7 @@ export type Database = {
           id?: number
           note?: string | null
           rate?: number | null
+          recorded_on?: string | null
           student_id?: string | null
         }
         Update: {
@@ -271,6 +279,7 @@ export type Database = {
           id?: number
           note?: string | null
           rate?: number | null
+          recorded_on?: string | null
           student_id?: string | null
         }
         Relationships: [
@@ -741,6 +750,7 @@ export type Database = {
         Row: {
           course_id: number | null
           id: number
+          improvement_advice: string | null
           milestone_id: number | null
           note: string | null
           program_subject_id: number | null
@@ -750,10 +760,12 @@ export type Database = {
           score_type: Database["public"]["Enums"]["score_type"]
           status: string
           student_id: string | null
+          student_reflection: string | null
         }
         Insert: {
           course_id?: number | null
           id?: number
+          improvement_advice?: string | null
           milestone_id?: number | null
           note?: string | null
           program_subject_id?: number | null
@@ -763,10 +775,12 @@ export type Database = {
           score_type: Database["public"]["Enums"]["score_type"]
           status?: string
           student_id?: string | null
+          student_reflection?: string | null
         }
         Update: {
           course_id?: number | null
           id?: number
+          improvement_advice?: string | null
           milestone_id?: number | null
           note?: string | null
           program_subject_id?: number | null
@@ -776,6 +790,7 @@ export type Database = {
           score_type?: Database["public"]["Enums"]["score_type"]
           status?: string
           student_id?: string | null
+          student_reflection?: string | null
         }
         Relationships: [
           {
@@ -1347,6 +1362,228 @@ export type Database = {
           },
         ]
       }
+      milestone_exam_notes: {
+        Row: {
+          exam_focus: string | null
+          id: number
+          intake_start: string
+          milestone_id: number
+          paper_features: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          exam_focus?: string | null
+          id?: number
+          intake_start: string
+          milestone_id: number
+          paper_features?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          exam_focus?: string | null
+          id?: number
+          intake_start?: string
+          milestone_id?: number
+          paper_features?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_exam_notes_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "academic_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "milestone_exam_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "milestone_exam_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "v_student_overview"
+            referencedColumns: ["student_id"]
+          },
+        ]
+      }
+      milestone_intake_dates: {
+        Row: {
+          created_at: string
+          due_date: string
+          due_time: string | null
+          id: number
+          intake_start: string
+          milestone_id: number
+          note: string | null
+        }
+        Insert: {
+          created_at?: string
+          due_date: string
+          due_time?: string | null
+          id?: number
+          intake_start: string
+          milestone_id: number
+          note?: string | null
+        }
+        Update: {
+          created_at?: string
+          due_date?: string
+          due_time?: string | null
+          id?: number
+          intake_start?: string
+          milestone_id?: number
+          note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_intake_dates_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "academic_milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      night_study_sessions: {
+        Row: {
+          assistants: string | null
+          created_at: string | null
+          end_time: string | null
+          id: number
+          kind: string
+          milestone_id: number | null
+          notes: string | null
+          program_subject_id: number | null
+          room: string | null
+          session_date: string
+          start_time: string | null
+          subject: string | null
+          teacher_id: string | null
+          teacher_name: string | null
+          topic: string
+          week_id: number | null
+        }
+        Insert: {
+          assistants?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: number
+          kind: string
+          milestone_id?: number | null
+          notes?: string | null
+          program_subject_id?: number | null
+          room?: string | null
+          session_date: string
+          start_time?: string | null
+          subject?: string | null
+          teacher_id?: string | null
+          teacher_name?: string | null
+          topic: string
+          week_id?: number | null
+        }
+        Update: {
+          assistants?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: number
+          kind?: string
+          milestone_id?: number | null
+          notes?: string | null
+          program_subject_id?: number | null
+          room?: string | null
+          session_date?: string
+          start_time?: string | null
+          subject?: string | null
+          teacher_id?: string | null
+          teacher_name?: string | null
+          topic?: string
+          week_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "night_study_sessions_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "academic_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_study_sessions_program_subject_id_fkey"
+            columns: ["program_subject_id"]
+            isOneToOne: false
+            referencedRelation: "program_subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_study_sessions_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "night_study_sessions_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "v_student_overview"
+            referencedColumns: ["student_id"]
+          },
+          {
+            foreignKeyName: "night_study_sessions_week_id_fkey"
+            columns: ["week_id"]
+            isOneToOne: false
+            referencedRelation: "night_study_weeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      night_study_weeks: {
+        Row: {
+          created_at: string | null
+          exam_notes: string | null
+          general_tasks: string | null
+          id: number
+          room_plan: Json
+          source_file: string | null
+          teacher_tasks: Json
+          title: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string | null
+          exam_notes?: string | null
+          general_tasks?: string | null
+          id?: number
+          room_plan?: Json
+          source_file?: string | null
+          teacher_tasks?: Json
+          title: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string | null
+          exam_notes?: string | null
+          general_tasks?: string | null
+          id?: number
+          room_plan?: Json
+          source_file?: string | null
+          teacher_tasks?: Json
+          title?: string
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       notification_recipients: {
         Row: {
           id: number
@@ -1522,12 +1759,15 @@ export type Database = {
           hours_per_week: number | null
           id: number
           max_students: number | null
+          node_dates_intake: string | null
           pass_mark: number
           program_id: number | null
+          semester: string | null
           sessions_per_week: number | null
           subject_area: Database["public"]["Enums"]["subject_area"]
           subject_category: Database["public"]["Enums"]["subject_category"]
           subject_name: string
+          year: number | null
         }
         Insert: {
           default_schedule?: Json | null
@@ -1536,12 +1776,15 @@ export type Database = {
           hours_per_week?: number | null
           id?: number
           max_students?: number | null
+          node_dates_intake?: string | null
           pass_mark?: number
           program_id?: number | null
+          semester?: string | null
           sessions_per_week?: number | null
           subject_area: Database["public"]["Enums"]["subject_area"]
           subject_category: Database["public"]["Enums"]["subject_category"]
           subject_name: string
+          year?: number | null
         }
         Update: {
           default_schedule?: Json | null
@@ -1550,12 +1793,15 @@ export type Database = {
           hours_per_week?: number | null
           id?: number
           max_students?: number | null
+          node_dates_intake?: string | null
           pass_mark?: number
           program_id?: number | null
+          semester?: string | null
           sessions_per_week?: number | null
           subject_area?: Database["public"]["Enums"]["subject_area"]
           subject_category?: Database["public"]["Enums"]["subject_category"]
           subject_name?: string
+          year?: number | null
         }
         Relationships: [
           {
@@ -1928,8 +2174,10 @@ export type Database = {
           feedback_public: string | null
           homework_content: string | null
           id: number
+          lesson_content: string | null
           material_url: string | null
           program_subject_id: number | null
+          reminders: string | null
           start_time: string
           status: Database["public"]["Enums"]["schedule_status"] | null
           student_id: string | null
@@ -1943,8 +2191,10 @@ export type Database = {
           feedback_public?: string | null
           homework_content?: string | null
           id?: number
+          lesson_content?: string | null
           material_url?: string | null
           program_subject_id?: number | null
+          reminders?: string | null
           start_time: string
           status?: Database["public"]["Enums"]["schedule_status"] | null
           student_id?: string | null
@@ -1958,8 +2208,10 @@ export type Database = {
           feedback_public?: string | null
           homework_content?: string | null
           id?: number
+          lesson_content?: string | null
           material_url?: string | null
           program_subject_id?: number | null
+          reminders?: string | null
           start_time?: string
           status?: Database["public"]["Enums"]["schedule_status"] | null
           student_id?: string | null
@@ -2554,6 +2806,8 @@ export type Database = {
           source_school: string | null
           student_id: string
           target_degree: string | null
+          target_programme_id: number | null
+          target_requirement_note: string | null
           target_university: string | null
           total_risk_score: number | null
           uoa_student_id: string | null
@@ -2589,6 +2843,8 @@ export type Database = {
           source_school?: string | null
           student_id: string
           target_degree?: string | null
+          target_programme_id?: number | null
+          target_requirement_note?: string | null
           target_university?: string | null
           total_risk_score?: number | null
           uoa_student_id?: string | null
@@ -2624,6 +2880,8 @@ export type Database = {
           source_school?: string | null
           student_id?: string
           target_degree?: string | null
+          target_programme_id?: number | null
+          target_requirement_note?: string | null
           target_university?: string | null
           total_risk_score?: number | null
           uoa_student_id?: string | null
@@ -2685,6 +2943,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "v_student_overview"
             referencedColumns: ["student_id"]
+          },
+          {
+            foreignKeyName: "students_info_target_programme_id_fkey"
+            columns: ["target_programme_id"]
+            isOneToOne: false
+            referencedRelation: "uoa_programmes"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2892,6 +3157,72 @@ export type Database = {
           },
         ]
       }
+      uoa_programmes: {
+        Row: {
+          additional_requirements: string | null
+          code: string
+          duration_years: string | null
+          eap_min: number | null
+          english_alternative: string | null
+          english_requirement: string | null
+          entry_type: string
+          entry_year: number
+          faculty: string
+          gpa_min: number | null
+          id: number
+          intake_note: string | null
+          intakes: string[]
+          notes: string | null
+          programme: string
+          required_subjects: string[]
+          required_subjects_mode: string | null
+          selection_required: boolean
+          source: string | null
+        }
+        Insert: {
+          additional_requirements?: string | null
+          code: string
+          duration_years?: string | null
+          eap_min?: number | null
+          english_alternative?: string | null
+          english_requirement?: string | null
+          entry_type?: string
+          entry_year: number
+          faculty: string
+          gpa_min?: number | null
+          id?: number
+          intake_note?: string | null
+          intakes?: string[]
+          notes?: string | null
+          programme: string
+          required_subjects?: string[]
+          required_subjects_mode?: string | null
+          selection_required?: boolean
+          source?: string | null
+        }
+        Update: {
+          additional_requirements?: string | null
+          code?: string
+          duration_years?: string | null
+          eap_min?: number | null
+          english_alternative?: string | null
+          english_requirement?: string | null
+          entry_type?: string
+          entry_year?: number
+          faculty?: string
+          gpa_min?: number | null
+          id?: number
+          intake_note?: string | null
+          intakes?: string[]
+          notes?: string | null
+          programme?: string
+          required_subjects?: string[]
+          required_subjects_mode?: string | null
+          selection_required?: boolean
+          source?: string | null
+        }
+        Relationships: []
+      }
       violation_logs: {
         Row: {
           attachment_url: string | null
@@ -2994,6 +3325,7 @@ export type Database = {
         Row: {
           attachment_url: string | null
           category: string | null
+          created_at: string | null
           evidence_content: string | null
           id: number
           issuer_id: string | null
@@ -3007,6 +3339,7 @@ export type Database = {
         Insert: {
           attachment_url?: string | null
           category?: string | null
+          created_at?: string | null
           evidence_content?: string | null
           id?: number
           issuer_id?: string | null
@@ -3020,6 +3353,7 @@ export type Database = {
         Update: {
           attachment_url?: string | null
           category?: string | null
+          created_at?: string | null
           evidence_content?: string | null
           id?: number
           issuer_id?: string | null
@@ -3293,12 +3627,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3322,11 +3656,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3347,11 +3681,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3372,11 +3706,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3389,11 +3723,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

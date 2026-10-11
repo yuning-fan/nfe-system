@@ -1,7 +1,7 @@
 // 迷你折线图 —— 手写内联 SVG，零依赖
 //
 // 为什么不引图表库：项目里一个图表库都没装，bundle 已经 2.3MB 且 vite 在警告；
-// 为一条几十像素的折线装 recharts 不划算。与 lib/reportExport.ts、lib/xlsx.ts 同样的零依赖路线。
+// 为一条几十像素的折线装 recharts 不划算。与 lib/xlsx.ts 同样的零依赖路线。
 
 export interface SparkPoint {
   label: string;   // x 轴标签（日期）

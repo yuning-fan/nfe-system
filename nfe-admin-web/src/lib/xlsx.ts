@@ -1,6 +1,6 @@
 // 零依赖 .xlsx 导出 —— 手写 OOXML + ZIP(STORE)，浏览器原生 API
 //
-// 为什么不引库：项目既有导出（reportExport.ts）就是零依赖路线；而把 HTML 表格
+// 为什么不引库：项目既有导出就是零依赖路线；而把 HTML 表格
 // 存成 .xls 会让 Excel 弹「文件格式与扩展名不符」警告，看着像文件坏了。
 // 这里产出的是真 .xlsx，Excel / WPS / Numbers 均可直接打开。
 //

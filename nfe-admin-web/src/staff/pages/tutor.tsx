@@ -79,6 +79,8 @@ export function TutorRecords() {
   const [fbPublic, setFbPublic] = useState('');
   const [fbInternal, setFbInternal] = useState('');
   const [homework, setHomework] = useState('');
+  const [lesson, setLesson] = useState('');
+  const [reminders, setReminders] = useState('');
 
   // 调课弹窗
   const [resch, setResch] = useState<Schedule | null>(null);
@@ -98,12 +100,13 @@ export function TutorRecords() {
   const openSettle = (s: Schedule) => {
     setSettle(s); setOutcome('present');
     setFbPublic(s.feedback_public || ''); setFbInternal(s.feedback_internal || ''); setHomework(s.homework_content || '');
+    setLesson(s.lesson_content || ''); setReminders(s.reminders || '');
   };
 
   const doSettle = async () => {
     if (!settle) return;
     if (outcome === 'present' && !fbPublic.trim()) { message.warning('出席请至少填写公开反馈'); return; }
-    const ok = await completeSchedule(settle.id, { outcome, feedback_public: fbPublic, feedback_internal: fbInternal, homework_content: homework });
+    const ok = await completeSchedule(settle.id, { outcome, feedback_public: fbPublic, feedback_internal: fbInternal, homework_content: homework, lesson_content: lesson, reminders });
     if (ok) {
       message.success(outcome === 'present' ? '已销课，课时已扣减' : outcome === 'absent' ? '已记缺勤：扣课时 + 风险分已更新' : '已记请假：不扣课时');
       setSettle(null);
@@ -221,6 +224,10 @@ export function TutorRecords() {
             {outcome !== 'leave' && (
               <>
                 <div>
+                  <label className="form-label">授课内容与重难点</label>
+                  <Input.TextArea rows={2} value={lesson} onChange={e => setLesson(e.target.value)} placeholder="进家长报告：本节讲了什么、重难点是哪些" />
+                </div>
+                <div>
                   <label className="form-label">公开反馈{outcome === 'present' ? ' *' : '（可空）'}</label>
                   <Input.TextArea rows={2} value={fbPublic} onChange={e => setFbPublic(e.target.value)} placeholder="家长可见：课堂表现、掌握情况" />
                 </div>
@@ -231,6 +238,10 @@ export function TutorRecords() {
                 <div>
                   <label className="form-label">作业</label>
                   <Input value={homework} onChange={e => setHomework(e.target.value)} placeholder="布置的作业" />
+                </div>
+                <div>
+                  <label className="form-label">重要提醒</label>
+                  <Input value={reminders} onChange={e => setReminders(e.target.value)} placeholder="进家长报告：考试节点、截止日期、需准备的材料等" />
                 </div>
               </>
             )}

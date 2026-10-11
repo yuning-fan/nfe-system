@@ -23,6 +23,7 @@ import { StaffLibrary } from './pages/common';
 // 学管：复用 admin 已有的功能页（真功能）
 import StudentList from '../pages/Students/StudentList';
 import AcademicTrack from '../pages/Academic/AcademicTrack';
+import NightStudyPlanner from '../pages/Academic/NightStudyPlanner';
 import CourseManagement from '../pages/Academic/CourseManagement';
 import Documents from '../pages/Documents/Documents';
 import Communications from '../pages/Communications/Communications';
@@ -62,6 +63,7 @@ const REGISTRY: Record<string, ReactNode> = {
   'academic/students': <StudentList />,
   'academic/weekly': <WeeklyBoard />,
   'academic/academic': <AcademicTrack />,
+  'academic/night-study': <NightStudyPlanner />,
   'academic/courses': <CourseManagement />,
   'academic/docs': <Documents />,
   'academic/comms': <Communications />,

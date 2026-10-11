@@ -11,6 +11,7 @@ import MilestoneManagement from './MilestoneManagement';
 import CourseHoursManagement from './CourseHoursManagement';
 import GradeRecordsManagement from './GradeRecordsManagement';
 import TutorScheduleManagement from './TutorScheduleManagement';
+import NightStudyPlanner from './NightStudyPlanner';
 
 export default function AcademicTrack() {
   const [activeTab, setActiveTab] = useState('enrollment');
@@ -90,6 +91,7 @@ export default function AcademicTrack() {
         <div className={`tab ${activeTab === 'enrollment' ? 'active' : ''}`} onClick={() => setActiveTab('enrollment')}>选课与建档</div>
         <div className={`tab ${activeTab === 'subjects' ? 'active' : ''}`} onClick={() => setActiveTab('subjects')}>科目底表管理</div>
         <div className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>辅导排课</div>
+        <div className={`tab ${activeTab === 'nightstudy' ? 'active' : ''}`} onClick={() => setActiveTab('nightstudy')}>晚自习排课</div>
         <div className={`tab ${activeTab === 'hours' ? 'active' : ''}`} onClick={() => setActiveTab('hours')}>课时管理</div>
         <div className={`tab ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => setActiveTab('grades')}>成绩单</div>
         <div className={`tab ${activeTab === 'milestones' ? 'active' : ''}`} onClick={() => setActiveTab('milestones')}>学业里程碑</div>
@@ -264,6 +266,7 @@ export default function AcademicTrack() {
       {activeTab === 'hours' && <CourseHoursManagement />}
       {activeTab === 'grades' && <GradeRecordsManagement />}
       {activeTab === 'schedule' && <TutorScheduleManagement />}
+      {activeTab === 'nightstudy' && <NightStudyPlanner />}
 
       <EnrollmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </>

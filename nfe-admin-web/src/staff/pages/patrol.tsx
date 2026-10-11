@@ -7,6 +7,8 @@ import { Section, riskPill, pill } from '../ui';
 import RollCall from '../components/RollCall';
 import { RISK_WINDOW_DAYS } from '../../lib/riskEngine';
 import { RISK_LEVEL_LABEL } from '../../lib/riskLabels';
+import { nzToday } from '../../lib/nzDate';
+import { KIND_LABEL, hm, type NightSession } from '../../lib/nightStudy';
 
 const db = supabase as any;
 
@@ -150,10 +152,38 @@ export function PatrolStudents() {
   );
 }
 
+// 今晚课程（只读）：来自「学业管理 → 晚自习排课」，点名时知道今晚哪间教室在上什么
+function TonightSessions() {
+  const [list, setList] = useState<NightSession[] | null>(null);
+  useEffect(() => {
+    supabase.from('night_study_sessions').select('*').eq('session_date', nzToday())
+      .order('start_time', { nullsFirst: true })
+      .then(({ data }) => setList((data || []) as NightSession[]));
+  }, []);
+  if (!list || !list.length) return null;
+  return (
+    <Section title="今晚课程" hint="来自晚自习排课；上课教室以外按安排静音 / 讨论">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {list.map(s => (
+          <div key={s.id} style={{ fontSize: 13 }}>
+            <b>{hm(s.start_time) || '—'}{s.end_time ? `–${hm(s.end_time)}` : ''}</b>
+            {s.room && <span className="pill p-gray" style={{ marginLeft: 6 }}>{s.room}</span>}
+            <span style={{ marginLeft: 6 }}>{s.subject?.replace(/ \(English for Academic Purposes\)/, '') || ''} {KIND_LABEL[s.kind] || ''}</span>
+            {s.teacher_name && <span style={{ color: 'var(--color-text-secondary)' }}> · {s.teacher_name}</span>}
+            <div style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>{s.topic}</div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export function PatrolRollcall() {
   // 晚自习点名：应到=全体在读，缺席写 daily_checks(night_study)，自动扣分
   // allowBackfill：只有晚自习开放补录，往前 20 天（出勤率挂着合约 95% 红线，不宜无限期回改）
   return (
+    <>
+    <TonightSessions />
     <RollCall
       checkType="night_study"
       title="晚自习点名"
@@ -162,6 +192,7 @@ export function PatrolRollcall() {
       backfillDays={20}
       allowLate
     />
+    </>
   );
 }
 

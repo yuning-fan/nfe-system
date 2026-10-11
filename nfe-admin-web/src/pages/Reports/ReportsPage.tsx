@@ -6,9 +6,7 @@ import { Modal, Select, message } from 'antd';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/common/Pagination';
 import StudentSelect from '../../components/common/StudentSelect';
-import { ReportEditor, ReportPreview } from './ReportEditor';
-import { exportReportDoc } from '../../lib/reportExport';
-import { downloadAcademicDocx } from '../../lib/reportDocx';
+import { ReportEditor, ReportPreview, exportReport } from './ReportEditor';
 
 // 默认周期：出勤=近14天，学术=近30天
 function defaultPeriod(days: number) {
@@ -65,15 +63,8 @@ export default function ReportsPage() {
     finally { setGenerating(false); }
   };
 
-  // 学术月报 → 真 .docx（表格版式，对齐线下《成绩记录表》）；出勤双周报 → 原 HTML .doc
-  const onExport = async (r: ReportRecord) => {
-    if (r.report_type !== 'monthly') { exportReportDoc(r); return; }
-    try {
-      await downloadAcademicDocx(r, { studentName: r.student?.full_name || '学生' });
-    } catch (e: any) {
-      message.error(e?.message || '导出失败');
-    }
-  };
+  // 两类报告都导出真 .docx（版式见 lib/reportDocx.ts）
+  const onExport = (r: ReportRecord) => exportReport(r);
 
   const confirmDelete = (r: ReportRecord) => {
     Modal.confirm({ title: '删除报告', content: `确认删除「${r.student?.full_name} 双周报告」草稿吗？`, okType: 'danger', onOk: () => deleteReport(r.id) });
@@ -190,7 +181,7 @@ export default function ReportsPage() {
             <div style={{ flex: 1 }}><label className="form-label">周期结束</label><input type="date" className="input" style={{ width: '100%' }} value={genEnd} onChange={e => setGenEnd(e.target.value)} /></div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-            {genStudent ? '为所选学生' : '为全体在读学生'}生成{genType === 'monthly' ? '学术月报（各科加权总评/节点/辅导反馈）' : '出勤双周报（官方+内部出勤率/违规）'}草稿，自动预填可得数据 + 预警提示，其余待补。同周期已生成的会跳过。
+            {genStudent ? '为所选学生' : '为全体在读学生'}生成{genType === 'monthly' ? '学术月报（概览/各科成绩与同批对比/目标差距/考核日历/辅导课记录）' : '出勤双周报（学校出勤率变化/晚自习/请假/警告违规）'}草稿，自动预填可得数据 + 预警提示，其余待补。同周期已生成的会跳过。
           </div>
         </div>
       </Modal>

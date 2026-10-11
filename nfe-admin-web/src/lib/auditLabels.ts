@@ -71,6 +71,10 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   start_time: '开始时间', end_time: '结束时间',
   material_url: '课件', homework_content: '作业',
   feedback_public: '对外反馈', feedback_internal: '内部反馈',
+  lesson_content: '授课内容', reminders: '重要提醒',
+  improvement_advice: '改进指导', student_reflection: '学生反思',
+  target_programme_id: '对标奥大专业', target_requirement_note: '专业要求说明',
+  recorded_on: '采集日期',
   milestone_id: '考核节点', score: '分数', score_type: '成绩类型',
   recorded_by: '录入人', recorded_at: '录入时间',
   // 报告 / 资料 / 活动
