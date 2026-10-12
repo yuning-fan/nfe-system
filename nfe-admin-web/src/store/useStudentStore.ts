@@ -95,9 +95,10 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .select('student_id, total_hours');
 
       // Step 5: Get dorm assignments and school timetable for checklist
+      // 带上房间信息：入学清单只要「有没有」，但导出的「住宿情况」要写清住在哪
       const { data: dormsData } = await supabase
         .from('dorm_assignments')
-        .select('student_id')
+        .select('student_id, dorms(building_name, unit, room_number)')
         .eq('is_active', true);
 
       const { data: timetableData } = await supabase
@@ -170,6 +171,17 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         hoursMap[asset.student_id] = (hoursMap[asset.student_id] || 0) + (Number(asset.total_hours) || 0);
       }
       const dormsSet = new Set((dormsData || []).map(d => d.student_id));
+      // 住宿情况文本：「Unilodge 13E 房间2」/「4A Tiverton Road 二层-B 单人间」（Tiverton 三栋无单元层）
+      const dormTextMap: Record<string, string> = {};
+      for (const d of ((dormsData || []) as any[])) {
+        if (!d.student_id) continue;
+        const room = Array.isArray(d.dorms) ? d.dorms[0] : d.dorms;
+        if (!room) continue;
+        const text = [room.building_name, room.unit, room.room_number].filter(Boolean).join(' ');
+        // 理论上一人一床，但真出现多条就都列出来，别让导出悄悄只显示一条
+        dormTextMap[d.student_id] = dormTextMap[d.student_id]
+          ? `${dormTextMap[d.student_id]}；${text}` : text;
+      }
       const timetableSet = new Set((timetableData || []).map(t => t.student_id));
       const selectionSet = new Set(
         ((selectionData || []) as any[])
@@ -200,6 +212,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           student_enrollments: info.student_enrollments || [],
           student_documents: docsMap[p.id] || [],
           dorm_assignments: dormsSet.has(p.id) ? [{}] : [],
+          housing: dormTextMap[p.id] || null,   // 导出「住宿情况」列用
           school_timetable: timetableSet.has(p.id) ? [{}] : [],
           has_selections: selectionSet.has(p.id),
           current_phase: cur,        // 当前在读阶段（id/program/source/start_date/status/programs.name）

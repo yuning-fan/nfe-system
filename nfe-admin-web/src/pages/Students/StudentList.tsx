@@ -105,6 +105,7 @@ const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellVal
   { title: '顾问', width: 10, value: s => s.advisor },
   { title: '新西兰顾问/学管', width: 16, value: s => s.nz_advisor_name },
   { title: '新西兰生活老师', width: 16, value: s => s.life_teacher_name },
+  { title: '住宿情况', width: 28, value: s => s.housing },
   { title: '渠道', width: 8, value: s => SOURCE_LABEL[s.current_phase?.source] ?? '' },
   { title: '当前课程/阶段', width: 24, value: s => s.current_phase?.programs?.name },
   { title: '开学日期', width: 12, value: s => s.current_phase?.start_date },
@@ -128,6 +129,7 @@ const GROUP_DEFS: { name: string; titles: string[] }[] = [
   { name: '基本信息', titles: ['学号', '姓名', '拼音英文名', '英文名', '性别', '出生日期', '电话', '城市'] },
   { name: '学校与来源', titles: ['来源学校', '就读学校', '市场来源', '渠道'] },
   { name: '负责人', titles: ['顾问', '新西兰顾问/学管', '新西兰生活老师'] },
+  { name: '住宿', titles: ['住宿情况'] },
   { name: '课程与状态', titles: ['当前课程/阶段', '开学日期', '开学季', '在读状态', '服务截止日期', '风险等级'] },
   { name: '证件与入学', titles: ['抵新日期', '签证到期', '入学清单待办'] },
 ];
