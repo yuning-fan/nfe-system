@@ -212,6 +212,15 @@ function AcademicBody({ c, setC }: { c: ReportContent; setC?: React.Dispatch<Rea
             ? (c.tutoring_feedback || []).map((f, i) => <div key={i} style={{ fontSize: 13 }}>{f.date} {f.subject}：{f.feedback}</div>)
             : <Muted>本期暂无辅导课记录</Muted>}
       </Block>
+
+      {(c.rate_history || c.leaves || c.night_checks) && (
+        <>
+          <div style={{ fontWeight: 600, fontSize: 14, borderLeft: '3px solid var(--color-primary)', paddingLeft: 8 }}>六、出勤与纪律</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingLeft: 11 }}>
+            <AttendanceBody c={c} setC={setC} nested />
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -255,8 +264,10 @@ function NodeNotes({ n, intake, onChange }: { n: ReportNode; intake?: string | n
 }
 
 // ───────── 出勤报告 ─────────
-function AttendanceBody({ c, setC }: { c: ReportContent; setC?: React.Dispatch<React.SetStateAction<ReportContent>> }) {
+// nested：并入学术报告「六、出勤与纪律」时，小节不带序号
+function AttendanceBody({ c, setC, nested }: { c: ReportContent; setC?: React.Dispatch<React.SetStateAction<ReportContent>>; nested?: boolean }) {
   const ro = !setC;
+  const T = (n: string, t: string) => (nested ? t : `${n}、${t}`);
   const setAtt = (k: keyof ReportContent['attendance'], v: number | null) =>
     setC?.(p => ({ ...p, attendance: { ...p.attendance, [k]: v as any } }));
   const a = c.attendance;
@@ -264,7 +275,7 @@ function AttendanceBody({ c, setC }: { c: ReportContent; setC?: React.Dispatch<R
   const nsTotal = a.present + a.absent + a.leave + (a.late ?? 0);
   return (
     <>
-      <Block title="一、学校口径出勤率">
+      <Block title={T('一', '学校口径出勤率')}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 8 }}>
           <Field label="当前学校出勤率(%)">
             {ro ? <span>{a.official_rate ?? '—'}</span>
@@ -281,7 +292,7 @@ function AttendanceBody({ c, setC }: { c: ReportContent; setC?: React.Dispatch<R
           : <Muted>{c.rate_history ? '暂无出勤率历史记录' : '旧版报告未含出勤率历史，重新生成可补上'}</Muted>}
       </Block>
 
-      <Block title="二、晚自习情况">
+      <Block title={T('二', '晚自习情况')}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
           {(['present', 'late', 'leave', 'absent'] as const).map(k => (
             <Field key={k} label={{ present: '在场', late: '迟到', leave: '请假', absent: '缺席' }[k]}>
@@ -296,14 +307,14 @@ function AttendanceBody({ c, setC }: { c: ReportContent; setC?: React.Dispatch<R
           : <Muted>本期无迟到 / 请假 / 缺席记录</Muted>}
       </Block>
 
-      <Block title="三、请假情况">
+      <Block title={T('三', '请假情况')}>
         {c.leaves ? (c.leaves.length
           ? <Tbl head={['类型', '起止', '时长', '事由', '审批', '证明']} center={[0, 2, 4, 5]}
             rows={c.leaves.map(l => [l.type, `${l.start} ~ ${l.end}`, l.duration, l.reason || '—', `${l.status}${l.approver ? ` · ${l.approver}` : ''}`, l.has_proof ? '已提交' : '—'])} />
           : <Muted>本期无请假记录</Muted>) : <Muted>旧版报告未含请假明细，重新生成可补上</Muted>}
       </Block>
 
-      <Block title="四、警告与违规" action={ro ? undefined : <AddBtn onClick={() => setC!(p => ({ ...p, violations: [...p.violations, { type: '', date: '', note: '' }] }))} />}>
+      <Block title={T('四', '警告与违规')} action={ro ? undefined : <AddBtn onClick={() => setC!(p => ({ ...p, violations: [...p.violations, { type: '', date: '', note: '' }] }))} />}>
         {(c.warnings || []).map((w, i) => (
           <div key={i} style={{ fontSize: 13, color: 'var(--color-danger)' }}>{fmtDate(w.date)} {w.source}警告信（{w.level} 级）{w.category}</div>
         ))}

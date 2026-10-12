@@ -1,11 +1,17 @@
 // 家长报告 Word 导出（真 .docx）—— 学术报告 / 出勤报告共用排版件
-// 学术：一、本期概览 → 二、各科成绩与分析 → 三、目标差距分析 → 四、考核日历 → 五、辅导课记录 → 六、综合评价
-// 出勤：一、本期概览 → 二、学校口径出勤率变化 → 三、晚自习情况 → 四、请假情况 → 五、警告与违规 → 六、综合评价
+// 学术：一、本期概览 → 二、各科成绩与分析 → 三、目标差距分析 → 四、考核日历 → 五、辅导与晚自习 → 六、出勤与纪律 → 综合评价
+// 出勤：一、本期概览 → 二、学校口径出勤率变化 → 三、晚自习情况 → 四、请假情况 → 五、警告与违规 → 综合评价
+// 版式依 Gris 定稿（学术报告--张希珃-2026-10-11 (1).docx）：英文 Times New Roman + 中文仿宋；
+// 页眉为公司信纸（左 logo、右联系方式、下边线）+ 斜置浅色 logo 水印；学生信息分两行。
 // 预览页（ReportEditor）与导出共用这里的计算函数，保证「系统里看到的」与「导出的 Word」一致。
 import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  WidthType, AlignmentType, ShadingType, BorderStyle,
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, ImageRun,
+  WidthType, AlignmentType, ShadingType, BorderStyle, TabStopType,
+  HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType,
 } from 'docx';
+import logoUrl from '../assets/report/logo.png';
+import contactUrl from '../assets/report/contact.jpg';
+import watermarkUrl from '../assets/report/watermark.png';
 import type { ReportRecord, ReportSubject, ReportNode, ReportContent } from '../store/useReportStore';
 import { COHORT_MIN_N } from '../store/useReportStore';
 
@@ -15,7 +21,8 @@ export { cnOf };
 
 const HEAD_BG = 'D9E2F3';
 const SUM_BG = 'F2F2F2';
-const FONT = '微软雅黑';
+// FangS-SC 是 Gris 电脑上 WPS 的仿宋，非通用字体名；写标准名「仿宋」，Windows / WPS 都能识别
+const FONT = { ascii: 'Times New Roman', hAnsi: 'Times New Roman', cs: 'Times New Roman', eastAsia: '仿宋' };
 const RED = 'C00000', AMBER = 'B26B00', GREEN = '2E7D32', GRAY = '808080';
 
 // ───────────────────────── 共用计算（预览页也用） ─────────────────────────
@@ -24,7 +31,7 @@ export const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).replace(/-/g, 
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
 export type Light = 'green' | 'yellow' | 'red' | 'gray';
-export const LIGHT_LABEL: Record<Light, string> = { green: '●稳定', yellow: '●需努力', red: '●高风险', gray: '○暂无成绩' };
+export const LIGHT_LABEL: Record<Light, string> = { green: '稳定', yellow: '需努力', red: '高风险', gray: '暂无成绩' };
 export const LIGHT_COLOR: Record<Light, string> = { green: GREEN, yellow: AMBER, red: RED, gray: GRAY };
 
 // 加权小结 + 红黄绿状态：与 gradeCalc.computeRequirement 同口径
@@ -179,7 +186,7 @@ export function targetBenchmark(c: ReportContent): { title: string | null; lines
       const sub = subs.find(x => x.name === name);
       if (!sub) return '已选，暂无成绩';
       const s = summarizeSubject(sub);
-      return `已选，${LIGHT_LABEL[s.light].replace('●', '').replace('○', '')}`;
+      return `已选，${LIGHT_LABEL[s.light]}`;
     };
     if (p.required_subjects_mode === 'all') {
       const miss = p.required_subjects.filter(r => !sel.includes(r));
@@ -217,8 +224,9 @@ const border = {
   right: { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' },
 };
 
+// opts 里值为 undefined 的键要剔除：否则会把默认字号覆盖成「未设置」，部分阅读器（WPS/预览）按 12 磅渲染，表格折行
 const run = (text: unknown, opts: any = {}) =>
-  new TextRun({ text: String(text ?? ''), font: FONT, size: 20, ...opts });
+  new TextRun({ text: String(text ?? ''), font: FONT, size: 20, ...Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined)) });
 
 type CellOpt = { bold?: boolean; bg?: string; align?: any; color?: string; size?: number };
 function cell(text: unknown, w: number, o: CellOpt = {}) {
@@ -270,13 +278,15 @@ export interface DocxMeta {
 
 function header(record: ReportRecord, meta: DocxMeta, fallbackTitle: string) {
   const period = [record.period_start, record.period_end].filter(Boolean).map(d => fmtDate(d)).join(' ~ ');
-  const info: TextRun[] = [run(`学生姓名：${meta.studentName}`, { bold: true })];
-  if (meta.studentNo) info.push(run(`　　学号：${meta.studentNo}`));
-  if (meta.program) info.push(run(`　　项目：${meta.program}`));
-  if (period) info.push(run(`　　报告周期：${period}`));
+  // 两行：姓名 / 学号；项目 / 报告周期（同边框的相邻段落在 Word 里合成一个框，线落在第二行下方）
+  const line1: TextRun[] = [run(`学生姓名：${meta.studentName}`, { bold: true })];
+  if (meta.studentNo) line1.push(run(`　　学号：${meta.studentNo}`));
+  const line2 = [meta.program && `项目：${meta.program}`, period && `报告周期：${period}`].filter(Boolean).join('　　');
+  const border = { bottom: { style: BorderStyle.SINGLE, size: 6, color: '888888' } };
   return [
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [run(record.title || fallbackTitle, { bold: true, size: 32 })] }),
-    new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '888888' } }, spacing: { after: 120 }, children: info }),
+    new Paragraph({ border, spacing: { after: line2 ? 0 : 120 }, children: line1 }),
+    ...(line2 ? [new Paragraph({ border, spacing: { after: 120 }, children: [run(line2)] })] : []),
   ];
 }
 
@@ -297,10 +307,45 @@ function footer(c: ReportContent, note: string) {
 
 const RISK_CN: Record<string, [string, string]> = { green: ['正常', GREEN], yellow: ['需关注', AMBER], red: ['重点干预', RED] };
 
-function doc(children: any[]) {
+// 信纸页眉：尺寸取自模版（EMU ÷ 9525 = 像素）；水印锚在页眉段落上，-30° 斜置、衬于文字下方
+const fetchBuf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+let letterheadCache: Promise<{ logo: Uint8Array; contact: Uint8Array; watermark: Uint8Array }> | null = null;
+const loadLetterhead = () => (letterheadCache ??= Promise.all([fetchBuf(logoUrl), fetchBuf(contactUrl), fetchBuf(watermarkUrl)])
+  .then(([logo, contact, watermark]) => ({ logo, contact, watermark })));
+
+async function letterhead() {
+  const img = await loadLetterhead();
+  return new Header({
+    children: [new Paragraph({
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'auto', space: 4 } },
+      tabStops: [{ type: TabStopType.RIGHT, position: 9026 }],
+      children: [
+        new ImageRun({
+          type: 'png', data: img.watermark,
+          transformation: { width: 530, height: 127, rotation: -30 },
+          floating: {
+            horizontalPosition: { relative: HorizontalPositionRelativeFrom.COLUMN, offset: 491490 },
+            verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: 3992245 },
+            behindDocument: true, allowOverlap: true, layoutInCell: true, lockAnchor: false,
+            wrap: { type: TextWrappingType.NONE },
+          },
+        }),
+        new ImageRun({ type: 'png', data: img.logo, transformation: { width: 184, height: 44 } }),
+        new TextRun({ text: '\t' }),
+        new ImageRun({ type: 'jpg', data: img.contact, transformation: { width: 281, height: 46 } }),
+      ],
+    })],
+  });
+}
+
+async function doc(children: any[]) {
   return new Document({
     styles: { default: { document: { run: { font: FONT, size: 20 } } } },
-    sections: [{ properties: { page: { margin: { top: 1080, bottom: 1080, left: 1440, right: 1440 } } }, children }],
+    sections: [{
+      properties: { page: { margin: { top: 1080, bottom: 1080, left: 1440, right: 1440, header: 708, footer: 708 } } },
+      headers: { default: await letterhead() },
+      children,
+    }],
   });
 }
 
@@ -366,7 +411,8 @@ function summarySection(c: ReportContent) {
       }), [1, 2, 3]));
   }
   const facts: string[] = [];
-  if (c.attendance?.official_rate != null) facts.push(`学校出勤率 ${c.attendance.official_rate}%（${rateStatus(c.attendance.official_rate).label}）`);
+  // 出勤概况与出勤报告同口径（学校出勤率及变化 / 晚自习 / 请假 / 警告违规）
+  facts.push(...attendanceFacts(c));
   if (c.risk_level && RISK_CN[c.risk_level]) facts.push(`综合风险：${RISK_CN[c.risk_level][0]}`);
   if (c.upcoming) facts.push(`未来 4 周有 ${c.upcoming.length} 项考核`);
   if (facts.length) out.push(new Paragraph({ spacing: { before: 120, after: 60 }, children: [run(facts.join('　｜　'))] }));
@@ -475,50 +521,58 @@ function sessionsSection(c: ReportContent) {
   return out;
 }
 
-export function buildAcademicDocx(record: ReportRecord, meta: DocxMeta): Document {
+export function buildAcademicDocx(record: ReportRecord, meta: DocxMeta): Promise<Document> {
   const c = record.content;
   const subjects = c.subjects || [];
   const children: any[] = [...header(record, meta, '学生学业进展报告'), ...summarySection(c), h1('二、各科成绩与分析')];
   if (subjects.length === 0) children.push(muted('（本周期暂无成绩记录）'));
   subjects.forEach(s => children.push(...subjectBlock(s)));
   children.push(...gapSection(c), ...upcomingSection(c), ...sessionsSection(c));
+  // 出勤与纪律（旧报告快照没有出勤明细，不出这一节）
+  if (c.rate_history || c.leaves || c.night_checks) {
+    children.push(h1('六、出勤与纪律'));
+    children.push(...attendanceParts(c, h2, ['学校口径出勤率变化', '晚自习出勤', '请假情况', '警告与违规']));
+  }
   children.push(...footer(c, `说明：得分标红为低于该科过线分；「待出」为尚未公布成绩；占比标「待确认」的项尚未取得官方评分表权重，暂不计入小结。同批对比基于 NFE 同科同入学批次学生的成绩计算（少于 ${COHORT_MIN_N} 人不做对比），非学校官方年级数据。`));
   return doc(children);
 }
 
 // ───────────────────────── 出勤报告 ─────────────────────────
 
-export function buildAttendanceDocx(record: ReportRecord, meta: DocxMeta): Document {
-  const c = record.content;
+// 出勤各章节：出勤报告单独成文用一级标题（二、三、四、五），学术报告并入「六、出勤与纪律」用二级标题
+function attendanceFacts(c: ReportContent): string[] {
   const a = c.attendance || { rate: null, present: 0, absent: 0, leave: 0 };
   const hist = c.rate_history || [];
   const inPeriod = hist.filter(h => h.in_period);
   const before = hist.filter(h => !h.in_period);
-  const children: any[] = [...header(record, meta, '学生出勤情况报告')];
-
-  // 一、概览
-  children.push(h1('一、本期概览'));
   const facts: string[] = [];
   if (a.official_rate != null) {
     const last = inPeriod[inPeriod.length - 1];
     const base = before[before.length - 1] ?? (inPeriod.length > 1 ? inPeriod[0] : undefined);
     const delta = last && base && last !== base ? r1(last.rate - base.rate) : null;
-    facts.push(`学校出勤率 ${a.official_rate}%（${rateStatus(a.official_rate).label}${delta == null ? '' : `，较上次${delta >= 0 ? '上升' : '下降'} ${Math.abs(delta)}`}）`);
+    facts.push(`学校出勤率 ${a.official_rate}%（${rateStatus(a.official_rate).label}${delta == null ? '' : delta === 0 ? '，与上次持平' : `，较上次${delta > 0 ? '上升' : '下降'} ${Math.abs(delta)}`}）`);
   }
   const nsTotal = a.present + a.absent + a.leave + (a.late ?? 0);
   if (nsTotal) facts.push(`晚自习 ${nsTotal} 次，出勤率 ${a.rate ?? '—'}%`);
   if (c.leaves) facts.push(`请假 ${c.leaves.length} 人次`);
-  const disc = (c.warnings?.length || 0) + (c.violations?.length || 0);
-  facts.push(disc ? `警告/违规 ${disc} 项` : '无警告/违规');
-  children.push(p(facts.join('　｜　')));
-  children.push(muted('合约要求学校出勤率 ≥ 95%，学校红线 93%。'));
-  children.push(...alertsBlock(c));
+  if (c.warnings || c.violations?.length) {
+    const disc = (c.warnings?.length || 0) + (c.violations?.length || 0);
+    facts.push(disc ? `警告/违规 ${disc} 项` : '无警告/违规');
+  }
+  return facts;
+}
 
-  // 二、学校口径出勤率变化
-  children.push(h1('二、学校口径出勤率变化'));
-  if (!hist.length) children.push(muted(a.official_rate != null ? `当前学校出勤率 ${a.official_rate}%（暂无历史记录）。` : '暂无学校出勤率记录。'));
+function attendanceParts(c: ReportContent, heading: (t: string) => Paragraph, titles: [string, string, string, string]) {
+  const a = c.attendance || { rate: null, present: 0, absent: 0, leave: 0 };
+  const hist = c.rate_history || [];
+  const before = hist.filter(h => !h.in_period);
+  const out: any[] = [];
+
+  // 学校口径出勤率变化
+  out.push(heading(titles[0]));
+  if (!hist.length) out.push(muted(a.official_rate != null ? `当前学校出勤率 ${a.official_rate}%（暂无历史记录）。` : '暂无学校出勤率记录。'));
   else {
-    children.push(table([1400, 1100, 1100, 1700, 3726], ['采集日期', '出勤率', '较上次', '状态', '措施 / 说明'],
+    out.push(table([1400, 1100, 1100, 1700, 3726], ['采集日期', '出勤率', '较上次', '状态', '措施 / 说明'],
       hist.map((h, i) => {
         const prev = hist[i - 1];
         const d = prev ? r1(h.rate - prev.rate) : null;
@@ -531,34 +585,35 @@ export function buildAttendanceDocx(record: ReportRecord, meta: DocxMeta): Docum
           [h.note || '—', { size: 18 }],
         ];
       }), [0, 1, 2, 3]));
-    if (before.length) children.push(muted('灰色日期为本期之前的记录，供对比趋势。'));
+    if (before.length) out.push(muted('灰色日期为本期之前的记录，供对比趋势。合约要求学校出勤率 ≥ 95%，学校红线 93%。'));
   }
 
-  // 三、晚自习
-  children.push(h1('三、晚自习情况'));
-  if (!nsTotal) children.push(muted('本期暂无晚自习点名记录。'));
+  // 晚自习
+  out.push(heading(titles[1]));
+  const nsTotal = a.present + a.absent + a.leave + (a.late ?? 0);
+  if (!nsTotal) out.push(muted('本期暂无晚自习点名记录。'));
   else {
-    children.push(table([1805, 1805, 1805, 1805, 1806], ['应到次数', '在场', '迟到', '请假', '缺席'],
+    out.push(table([1805, 1805, 1805, 1805, 1806], ['应到次数', '在场', '迟到', '请假', '缺席'],
       [[String(nsTotal), String(a.present), String(a.late ?? 0), String(a.leave), [String(a.absent), { bold: a.absent > 0, color: a.absent > 0 ? RED : undefined }]]],
       [0, 1, 2, 3, 4]));
     const ab = c.night_checks || [];
     if (ab.length) {
-      children.push(h2('异常记录'));
-      children.push(table([1600, 1400, 6026], ['日期', '状态', '备注'],
+      out.push(p('异常记录：', { bold: true }));
+      out.push(table([1600, 1400, 6026], ['日期', '状态', '备注'],
         ab.map(x => [fmtDate(x.date), [x.status, { color: x.status === '缺席' ? RED : AMBER }], x.note || '—']), [0, 1]));
-    } else children.push(p('本期晚自习无迟到、请假、缺席记录。', { color: GREEN }));
+    } else out.push(p('本期晚自习无迟到、请假、缺席记录。', { color: GREEN }));
   }
 
-  // 四、请假
-  children.push(h1('四、请假情况'));
+  // 请假
+  out.push(heading(titles[2]));
   const lv = c.leaves;
-  if (!lv) children.push(muted('（本报告生成时未统计请假）'));
-  else if (!lv.length) children.push(muted('本期无请假记录。'));
+  if (!lv) out.push(muted('（本报告生成时未统计请假）'));
+  else if (!lv.length) out.push(muted('本期无请假记录。'));
   else {
     const byType = new Map<string, number>();
     lv.forEach(l => byType.set(l.type, (byType.get(l.type) || 0) + 1));
-    children.push(p(`本期请假 ${lv.length} 人次：${Array.from(byType).map(([k, v]) => `${k} ${v} 次`).join('，')}。`));
-    children.push(table([800, 2300, 1000, 2326, 1100, 1500], ['类型', '起止时间', '时长', '事由', '审批', '证明材料'],
+    out.push(p(`本期请假 ${lv.length} 人次：${Array.from(byType).map(([k, v]) => `${k} ${v} 次`).join('，')}。`));
+    out.push(table([800, 2300, 1000, 2326, 1100, 1500], ['类型', '起止时间', '时长', '事由', '审批', '证明材料'],
       lv.map(l => [
         l.type, [`${l.start}\n~ ${l.end}`, { size: 18 }], l.duration, l.reason || '—',
         [`${l.status}${l.approver ? `\n${l.approver}` : ''}`, { size: 18, color: l.status === '已批准' ? undefined : AMBER }],
@@ -566,14 +621,23 @@ export function buildAttendanceDocx(record: ReportRecord, meta: DocxMeta): Docum
       ]), [0, 2, 4, 5]));
   }
 
-  // 五、警告与违规
-  children.push(h1('五、警告与违规'));
+  // 警告与违规
+  out.push(heading(titles[3]));
   const ws = c.warnings || [];
   const vs = c.violations || [];
-  if (!ws.length && !vs.length) children.push(p('本期无警告信与违规记录。', { color: GREEN }));
-  ws.forEach(w => children.push(p(`${fmtDate(w.date)}　${w.source}警告信（${w.level} 级）${w.category ? `：${w.category}` : ''}`, { color: RED })));
-  vs.forEach(v => children.push(p(`${fmtDate(v.date)}　${v.type}${v.note ? `：${v.note}` : ''}`)));
+  if (!ws.length && !vs.length) out.push(p('本期无警告信与违规记录。', { color: GREEN }));
+  ws.forEach(w => out.push(p(`${fmtDate(w.date)}　${w.source}警告信（${w.level} 级）${w.category ? `：${w.category}` : ''}`, { color: RED })));
+  vs.forEach(v => out.push(p(`${fmtDate(v.date)}　${v.type}${v.note ? `：${v.note}` : ''}`)));
+  return out;
+}
 
+export function buildAttendanceDocx(record: ReportRecord, meta: DocxMeta): Promise<Document> {
+  const c = record.content;
+  const children: any[] = [...header(record, meta, '学生出勤情况报告'), h1('一、本期概览')];
+  children.push(p(attendanceFacts(c).join('　｜　')));
+  children.push(muted('合约要求学校出勤率 ≥ 95%，学校红线 93%。'));
+  children.push(...alertsBlock(c));
+  children.push(...attendanceParts(c, h1, ['二、学校口径出勤率变化', '三、晚自习情况', '四、请假情况', '五、警告与违规']));
   children.push(...footer(c, '说明：学校出勤率以学校账户数据为准，由学管定期采集；晚自习与请假为 NFE 内部记录。'));
   return doc(children);
 }
@@ -582,7 +646,7 @@ export function buildAttendanceDocx(record: ReportRecord, meta: DocxMeta): Docum
 
 export async function downloadReportDocx(record: ReportRecord, meta: DocxMeta): Promise<void> {
   const isAcademic = record.report_type === 'monthly';
-  const d = isAcademic ? buildAcademicDocx(record, meta) : buildAttendanceDocx(record, meta);
+  const d = await (isAcademic ? buildAcademicDocx(record, meta) : buildAttendanceDocx(record, meta));
   const blob = await Packer.toBlob(d);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

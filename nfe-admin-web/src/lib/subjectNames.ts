@@ -4,7 +4,8 @@ const SUBJECT_CN: Record<string, string> = {
   EAP: '学术英语', Biology: '生物', Chemistry: '化学', Physics: '物理',
   Mathematics: '数学', Calculus: '微积分', Statistics: '统计',
   Economics: '经济', Accounting: '会计', Design: '设计',
-  'Art History': '艺术史', Geography: '地理', 'Media Studies': '传媒研究',
+  'Art History': '艺术史', Geography: '地理',
+  // Communication（原 Media Studies，2026-10-13 改名）按用户要求不加中文名，统一写 Communication
 };
 
 /** 英文科目名 → 中文名；查不到（如奥大课程代码 COMMS 106）返回空串 */

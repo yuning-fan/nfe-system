@@ -167,11 +167,10 @@ async function buildAlerts(studentId: string): Promise<{ alerts: string[]; level
   } catch { return { alerts: [], level: null }; }
 }
 
-// 出勤报告预填：学校口径出勤率变化 + 晚自习明细 + 请假明细 + 警告/违规 + 预警
-async function prefillAttendance(studentId: string, start: string, end: string): Promise<ReportContent> {
-  const c = emptyContent();
+// 出勤明细：学校口径出勤率变化 + 晚自习 + 请假 + 警告/违规。出勤报告与学术报告（「六、出勤与纪律」）共用
+async function fillAttendance(c: ReportContent, studentId: string, start: string, end: string): Promise<void> {
   const endTs = `${end}T23:59:59`;
-  try {
+  {
     const [{ data: info }, { data: rates }, { data: checks }, { data: leaves }, { data: letters }, { data: vios }] = await Promise.all([
       supabase.from('students_info').select('school_attendance_rate').eq('student_id', studentId).single(),
       // 取到期末为止的全部历史：变化趋势要看得到本期之前的起点
@@ -225,7 +224,14 @@ async function prefillAttendance(studentId: string, start: string, end: string):
       .filter(w => w.source === 'school' ? w.status !== 'rejected' : (w.status === 'issued' || w.status === 'signed_onsite'))
       .map(w => ({ date: w.occurred_on || '', source: w.source === 'school' ? '学校' : 'NFE', level: w.warning_level, category: w.category || '' }));
     if (vios) c.violations = vios.map(v => ({ type: v.violation_type || '违规', date: (v.created_at || '').slice(0, 10), note: v.reason || '' }));
+  }
+}
 
+// 出勤报告预填：出勤明细 + 预警
+async function prefillAttendance(studentId: string, start: string, end: string): Promise<ReportContent> {
+  const c = emptyContent();
+  try {
+    await fillAttendance(c, studentId, start, end);
     const r = await buildAlerts(studentId);
     c.alerts = r.alerts; c.risk_level = r.level;
   } catch (e) { console.warn('prefill attendance error', e); }
@@ -246,7 +252,7 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
         .select('program_subject_id, status, student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id, start_date)')
         .eq('student_enrollments.student_id', studentId),
       supabase.from('students_info')
-        .select('school_attendance_rate, target_university, target_degree, target_requirement_note, target_programme_id')
+        .select('target_university, target_degree, target_requirement_note, target_programme_id')
         .eq('student_id', studentId).single(),
     ]);
     // 该生各科所属批次（选课 → 报名 start_date），节点日期 / 同批对比都按批次取
@@ -343,7 +349,8 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
     });
     c.upcoming = upcoming.sort((a, b) => a.date.localeCompare(b.date));
 
-    c.attendance.official_rate = info?.school_attendance_rate ?? null;
+    // 出勤与纪律：与出勤报告同口径
+    await fillAttendance(c, studentId, start, end);
 
     // 升学对标
     let programme: ReportProgramme | null = null;

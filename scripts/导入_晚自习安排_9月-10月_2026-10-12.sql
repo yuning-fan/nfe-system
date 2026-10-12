@@ -37,7 +37,7 @@ Intro 通用结构：课程介绍 5min → 考核全景 15min（几次考试、�
  '9.14—9.20 晚自习安排(1).docx'),
 
 ('2026-09-21', '2026-09-25', '9.21–9.25 晚自习各老师工作安排',
- '本周考试：周三 统计、化学、传媒、EAP；周四 微积分、生物；周五 会计（艺术史、经济本周亦有测验）。
+ '本周考试：周三 统计、化学、Communication、EAP；周四 微积分、生物；周五 会计（艺术史、经济本周亦有测验）。
 下下周任务：Biology Critical Research Essay – Draft｜Chemistry Group Project Infographic｜Geography Skills Test。',
  '周一至周四同步下下周（9.28–10.2）空闲时间给 Gris，周五/六统一发排课表。对表现较差的学生做好学习记录并及时反馈。本周 PPT、自制资料、Blackboard 资料整理并标注用途，上传 NFE 内部资料库并发科目辅导群；私下答疑内容整理后发群。本周不录出勤率。时间 18:00–20:30，每节 1 小时，奥大国际学院 1 楼；周五无晚自习。',
  '[{"teacher":"Tiffany","time":"周三","task":"化学考后收集学生反馈；晚上群内发生物考前要点并答疑"},
@@ -46,7 +46,7 @@ Intro 通用结构：课程介绍 5min → 考核全景 15min（几次考试、�
    {"teacher":"Hanrui","time":"周三晚","task":"群内微积分考前答疑"},
    {"teacher":"Shelley","time":"本周内","task":"艺术史本周已上过课，整理资料上传学习系统，群内答疑"},
    {"teacher":"Shikai","time":"周四晚","task":"群内会计考前答疑和提醒"},
-   {"teacher":"Clara","time":"周一至周二","task":"传媒周三考试，已做过考前辅导，以群内复习答疑为主，考前发要点提醒"},
+   {"teacher":"Clara","time":"周一至周二","task":"Communication 周三考试，已做过考前辅导，以群内复习答疑为主，考前发要点提醒"},
    {"teacher":"Ryan","time":"周一至周二","task":"EAP 周三考试，已做过考前辅导，以群内复习答疑为主，考前发要点提醒"},
    {"teacher":"Ryan","time":"本周内","task":"语言基础较弱的学生由晚自习老师带背和考察"}]'::jsonb,
  '[{"date":"2026-09-21","r106":"20:00 起讨论","r109":"18:00–20:00 讨论","r110":"静音"},
@@ -86,7 +86,7 @@ Intro 通用结构：课程介绍 5min → 考核全景 15min（几次考试、�
  '10.5-10.9 晚自习各老师工作安排.docx'),
 
 ('2026-10-12', '2026-10-16', '10.12–10.16 晚自习各老师工作安排',
- '本周考试：微积分 Common Test 2（原文写 10%）、艺术史 Common Test W1（10%）、化学 Common Test 1（7.5%）、统计 Common Test 2（7.5%）、物理 Practical Investigation（10%）——上周已排；传媒 Short Writing Test（周四课上）——本周二。
+ '本周考试：微积分 Common Test 2（原文写 10%）、艺术史 Common Test W1（10%）、化学 Common Test 1（7.5%）、统计 Common Test 2（7.5%）、物理 Practical Investigation（10%）——上周已排；Communication Short Writing Test（周四课上）——本周二。
 下周（10.19）考试：经济 Common Test 2（10%）——考试推迟；地理 Tourism Test（10%）——已排；生物 Group Project Infographic——下周。',
  '所有老师：周一至周四同步 10.19–10.23 空闲时间给 Gris，周五统一发排课表；对表现较差的学生做好学习记录并及时反馈；资料整理上传 NFE 内部资料库并发科目辅导群。
 小组作业：化学视频、经济展示（11/2 交）的讲座顺延到下周，相关老师本周内整理好题目要求和评分标准。时间 18:00–20:30，每节 1–1.5 小时；10.16（周五）无晚自习。',
@@ -121,7 +121,7 @@ with s(session_date, start_time, end_time, room, kind, subject, program_subject_
   ('2026-09-15', null, null, '106', 'exam_prep', 'EAP (English for Academic Purposes)', 57, 279, 'Ryan', 'Shikai',
      'Assessment 1: Source Evaluation（下周考试内容）', '1–1.5 小时；结束后 106 转讨论'),
   ('2026-09-16', null, null, '106', 'intro', 'Art History', 53, 266, 'Shelley', 'Shelley、Hanrui', '艺术史 intro + 下周考试内容', null),
-  ('2026-09-16', null, null, '106', 'intro', 'Media Studies', 60, null, 'Gris', 'Shelley、Hanrui', '传媒 intro', null),
+  ('2026-09-16', null, null, '106', 'intro', 'Communication', 60, null, 'Gris', 'Shelley、Hanrui', 'Communication intro', null),
   ('2026-09-17', null, null, '109', 'intro', 'Economics', 58, 208, 'Shelley', 'Shikai', '经济 intro + Common Test 1 内容', '学管和助教登记这两周出勤率'),
   -- 9.21 周
   ('2026-09-21', '18:00', '19:00', '106', 'exam_prep', 'Statistics', 62, 262, 'Hanrui', null, '统计考前复习：梳理公式和题型，讲模考题', '周三考'),
@@ -149,9 +149,9 @@ with s(session_date, start_time, end_time, room, kind, subject, program_subject_
   ('2026-10-08', '18:00', '19:00', '106', 'exam_prep', 'Statistics', 62, 267, 'Hanrui', null, '统计 CT2（7.5%，28 人）考前大课：重难点、考什么', null),
   ('2026-10-08', '19:00', '20:30', '106', 'qa', 'Statistics', 62, 267, 'Hanrui', null, '值班答疑', null),
   -- 10.12 周
-  ('2026-10-13', '18:00', '19:00', '106', 'workshop', 'Media Studies', 60, 214, 'Clara', null,
+  ('2026-10-13', '18:00', '19:00', '106', 'workshop', 'Communication', 60, 214, 'Clara', null,
      'Visual Text（Poster）Short Response 怎么写：开头句、五个问题、结尾句，用样例讲常见问题', '短写作测试在周四课上'),
-  ('2026-10-13', '19:00', '20:30', '106', 'workshop', 'Media Studies', 60, 214, 'Clara', 'Gris',
+  ('2026-10-13', '19:00', '20:30', '106', 'workshop', 'Communication', 60, 214, 'Clara', 'Gris',
      '逐个批改同学写好的 Outline，当场反馈；改完的同学回去修改背诵', 'Clara、Gris 分头批改'),
   ('2026-10-14', '18:00', '19:00', '106', 'exam_prep', 'Geography', 59, 312, 'Clara', null, '地理 Tourism Test（下周二考，10%，6 人）考前课：重难点、考什么', '其余时间值班答疑'),
   ('2026-10-15', '18:00', '19:00', '106', 'workshop', 'EAP (English for Academic Purposes)', 57, 274, 'Ryan', null,
