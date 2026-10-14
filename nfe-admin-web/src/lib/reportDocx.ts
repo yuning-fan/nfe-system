@@ -37,7 +37,7 @@ export const LIGHT_COLOR: Record<Light, string> = { green: GREEN, yellow: AMBER,
 // 加权小结 + 红黄绿状态：与 gradeCalc.computeRequirement 同口径
 // 状态口径：后续需均分 ≤ 当前已出均分 → 照现在水平即可过线（绿）；高出 15 分以内（黄）；更高或无法达线（红）
 export function summarizeSubject(sub: ReportSubject) {
-  const scored = sub.nodes.filter(n => n.weight > 0 && n.score != null);
+  const scored = sub.nodes.filter(n => !n.child && n.weight > 0 && n.score != null);
   const gradedWeight = r1(scored.reduce((s, n) => s + n.weight, 0));
   const earned = r1(scored.reduce((s, n) => s + (n.weight / 100) * (n.score as number), 0));
   const remaining = r1(100 - gradedWeight);
@@ -359,8 +359,8 @@ function subjectBlock(sub: ReportSubject) {
     const pending = n.score == null;
     const low = !pending && n.weight > 0 && (n.score as number) < sub.passMark;
     return [
-      n.title,
-      n.weight > 0 ? `${n.weight}%` : ['待确认', { color: RED }],
+      n.child ? [`　└ ${n.title}`, { color: '555555' }] : n.title,
+      n.child ? [`占该项 ${n.weight}%`, { color: GRAY, size: 18 }] : n.weight > 0 ? `${n.weight}%` : ['待确认', { color: RED }],
       pending ? ['待出', { color: GRAY }] : [`${n.score}%`, { bold: low, color: low ? RED : undefined }],
       fmtDate(n.date),
       [cohortShort(n), { color: GRAY, size: 18 }],
@@ -384,7 +384,7 @@ function subjectBlock(sub: ReportSubject) {
   for (const n of detailed) {
     out.push(new Paragraph({
       spacing: { before: 140, after: 40 },
-      children: [run(`▸ ${n.title}`, { bold: true }), run(`（占比 ${n.weight}%，得分 ${n.score}%${n.kind ? `，${KIND_CN[n.kind] || n.kind}` : ''}）`, { color: GRAY })],
+      children: [run(`▸ ${n.title}`, { bold: true }), run(`（${n.child ? '占该项' : '占比'} ${n.weight}%，得分 ${n.score}%${n.kind ? `，${KIND_CN[n.kind] || n.kind}` : ''}）`, { color: GRAY })],
     }));
     out.push(...kv('层次与差距', cohortText(n)));
     out.push(...kv('考察重点', n.exam_focus));

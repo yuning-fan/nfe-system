@@ -33,6 +33,7 @@ export interface ReportNode {
   paper_features?: string;      // 试卷特点（按节点×批次共用）
   advice?: string;              // 改进指导（辅导老师侧）
   reflection?: string;          // 学生自我反馈与反思
+  child?: boolean;              // 子项：紧跟在父项后；weight 为「占父项 %」，不参与总评加权（父项已含）
 }
 // nodes.date = 考核日期（academic_milestones.due_date，按批次解析）
 export interface ReportSubject {
@@ -307,35 +308,44 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
         return rd.date_source === 'unverified' ? null : (rd.due_date || null);
       };
 
-      const outNodes: ReportNode[] = r.rows.map((row, idx) => {
-        const n = row.node as any;
+      const cohortOf = (myS: number | null, pick: (rows: typeof r.rows) => number | null | undefined): CohortStats | null => {
+        if (myS == null) return null;
+        const scores = peerRows.map(p => pick(p.rows)).filter((x): x is number => x != null);
+        if (scores.length < COHORT_MIN_N) return { n: scores.length };
+        return {
+          n: scores.length,
+          median: round1(median(scores)),
+          mean: round1(scores.reduce((a, b) => a + b, 0) / scores.length),
+          max: round1(Math.max(...scores)), min: round1(Math.min(...scores)),
+          rank: 1 + scores.filter(x => x > myS).length,
+        };
+      };
+      const toNode = (n: any, weight: number, score: number | null, cohort: CohortStats | null, child: boolean): ReportNode => {
         const g = gr.find(x => x.milestone_id === n.id);
-        let cohort: CohortStats | null = null;
-        if (row.score != null) {
-          const scores = peerRows.map(p => p.rows[idx]?.score).filter((x): x is number => x != null);
-          cohort = { n: scores.length };
-          if (scores.length >= COHORT_MIN_N) {
-            cohort = {
-              n: scores.length,
-              median: round1(median(scores)),
-              mean: round1(scores.reduce((a, b) => a + b, 0) / scores.length),
-              max: round1(Math.max(...scores)), min: round1(Math.min(...scores)),
-              rank: 1 + scores.filter(x => x > (row.score as number)).length,
-            };
-          }
-        }
         const note = intake ? ((notes || []) as any[]).find(x => x.milestone_id === n.id && x.intake_start === intake) : null;
         return {
-          title: n.title, weight: row.weight, score: row.score, date: resolve(n),
+          title: n.title, weight, score, date: resolve(n),
           milestone_id: n.id, grade_id: g?.id ?? null, kind: n.milestone_type ?? null, cohort,
           exam_focus: note?.exam_focus || '', paper_features: note?.paper_features || '',
           advice: g?.improvement_advice || '', reflection: g?.student_reflection || '',
+          ...(child ? { child: true } : {}),
         };
-      });
+      };
+      // 父项一行 + 其子项逐行（子项各有成绩/日期，家长要看到每次小测）
+      const outNodes: ReportNode[] = r.rows.flatMap((row, idx) => [
+        toNode(row.node, row.weight, row.score, cohortOf(row.score, rs => rs[idx]?.score), false),
+        // 子项按日期、再按名称排（库里 CT2 可能先于 CT1 建）；j 保留原下标以对齐同批同学的同一子项
+        ...row.children.map((ch, j) => ({ ch, j, d: resolve(ch.node) || '9999' }))
+          .sort((a, b) => a.d.localeCompare(b.d) || a.ch.node.title.localeCompare(b.ch.node.title, undefined, { numeric: true }))
+          .map(({ ch, j }) => toNode(ch.node, ch.weight, ch.score,
+            cohortOf(ch.score, rs => rs[idx]?.children[j]?.score), true)),
+      ]);
 
       // 考核日历：未出分、日期落在期末后 4 周内；有子项的按子项列（子项各有截止日）
       for (const row of r.rows) {
-        const items = row.children.length ? row.children : [{ node: row.node, weight: row.weight, score: row.score }];
+        const items = row.children.length
+          ? row.children.map(ch => ({ ...ch, weight: round1(row.weight * ch.weight / 100) }))
+          : [{ node: row.node, weight: row.weight, score: row.score }];
         for (const it of items) {
           if (it.score != null) continue;
           const d = resolve(it.node);

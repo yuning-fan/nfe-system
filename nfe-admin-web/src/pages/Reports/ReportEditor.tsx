@@ -392,8 +392,9 @@ function SubjectTable({ sub }: { sub: ReportSubject }) {
         ...sub.nodes.map(n => {
           const pending = n.score == null;
           const low = !pending && n.weight > 0 && (n.score as number) < sub.passMark;
-          return [n.title,
-            <span style={{ color: n.weight > 0 ? undefined : 'var(--color-danger)' }}>{n.weight > 0 ? `${n.weight}%` : '待确认'}</span>,
+          return [n.child ? <span style={{ paddingLeft: 16, color: 'var(--color-text-secondary)' }}>└ {n.title}</span> : n.title,
+            n.child ? <span style={{ color: 'var(--color-text-tertiary)', fontSize: 12 }}>占该项 {n.weight}%</span>
+              : <span style={{ color: n.weight > 0 ? undefined : 'var(--color-danger)' }}>{n.weight > 0 ? `${n.weight}%` : '待确认'}</span>,
             <span style={{ fontWeight: low ? 700 : 400, color: low ? 'var(--color-danger)' : pending ? 'var(--color-text-tertiary)' : undefined }}>{pending ? '待出' : `${n.score}%`}</span>,
             fmtDate(n.date),
             <span style={{ color: 'var(--color-text-tertiary)' }}>{cohortShort(n)}</span>];
