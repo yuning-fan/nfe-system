@@ -37,12 +37,22 @@ export const LIGHT_COLOR: Record<Light, string> = { green: GREEN, yellow: AMBER,
 // 加权小结 + 红黄绿状态：与 gradeCalc.computeRequirement 同口径
 // 状态口径：后续需均分 ≤ 当前已出均分 → 照现在水平即可过线（绿）；高出 15 分以内（黄）；更高或无法达线（红）
 export function summarizeSubject(sub: ReportSubject) {
-  const scored = sub.nodes.filter(n => !n.child && n.weight > 0 && n.score != null);
-  const gradedWeight = r1(scored.reduce((s, n) => s + n.weight, 0));
-  const earned = r1(scored.reduce((s, n) => s + (n.weight / 100) * (n.score as number), 0));
+  // 计入项：已出分的顶层项；父项未出全时，其已出分的子项按「父项占比 × 子项占父项%」先行计入（CT1 出分即算 2.5%）
+  const scored: { w: number; score: number }[] = [];
+  let parent: ReportNode | null = null;
+  for (const n of sub.nodes) {
+    if (!n.child) { parent = n; if (n.weight > 0 && n.score != null) scored.push({ w: n.weight, score: n.score }); continue; }
+    if (parent && parent.score == null && parent.weight > 0 && n.weight > 0 && n.score != null) {
+      scored.push({ w: (parent.weight * n.weight) / 100, score: n.score });
+    }
+  }
+  const rawW = scored.reduce((s, x) => s + x.w, 0);
+  const rawE = scored.reduce((s, x) => s + (x.w / 100) * x.score, 0);
+  const gradedWeight = r1(rawW);
+  const earned = r1(rawE);
   const remaining = r1(100 - gradedWeight);
   const gap = r1(sub.passMark - earned);
-  const avg = gradedWeight ? r1((earned / gradedWeight) * 100) : null;
+  const avg = rawW ? r1((rawE / rawW) * 100) : null;  // 用未取整的值，免得 2.5% 权重下 93 分算成 92
   let need = '—';
   let requiredAvg: number | null = null;
   let light: Light = 'gray';
