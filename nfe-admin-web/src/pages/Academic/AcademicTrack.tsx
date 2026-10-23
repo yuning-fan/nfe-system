@@ -127,8 +127,13 @@ export default function AcademicTrack() {
                 const enrollmentSelections = selections.filter(s => s.enrollment_id === enrollment.id);
                 const coreSubjects = enrollmentSelections.filter(s => s.selection_type === 'core');
                 const electiveSubjects = enrollmentSelections.filter(s => s.selection_type === 'elective');
+                // 只列本阶段自己的科目。原先没按 program_id 过滤，把四个项目的选修课全列了出来，
+                // 而同名科目（Accounting / Statistics 等在多个项目里都有）在下拉里一模一样，
+                // 已导致 3 名学生选到别的项目的科目（沈思妤 / 蔡佳虹 / 高一菲）。
                 const availableElectives = programSubjects.filter(
-                  ps => ps.subject_category === 'elective' && !enrollmentSelections.find(s => s.program_subject_id === ps.id)
+                  ps => ps.program_id === enrollment.program_id
+                    && ps.subject_category === 'elective'
+                    && !enrollmentSelections.find(s => s.program_subject_id === ps.id)
                 );
 
                 const hasTimetable = timetable.some(t => t.enrollment_id === enrollment.id);
@@ -191,7 +196,7 @@ export default function AcademicTrack() {
                               value={selectedSubject}
                               onChange={e => setSelectedSubject(e.target.value)}
                             >
-                              <option value="">-- 选择选修课 --</option>
+                              <option value="">-- 选择选修课（{enrollment.programs?.name || '本阶段'}）--</option>
                               {availableElectives.map(subj => (
                                 <option key={subj.id} value={subj.id}>{subj.subject_name}</option>
                               ))}
