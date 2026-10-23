@@ -105,6 +105,11 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         .from('school_timetable')
         .select('student_id');
 
+      // 学校平台账号（导出「平台账号密码」列用）。档案详情页另有一份按 id 查的，两处互不影响。
+      const { data: credData } = await supabase
+        .from('student_credentials')
+        .select('student_id, platform_name, account, encrypted_password');
+
       // 入学清单的「选课」一项看这里，不再看课表 —— 奥大学生不排课但要选课
       const { data: selectionData } = await supabase
         .from('student_subject_selections')
@@ -183,6 +188,39 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           ? `${dormTextMap[d.student_id]}；${text}` : text;
       }
       const timetableSet = new Set((timetableData || []).map(t => t.student_id));
+
+      // 平台账号密码：一名学生通常有 SELMA + Blackboard 两条、账号密码相同，
+      // 相同就并成一行「SELMA·Blackboard 账号 / 密码」；确有不同的（如周继翀 Blackboard 用的是 QQ 邮箱）
+      // 才逐平台列出，绝不只显示其中一条。
+      // 用「；」而不是换行分隔：导出的 xlsx 单元格没开 wrapText，换行在 Excel 里不会换。
+      const platformLabel = (n: string) => {
+        const t = (n || '').trim();
+        if (/^blackboard$/i.test(t)) return 'Blackboard';   // 库里有 1 条小写的 blackboard
+        if (/^selma$/i.test(t)) return 'SELMA';
+        return t;
+      };
+      const credMap: Record<string, string> = {};
+      {
+        const byStudent: Record<string, { platforms: string[]; account: string; pwd: string }[]> = {};
+        for (const c of ((credData || []) as any[])) {
+          if (!c.student_id) continue;
+          const account = c.account || '';
+          const pwd = c.encrypted_password || '';
+          const list = (byStudent[c.student_id] ||= []);
+          const same = list.find(x => x.account === account && x.pwd === pwd);
+          if (same) same.platforms.push(platformLabel(c.platform_name));
+          else list.push({ platforms: [platformLabel(c.platform_name)], account, pwd });
+        }
+        for (const [sid, groups] of Object.entries(byStudent)) {
+          credMap[sid] = groups
+            // 平台名排序：PostgREST 返回顺序不固定，不排的话同一个人两次导出可能
+            // 一次是「SELMA·Blackboard」一次是「Blackboard·SELMA」，看着像数据变了
+            .map(g => [g.platforms.slice().sort().join('·'), g.account, g.pwd && `/ ${g.pwd}`]
+              .filter(Boolean).join(' '))
+            .sort()
+            .join('；');
+        }
+      }
       const selectionSet = new Set(
         ((selectionData || []) as any[])
           .map(r => (Array.isArray(r.student_enrollments) ? r.student_enrollments[0] : r.student_enrollments)?.student_id)
@@ -212,7 +250,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           student_enrollments: info.student_enrollments || [],
           student_documents: docsMap[p.id] || [],
           dorm_assignments: dormsSet.has(p.id) ? [{}] : [],
-          housing: dormTextMap[p.id] || null,   // 导出「住宿情况」列用
+          housing: dormTextMap[p.id] || null,              // 导出「住宿情况」列用
+          platform_credentials: credMap[p.id] || null,     // 导出「平台账号密码」列用
           school_timetable: timetableSet.has(p.id) ? [{}] : [],
           has_selections: selectionSet.has(p.id),
           current_phase: cur,        // 当前在读阶段（id/program/source/start_date/status/programs.name）

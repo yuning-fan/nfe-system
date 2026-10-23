@@ -92,6 +92,7 @@ const nfeNoOf = (s: any) => s.nfe_no ?? Number.MAX_SAFE_INTEGER;
 
 const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellValue }[] = [
   { title: '学号', width: 12, value: s => fmtNfeNo(s.nfe_no) },
+  { title: 'UP 学号', width: 13, value: s => s.up_student_id },
   { title: '姓名', width: 12, value: s => s.profiles?.full_name },
   { title: '拼音英文名', width: 14, value: s => s.english_name },
   { title: '英文名', width: 12, value: s => s.preferred_english_name },
@@ -113,6 +114,7 @@ const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellVal
   { title: '在读状态', width: 10, value: s => derivePhaseStatus(s.current_phase).label },
   { title: '风险等级', width: 10, value: s => RISK_LEVEL_LABEL[normalizeRiskLevel(s.risk_level)] },
   { title: '服务截止日期', width: 14, value: s => latestEnd(s) },
+  { title: '目标专业', width: 34, value: s => s.target_degree },
   { title: '缴费状态', width: 10, value: s => OVERALL_FEE_TEXT[overallFee(s)] },
   ...FEE_TYPES.map(t => ({
     title: `${FEE_TYPE_LABELS[t]}费`, width: 8, value: (s: any) => FEE_STATE_TEXT[feeOf(s, t)],
@@ -121,16 +123,19 @@ const EXPORT_COLUMNS: { title: string; width: number; value: (s: any) => CellVal
   { title: '抵新日期', width: 12, value: s => s.arrival_date },
   { title: '签证到期', width: 12, value: s => s.visa_expiry },
   { title: '入学清单待办', width: 12, value: s => onboardingMissing(s) },
+  { title: '平台账号密码', width: 52, value: s => s.platform_credentials },
 ];
 
 // 导出字段分组（仅影响勾选面板的排布，不影响导出列序——列序始终按 EXPORT_COLUMNS）
 const EXPORT_ALL_TITLES = EXPORT_COLUMNS.map(c => c.title);
 const GROUP_DEFS: { name: string; titles: string[] }[] = [
-  { name: '基本信息', titles: ['学号', '姓名', '拼音英文名', '英文名', '性别', '出生日期', '电话', '城市'] },
+  { name: '基本信息', titles: ['学号', 'UP 学号', '姓名', '拼音英文名', '英文名', '性别', '出生日期', '电话', '城市'] },
   { name: '学校与来源', titles: ['来源学校', '就读学校', '市场来源', '渠道'] },
   { name: '负责人', titles: ['顾问', '新西兰顾问/学管', '新西兰生活老师'] },
   { name: '住宿', titles: ['住宿情况'] },
   { name: '课程与状态', titles: ['当前课程/阶段', '开学日期', '开学季', '在读状态', '服务截止日期', '风险等级'] },
+  { name: '升学', titles: ['目标专业'] },
+  { name: '学校平台账号', titles: ['平台账号密码'] },
   { name: '证件与入学', titles: ['抵新日期', '签证到期', '入学清单待办'] },
 ];
 // 未归组的（各项费用、可用课时等）统一进「费用与课时」，避免新增列时漏掉
