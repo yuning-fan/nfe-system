@@ -1465,6 +1465,7 @@ export type Database = {
           room: string | null
           session_date: string
           start_time: string | null
+          student_ids: string[] | null
           subject: string | null
           teacher_id: string | null
           teacher_name: string | null
@@ -1483,6 +1484,7 @@ export type Database = {
           room?: string | null
           session_date: string
           start_time?: string | null
+          student_ids?: string[] | null
           subject?: string | null
           teacher_id?: string | null
           teacher_name?: string | null
@@ -1501,6 +1503,7 @@ export type Database = {
           room?: string | null
           session_date?: string
           start_time?: string | null
+          student_ids?: string[] | null
           subject?: string | null
           teacher_id?: string | null
           teacher_name?: string | null
@@ -3525,6 +3528,7 @@ export type Database = {
       }
     }
     Functions: {
+      can_see_student: { Args: { target: string }; Returns: boolean }
       current_user_role: { Args: never; Returns: string }
       is_elevated: { Args: never; Returns: boolean }
     }

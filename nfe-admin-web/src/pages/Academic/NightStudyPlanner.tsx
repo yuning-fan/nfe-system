@@ -10,7 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { nzToday } from '../../lib/nzDate';
 import {
   ROOMS, KIND_LABEL, KIND_PILL, addDays, mondayOf, weekdayOf, md, hm, defaultWeekTitle,
-  loadWeek, saveWeek, saveSession, deleteSession, copyFromPrevWeek, loadTeacherOptions, exportWeekDocx,
+  loadWeek, saveWeek, saveSession, deleteSession, copyFromPrevWeek, loadTeacherOptions, loadSubjectStudents, exportWeekDocx,
   type NightWeek, type NightSession, type NightSessionInput, type TeacherTask, type RoomNote,
 } from '../../lib/nightStudy';
 
@@ -20,7 +20,7 @@ interface NodeOpt { id: number; title: string; parent_id: number | null; program
 const emptySession = (date: string, room: string | null): NightSessionInput => ({
   session_date: date, start_time: '18:00', end_time: '19:00', room, kind: 'exam_prep',
   subject: null, program_subject_id: null, milestone_id: null,
-  teacher_name: null, teacher_id: null, assistants: null, topic: '', notes: null,
+  teacher_name: null, teacher_id: null, assistants: null, topic: '', notes: null, student_ids: null,
 });
 
 export default function NightStudyPlanner() {
@@ -206,6 +206,7 @@ function SessionCard({ s, nodes, onClick }: { s: NightSession; nodes: NodeOpt[];
       <div style={{ fontWeight: 600, marginTop: 2 }}>{s.subject?.replace(/ \(English for Academic Purposes\)/, '') || '（不限科目）'}{s.teacher_name && <span style={{ fontWeight: 400 }}> · {s.teacher_name}</span>}</div>
       <div style={{ color: 'var(--color-text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{s.topic}</div>
       {node && <div style={{ color: 'var(--color-primary)', marginTop: 2 }}>→ {node.title}</div>}
+      {!!s.student_ids?.length && <div style={{ color: 'var(--color-warning, #b7791f)', marginTop: 2 }}>小课 · {s.student_ids.length} 人</div>}
     </div>
   );
 }
@@ -245,6 +246,15 @@ function SessionModal({ init, subjects, nodes, teachers, onClose, onSaved }: {
     return { value: n.id, label: `${parent ? `${parent.title} › ` : ''}${n.title}${n.weight_percent ? `（${n.weight_percent}%）` : ''}${n.due_date ? ` · ${md(n.due_date)}` : ''}` };
   }), [nodes, v.program_subject_id]);
 
+  // 小课名单：只列选了该科的学生；换科目时清掉不在新科目里的人
+  const [stuOpts, setStuOpts] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!v.program_subject_id) { setStuOpts([]); return; }
+    let alive = true;
+    loadSubjectStudents(v.program_subject_id).then(list => { if (alive) setStuOpts(list); }).catch(() => alive && setStuOpts([]));
+    return () => { alive = false; };
+  }, [v.program_subject_id]);
+
   const save = async () => {
     if (!v.session_date) { message.warning('请选择日期'); return; }
     if (!v.topic?.trim()) { message.warning('请填写内容'); return; }
@@ -254,6 +264,7 @@ function SessionModal({ init, subjects, nodes, teachers, onClose, onSaved }: {
       await saveSession({
         ...v, topic: v.topic.trim(), teacher_name: v.teacher_name?.trim() || null, teacher_id: t?.id ?? null,
         start_time: v.start_time || null, end_time: v.end_time || null,
+        student_ids: v.student_ids?.length ? v.student_ids : null,
       }, init.id);
       message.success('已保存'); onSaved();
     } catch (e: any) { message.error(e.message || '保存失败'); }
@@ -286,7 +297,7 @@ function SessionModal({ init, subjects, nodes, teachers, onClose, onSaved }: {
         <L t="科目（可空：跨科答疑 / 事务）">
           <Select style={{ width: '100%' }} allowClear showSearch optionFilterProp="label" value={v.program_subject_id ?? undefined}
             options={subjOptions} placeholder="选择科目"
-            onChange={(id?: number) => set({ program_subject_id: id ?? null, subject: subjects.find(s => s.id === id)?.name ?? null, milestone_id: null })} />
+            onChange={(id?: number) => set({ program_subject_id: id ?? null, subject: subjects.find(s => s.id === id)?.name ?? null, milestone_id: null, student_ids: null })} />
         </L>
         <L t="针对的考核（选了会出现在学生报告的考核日历上）" span>
           <Select style={{ width: '100%' }} allowClear showSearch optionFilterProp="label" value={v.milestone_id ?? undefined}
@@ -300,6 +311,12 @@ function SessionModal({ init, subjects, nodes, teachers, onClose, onSaved }: {
             onChange={x => set({ teacher_name: x || null })} />
         </L>
         <L t="助教 / 值班"><input className="input" style={{ width: '100%' }} value={v.assistants || ''} onChange={e => set({ assistants: e.target.value || null })} /></L>
+        <L t="指定学生（小课；不选 = 选了该科的全部学生）" span>
+          <Select mode="multiple" style={{ width: '100%' }} allowClear showSearch optionFilterProp="label"
+            disabled={!v.program_subject_id} placeholder={v.program_subject_id ? '不选即为大课' : '先选科目'}
+            value={v.student_ids || []} onChange={(ids: string[]) => set({ student_ids: ids.length ? ids : null })}
+            options={stuOpts.map(x => ({ value: x.id, label: x.name }))} />
+        </L>
         <L t="内容（讲什么）" span>
           <textarea className="input" rows={3} style={{ width: '100%' }} value={v.topic} placeholder="如：统计 CT2（7.5%）考前大课：讲重难点，强调考什么"
             onChange={e => set({ topic: e.target.value })} />

@@ -386,6 +386,8 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
         supabase.from('night_study_sessions')
           .select('session_date, start_time, end_time, subject, kind, topic, teacher_name, milestone:academic_milestones(title)')
           .in('program_subject_id', selectedIds).gte('session_date', start).lte('session_date', end)
+          // 小课（student_ids 非空）只给名单内学生
+          .or(`student_ids.is.null,student_ids.cs.{${studentId}}`)
           .order('session_date').order('start_time', { nullsFirst: true }),
         supabase.from('daily_checks').select('check_date, status')
           .eq('student_id', studentId).eq('check_type', 'night_study').gte('check_date', start).lte('check_date', end),
@@ -393,6 +395,7 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
         c.upcoming.length
           ? supabase.from('night_study_sessions').select('session_date, kind, milestone_id')
             .in('milestone_id', c.upcoming.map(u => u.milestone_id).filter((x): x is number => x != null))
+            .or(`student_ids.is.null,student_ids.cs.{${studentId}}`)
           : Promise.resolve({ data: [] as { session_date: string; kind: string; milestone_id: number | null }[] }),
       ]);
       const ATT: Record<string, string> = { present: '出勤', late: '迟到', leave: '请假', absent: '缺勤' };

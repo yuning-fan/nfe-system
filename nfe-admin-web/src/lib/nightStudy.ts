@@ -106,6 +106,19 @@ export async function loadTeacherOptions(): Promise<{ name: string; id: string |
   return [...out].map(([name, id]) => ({ name, id }));
 }
 
+// 小课选学生：选了该科（未退课）的学生。分两步查，避免 enrollments→profiles 嵌套的外键歧义
+export async function loadSubjectStudents(subjectId: number): Promise<{ id: string; name: string }[]> {
+  const { data: sels, error } = await supabase.from('student_subject_selections')
+    .select('status, student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id)')
+    .eq('program_subject_id', subjectId).neq('status', 'dropped');
+  if (error) throw error;
+  const ids = [...new Set((sels || []).map((x: any) => (Array.isArray(x.student_enrollments) ? x.student_enrollments[0] : x.student_enrollments)?.student_id).filter(Boolean))] as string[];
+  if (!ids.length) return [];
+  const { data: ps, error: pErr } = await supabase.from('profiles').select('id, full_name').in('id', ids).order('full_name');
+  if (pErr) throw pErr;
+  return (ps || []).map(p => ({ id: p.id, name: p.full_name || '' }));
+}
+
 // ───────────── Word 导出（版式对齐 Gris 现行的《晚自习各老师工作安排》）─────────────
 const FONT = '微软雅黑';
 const run = (t: string, o: any = {}) => new TextRun({ text: t, font: FONT, size: 20, ...o });

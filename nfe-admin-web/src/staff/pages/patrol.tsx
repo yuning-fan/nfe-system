@@ -155,10 +155,20 @@ export function PatrolStudents() {
 // 今晚课程（只读）：来自「学业管理 → 晚自习排课」，点名时知道今晚哪间教室在上什么
 function TonightSessions() {
   const [list, setList] = useState<NightSession[] | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
   useEffect(() => {
     supabase.from('night_study_sessions').select('*').eq('session_date', nzToday())
       .order('start_time', { nullsFirst: true })
-      .then(({ data }) => setList((data || []) as NightSession[]));
+      .then(async ({ data }) => {
+        const rows = (data || []) as NightSession[];
+        setList(rows);
+        // 小课名单显示学生名字，点名时知道谁该在哪节课
+        const ids = [...new Set(rows.flatMap(r => r.student_ids || []))];
+        if (ids.length) {
+          const { data: ps } = await supabase.from('profiles').select('id, full_name').in('id', ids);
+          setNames(Object.fromEntries((ps || []).map(p => [p.id, p.full_name || ''])));
+        }
+      });
   }, []);
   if (!list || !list.length) return null;
   return (
@@ -171,6 +181,7 @@ function TonightSessions() {
             <span style={{ marginLeft: 6 }}>{s.subject?.replace(/ \(English for Academic Purposes\)/, '') || ''} {KIND_LABEL[s.kind] || ''}</span>
             {s.teacher_name && <span style={{ color: 'var(--color-text-secondary)' }}> · {s.teacher_name}</span>}
             <div style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>{s.topic}</div>
+            {!!s.student_ids?.length && <div style={{ fontSize: 12 }}>小课：{s.student_ids.map(id => names[id] || '…').join('、')}</div>}
           </div>
         ))}
       </div>
