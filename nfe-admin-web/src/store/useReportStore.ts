@@ -267,14 +267,21 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
     const gr = mine || [];
     const subjectIds = Array.from(new Set(gr.map(g => g.program_subject_id).filter((x): x is number => x != null)));
 
-    // 同批：同科所有选课学生 × 同批次；成绩取这些人在该科的全部记录
-    const [{ data: cohortSels }, { data: cohortGrades }, { data: notes }] = subjectIds.length ? await Promise.all([
-      supabase.from('student_subject_selections')
-        .select('program_subject_id, student_enrollments!student_subject_selections_enrollment_id_fkey!inner(student_id, start_date)')
-        .in('program_subject_id', subjectIds),
-      supabase.from('grade_records').select('student_id, milestone_id, program_subject_id, score').in('program_subject_id', subjectIds),
-      supabase.from('milestone_exam_notes').select('milestone_id, intake_start, exam_focus, paper_features'),
-    ]) : [{ data: [] }, { data: [] }, { data: [] }] as any[];
+    // 同批成绩走 RPC cohort_grades(科目, 批次)：grade_records 有学生维度 RLS，
+    // 学管直查只读得到自己名下学生 → 同批人数会缩水（李菲 Communication 曾显示 6 人、实为 16 人）。
+    // RPC 是 SECURITY DEFINER，只返回匿名的 (peer_key, milestone_id, score)，不含学生身份。
+    // peer_key 用于把同一个人的分数归组，父节点分数要由子项加权算出，故不能只取聚合值。
+    const cohortBySubject = new Map<number, { peer_key: number; milestone_id: number; score: number | null }[]>();
+    const { data: notes } = subjectIds.length
+      ? await supabase.from('milestone_exam_notes').select('milestone_id, intake_start, exam_focus, paper_features')
+      : { data: [] } as any;
+    await Promise.all(subjectIds.map(async sid => {
+      const intake = subjIntake.get(sid);
+      if (!intake) return;                       // 无批次则不做同批对比
+      const { data, error } = await supabase.rpc('cohort_grades', { p_subject_id: sid, p_intake: intake });
+      if (error) throw error;                    // 同批数据取不到要暴露，别静默退化成「少于3人不对比」
+      cohortBySubject.set(sid, (data || []) as any[]);
+    }));
 
     const allNodes = (nodes || []) as any[];
     const upcoming: ReportUpcoming[] = [];
@@ -288,19 +295,18 @@ async function prefillAcademic(studentId: string, start: string, end: string): P
       const myScore = (nodeId: number) => { const g = gr.find(x => x.milestone_id === nodeId); return g?.score != null ? Number(g.score) : null; };
       const r = computeSubject(subjectNodes, myScore, passMark);
 
-      // 同批同学：同科、同批次、不含无批次者；每人跑一遍 computeSubject，父节点（子项加权）也能比
-      const peers = new Set<string>();
-      for (const x of (cohortSels || []) as any[]) {
-        if (x.program_subject_id !== sid) continue;
-        const en = Array.isArray(x.student_enrollments) ? x.student_enrollments[0] : x.student_enrollments;
-        if (en?.student_id && intake && en.start_date === intake) peers.add(en.student_id);
+      // 同批同学：按 peer_key 归组，每人跑一遍 computeSubject，父节点（子项加权）也能比。
+      // RPC 已按「同科 + 同批次 + 未退课」圈好人，这里不再重复过滤。
+      const byPeer = new Map<number, Map<number, number>>();
+      for (const g of cohortBySubject.get(sid) || []) {
+        if (g.score == null) continue;
+        let m = byPeer.get(g.peer_key);
+        if (!m) { m = new Map(); byPeer.set(g.peer_key, m); }
+        m.set(g.milestone_id, Number(g.score));
       }
-      peers.add(studentId);
-      const peerRows = Array.from(peers).map(pid => {
-        const pg = ((cohortGrades || []) as any[]).filter(g => g.student_id === pid && g.program_subject_id === sid);
-        const sc = (nodeId: number) => { const g = pg.find(x => x.milestone_id === nodeId); return g?.score != null ? Number(g.score) : null; };
-        return { pid, rows: computeSubject(subjectNodes, sc, passMark).rows };
-      });
+      const peerRows = Array.from(byPeer.values()).map(m => ({
+        rows: computeSubject(subjectNodes, (nodeId: number) => m.get(nodeId) ?? null, passMark).rows,
+      }));
 
       const resolve = (n: any) => {
         const rd = resolveNodeDate(n, intake, (intakeDates || []) as IntakeDate[], meta?.node_dates_intake);

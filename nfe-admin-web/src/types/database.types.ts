@@ -3529,6 +3529,11 @@ export type Database = {
     }
     Functions: {
       can_see_student: { Args: { target: string }; Returns: boolean }
+      // 同批匿名成绩：绕过 grade_records 的 RLS 做排名，不返回学生身份
+      cohort_grades: {
+        Args: { p_subject_id: number; p_intake: string }
+        Returns: { peer_key: number; milestone_id: number; score: number | null }[]
+      }
       current_user_role: { Args: never; Returns: string }
       is_elevated: { Args: never; Returns: boolean }
     }
