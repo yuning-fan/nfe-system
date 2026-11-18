@@ -10,6 +10,7 @@ import SubjectManagement from './SubjectManagement';
 import MilestoneManagement from './MilestoneManagement';
 import CourseHoursManagement from './CourseHoursManagement';
 import GradeRecordsManagement from './GradeRecordsManagement';
+import GradeOverview from './GradeOverview';
 import TutorScheduleManagement from './TutorScheduleManagement';
 import NightStudyPlanner from './NightStudyPlanner';
 
@@ -94,6 +95,7 @@ export default function AcademicTrack() {
         <div className={`tab ${activeTab === 'nightstudy' ? 'active' : ''}`} onClick={() => setActiveTab('nightstudy')}>晚自习排课</div>
         <div className={`tab ${activeTab === 'hours' ? 'active' : ''}`} onClick={() => setActiveTab('hours')}>课时管理</div>
         <div className={`tab ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => setActiveTab('grades')}>成绩单</div>
+        <div className={`tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>成绩总表</div>
         <div className={`tab ${activeTab === 'milestones' ? 'active' : ''}`} onClick={() => setActiveTab('milestones')}>学业里程碑</div>
       </div>
 
@@ -270,6 +272,7 @@ export default function AcademicTrack() {
       {activeTab === 'milestones' && <MilestoneManagement />}
       {activeTab === 'hours' && <CourseHoursManagement />}
       {activeTab === 'grades' && <GradeRecordsManagement />}
+      {activeTab === 'overview' && <GradeOverview />}
       {activeTab === 'schedule' && <TutorScheduleManagement />}
       {activeTab === 'nightstudy' && <NightStudyPlanner />}
 

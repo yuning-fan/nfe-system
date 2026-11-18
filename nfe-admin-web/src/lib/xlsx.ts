@@ -9,12 +9,17 @@
 
 export type CellValue = string | number | null | undefined;
 
+/** 列的数字格式。num1 = 一位小数；pct0 / pct1 = 百分比（值要传 0.2 这种小数，不是 20）。 */
+export type ColFormat = 'num1' | 'pct0' | 'pct1';
+
 export interface SheetSpec {
   sheetName?: string;
   headers: string[];
   rows: CellValue[][];
   /** 各列宽度（Excel 字符数）；缺省按表头长度估。 */
   colWidths?: number[];
+  /** 各列数字格式，与 headers 等长（可留空洞）。 */
+  colFormats?: (ColFormat | null | undefined)[];
 }
 
 // ---------- ZIP ----------
@@ -133,6 +138,9 @@ function cell(ref: string, v: CellValue, styleIdx: number): string {
   return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${esc(String(v))}</t></is></c>`;
 }
 
+// 列格式 → styles.xml 里 cellXfs 的下标（见 STYLES_XML）
+const FORMAT_STYLE: Record<ColFormat, number> = { num1: 2, pct0: 3, pct1: 4 };
+
 function sheetXml(spec: SheetSpec): string {
   const { headers, rows } = spec;
   const lastCol = colRef(Math.max(headers.length, 1) - 1);
@@ -142,10 +150,16 @@ function sheetXml(spec: SheetSpec): string {
     ?? headers.map(h => Math.min(40, Math.max(8, [...h].reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 2 : 1), 0) + 4)));
   const cols = widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
 
+  // 数字格式只对数值生效：同一列里混了文字（如「—」）时套 numFmt 不会出错，但也没意义
+  const styleAt = (ci: number, v: CellValue) => {
+    const f = spec.colFormats?.[ci];
+    return f && isFiniteNumber(v) ? FORMAT_STYLE[f] : 0;
+  };
+
   const headerRow = `<row r="1">${headers.map((h, i) => cell(colRef(i) + '1', h, 1)).join('')}</row>`;
   const bodyRows = rows.map((r, ri) => {
     const n = ri + 2;
-    return `<row r="${n}">${headers.map((_, ci) => cell(colRef(ci) + n, r[ci], 0)).join('')}</row>`;
+    return `<row r="${n}">${headers.map((_, ci) => cell(colRef(ci) + n, r[ci], styleAt(ci, r[ci]))).join('')}</row>`;
   }).join('');
 
   // 子元素顺序由 schema 固定：dimension → sheetViews → cols → sheetData → autoFilter
@@ -162,10 +176,14 @@ function sheetXml(spec: SheetSpec): string {
     `</worksheet>`;
 }
 
-// Excel 要求 fills 至少含 none 与 gray125 两项，否则判文件损坏
+// Excel 要求 fills 至少含 none 与 gray125 两项，否则判文件损坏。
+// cellXfs 下标被 FORMAT_STYLE 和表头引用，顺序不能动：
+//   0 常规 / 1 表头(粗体+底色) / 2 "0.0" / 3 "0%" / 4 "0.0%"
 const STYLES_XML =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+  `<numFmts count="2"><numFmt numFmtId="164" formatCode="0.0"/>` +
+  `<numFmt numFmtId="165" formatCode="0.0%"/></numFmts>` +
   `<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>` +
   `<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>` +
   `<fills count="3"><fill><patternFill patternType="none"/></fill>` +
@@ -173,16 +191,37 @@ const STYLES_XML =
   `<fill><patternFill patternType="solid"><fgColor rgb="FFF2F4F7"/><bgColor indexed="64"/></patternFill></fill></fills>` +
   `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
   `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-  `<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
-  `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>` +
+  `<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
+  `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>` +
+  `<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
+  `<xf numFmtId="9" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
+  `<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>` +
   `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
   `</styleSheet>`;
 
 /** Excel 工作表名上限 31 字符，且禁用 []:*?/\ */
 const safeSheetName = (n: string) => (n.replace(/[[\]:*?/\\]/g, '_').slice(0, 31) || 'Sheet1');
 
-export function buildXlsx(spec: SheetSpec): Blob {
-  const name = safeSheetName(spec.sheetName || 'Sheet1');
+/** 同名 sheet 会让 Excel 判文件损坏；截到 31 字符后很容易撞名，所以统一去重。 */
+function uniqueSheetNames(specs: SheetSpec[]): string[] {
+  const used = new Set<string>();
+  return specs.map((s, i) => {
+    const base = safeSheetName(s.sheetName || `Sheet${i + 1}`);
+    if (!used.has(base)) { used.add(base); return base; }
+    for (let k = 2; ; k++) {
+      const n = safeSheetName(`${base.slice(0, 31 - String(k).length - 1)}_${k}`);
+      if (!used.has(n)) { used.add(n); return n; }
+    }
+  });
+}
+
+export function buildXlsx(spec: SheetSpec | SheetSpec[]): Blob {
+  const specs = Array.isArray(spec) ? spec : [spec];
+  if (specs.length === 0) throw new Error('buildXlsx: 至少要一个 sheet');
+  const names = uniqueSheetNames(specs);
+  // rId1..rIdN 给各 sheet，rId(N+1) 给 styles —— 加 sheet 时这两处必须一起改
+  const stylesRid = `rId${specs.length + 1}`;
+
   return zip([
     {
       name: '[Content_Types].xml',
@@ -191,7 +230,9 @@ export function buildXlsx(spec: SheetSpec): Blob {
         `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
         `<Default Extension="xml" ContentType="application/xml"/>` +
         `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
-        `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+        specs.map((_, i) =>
+          `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+        ).join('') +
         `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
         `</Types>`,
     },
@@ -207,22 +248,26 @@ export function buildXlsx(spec: SheetSpec): Blob {
       text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
         `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
         `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
-        `<sheets><sheet name="${esc(name)}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        `<sheets>` +
+        names.map((n, i) => `<sheet name="${esc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
+        `</sheets></workbook>`,
     },
     {
       name: 'xl/_rels/workbook.xml.rels',
       text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
         `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-        `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>` +
-        `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+        specs.map((_, i) =>
+          `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+        ).join('') +
+        `<Relationship Id="${stylesRid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         `</Relationships>`,
     },
     { name: 'xl/styles.xml', text: STYLES_XML },
-    { name: 'xl/worksheets/sheet1.xml', text: sheetXml(spec) },
+    ...specs.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, text: sheetXml(s) })),
   ]);
 }
 
-export function downloadXlsx(fileName: string, spec: SheetSpec) {
+export function downloadXlsx(fileName: string, spec: SheetSpec | SheetSpec[]) {
   const url = URL.createObjectURL(buildXlsx(spec));
   const a = document.createElement('a');
   a.href = url;

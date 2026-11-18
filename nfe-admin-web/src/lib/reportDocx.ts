@@ -114,7 +114,8 @@ const GRADE_BANDS: [number, string, number][] = [
 export const gradeOf = (pct: number) => { const b = GRADE_BANDS.find(([min]) => pct >= min)!; return { letter: b[1], points: b[2] }; };
 // GPA → 大致相当的各科均分（每档 5 分，1 分 = 50%）
 const gpaToPct = (g: number) => (g <= 0 ? 0 : r1(45 + 5 * g));
-const isEap = (name: string) => /^EAP/i.test(name);
+// GPA 口径：EAP 是语言课，不计入 UoA 9 分制 GPA。成绩总表页也要用同一判定，故 export。
+export const isEap = (name: string) => /^EAP/i.test(name);
 const short = (name: string) => name.replace(/ \(English for Academic Purposes\)/, '');
 
 export type Tone = 'good' | 'warn' | 'bad' | undefined;
