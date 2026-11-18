@@ -3535,6 +3535,18 @@ export type Database = {
         Returns: { peer_key: number; milestone_id: number; score: number | null }[]
       }
       current_user_role: { Args: never; Returns: string }
+      // 成绩总表页：全员成绩行（含 student_id）。绕过 grade_records 的 can_see_student
+      // RLS，仅 admin/manager/patrol 可执行——全员横比的均分/中位/排名必须基于全体。
+      grade_overview_grades: {
+        Args: never
+        Returns: {
+          student_id: string
+          milestone_id: number
+          score: number | null
+          status: string | null
+          recorded_at: string | null
+        }[]
+      }
       is_elevated: { Args: never; Returns: boolean }
     }
     Enums: {

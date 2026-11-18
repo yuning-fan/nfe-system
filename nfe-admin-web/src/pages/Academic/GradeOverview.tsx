@@ -7,8 +7,8 @@ import { Table, Select, Input, Tooltip, Select as AntSelect, message } from 'ant
 import type { ColumnsType } from 'antd/es/table';
 import { IconTableExport, IconLoader2, IconChartBar } from '@tabler/icons-react';
 import { useAcademicStore } from '../../store/useAcademicStore';
-import { useStudentStore } from '../../store/useStudentStore';
 import { fmtNfeNo } from '../Students/StudentList';
+import { fetchGradeOverviewRaw, type OverviewRaw } from '../../lib/gradeOverviewData';
 import { downloadXlsx, type CellValue, type SheetSpec } from '../../lib/xlsx';
 import {
   buildGradeOverview, buildRiskLists, riskTrigger, MIN_COHORT, DEFAULT_TAKE,
@@ -28,11 +28,13 @@ const scoreStyle = (v: number | null | undefined, passMark: number) =>
     : undefined;
 
 export default function GradeOverview() {
-  const {
-    gradeRecords, milestones, programSubjects, programs,
-    fetchGradeRecords, fetchMilestones, fetchProgramsAndSubjects, isLoading,
-  } = useAcademicStore();
-  const { students, fetchStudents } = useStudentStore();
+  // 节点/科目/项目三张表库里对所有已登录员工开放，继续用公共 store；
+  // 学生名单与成绩走 gradeOverviewData 的全员通道（见那里的注释，别改回 useStudentStore——
+  // 它按可见范围收窄，学管会拿子集算出错误的科均分和排名）。
+  const { milestones, programSubjects, programs, fetchMilestones, fetchProgramsAndSubjects } = useAcademicStore();
+  const [raw, setRaw] = useState<OverviewRaw>({ students: [], grades: [] });
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const [view, setView] = useState<View>('overview');
   const [search, setSearch] = useState('');
@@ -44,12 +46,23 @@ export default function GradeOverview() {
   const [nodeMode, setNodeMode] = useState<'scores' | 'stats'>('scores');
 
   useEffect(() => {
-    fetchGradeRecords(); fetchMilestones(); fetchProgramsAndSubjects(); fetchStudents();
-  }, [fetchGradeRecords, fetchMilestones, fetchProgramsAndSubjects, fetchStudents]);
+    fetchMilestones(); fetchProgramsAndSubjects();
+  }, [fetchMilestones, fetchProgramsAndSubjects]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchGradeOverviewRaw()
+      .then(r => { if (alive) { setRaw(r); setLoadErr(null); } })
+      .catch(e => { if (alive) setLoadErr(e.message || String(e)); })
+      .finally(() => { if (alive) setLoaded(true); });
+    return () => { alive = false; };
+  }, []);
 
   const data = useMemo(
-    () => buildGradeOverview({ students, gradeRecords, milestones, programSubjects, programs }),
-    [students, gradeRecords, milestones, programSubjects, programs]
+    () => buildGradeOverview({
+      students: raw.students, gradeRecords: raw.grades, milestones, programSubjects, programs,
+    }),
+    [raw, milestones, programSubjects, programs]
   );
   const risk = useMemo(() => buildRiskLists(data.cells, take), [data.cells, take]);
 
@@ -348,7 +361,7 @@ export default function GradeOverview() {
     { title: '学管', dataIndex: 'advisor', width: 90, render: (v: string | null) => v || '—' },
   ];
 
-  const loading = isLoading && data.gradeCount === 0;
+  const loading = !loaded;
 
   return (
     <div className="tabpage active">
@@ -405,7 +418,11 @@ export default function GradeOverview() {
         )}
       </div>
 
-      {loading ? (
+      {loadErr ? (
+        <div className="card" style={{ padding: 24, color: 'var(--color-danger)', fontSize: 13 }}>
+          {loadErr}
+        </div>
+      ) : loading ? (
         <div style={{ padding: 40, textAlign: 'center' }}><IconLoader2 className="spinner" size={24} /></div>
       ) : (
         <>

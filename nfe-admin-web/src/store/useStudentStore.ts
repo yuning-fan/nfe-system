@@ -15,7 +15,9 @@ export interface StaffOption { id: string; full_name: string; role: string }
 
 // 把「当前阶段」排到数组首位——档案页各处都取 [0]。
 // 口径与「学业跟进」页一致：在读区间内 > 未来最近开学 > 最近一条；withdrawn 垫底。
-function pickCurrentFirst(list: any[]): any[] {
+// 「当前阶段」的判定口径：在读 > 未来开学 > 已结束 > 退学。
+// 成绩总表页（lib/gradeOverviewData.ts）自己取名单，复用这里的口径，别再写一套。
+export function pickCurrentFirst(list: any[]): any[] {
   if (list.length < 2) return list;
   const today = new Date().toISOString().slice(0, 10);
   const rank = (e: any) => {
